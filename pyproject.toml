@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ares-swarm"
+version = "0.1.0"
+description = "Resilient autonomous multi-UAV coordination for disaster-response missions"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "numpy",
+    "scipy",
+    "networkx",
+    "pyyaml",
+    "pandas",
+    "matplotlib",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+]
+
+ml = [
+    "torch",
+    "torch-geometric",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.setuptools.packages.find]
+where = ["src"]

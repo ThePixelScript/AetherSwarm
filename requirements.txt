@@ -1,0 +1,7 @@
+numpy
+scipy
+networkx
+pyyaml
+pandas
+matplotlib
+pytest

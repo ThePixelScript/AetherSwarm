@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Generated results
+results/*
+!results/.gitkeep
+
+# ML
+*.pt
+*.pth
+*.ckpt
+wandb/
+mlruns/
+
+# Logs
+*.log
+
+# Temporary
+*.tmp
+*.swp
