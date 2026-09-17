@@ -151,13 +151,15 @@ class A0TaskAllocator:
             return False, "UAV is inactive"
 
         # Failure status
-        failure_status = str(getattr(uav, "failure_status", "HEALTHY")).upper()
-        if failure_status in ("FAILURESTATUS.FAILED", "FAILED", "FAILURESTATUS.LOST", "LOST"):
-            return False, f"UAV failure status is {failure_status}"
+        failure = getattr(uav, "failure_state", getattr(uav, "failure_status", "NORMAL"))
+        failure_str = (failure.value if hasattr(failure, "value") else str(failure)).upper().split(".")[-1]
+        if failure_str in ("FAILED", "LOST"):
+            return False, f"UAV failure status is {failure_str}"
 
         # Return to Home (RTH) status
-        rth_state = str(getattr(uav, "rth_state", "NONE")).upper()
-        if rth_state in ("RTHSTATE.RETURNING", "RETURNING", "RTHSTATE.REQUESTED", "REQUESTED"):
+        rth_state_obj = getattr(uav, "rth_state", "NONE")
+        rth_state = (rth_state_obj.value if hasattr(rth_state_obj, "value") else str(rth_state_obj)).upper().split(".")[-1]
+        if rth_state in ("REQUIRED", "ACTIVE", "COMPLETE", "RETURNING", "REQUESTED"):
             return False, f"UAV is in RTH state {rth_state}"
 
         # Role eligibility
@@ -184,7 +186,7 @@ class A0TaskAllocator:
             return False, f"UAV already assigned to task '{assigned_task}'"
 
         # Energy feasibility checks when telemetry is present
-        energy_remaining = getattr(uav, "energy_remaining", None)
+        energy_remaining = getattr(uav, "battery_energy", getattr(uav, "energy_remaining", None))
         estimated_rth = getattr(uav, "estimated_rth_energy", None)
         safety_reserve = getattr(uav, "safety_reserve", self.config.min_safety_reserve_wh)
         if energy_remaining is not None and estimated_rth is not None:
@@ -195,7 +197,7 @@ class A0TaskAllocator:
                     f"<= RTH {float(estimated_rth):.1f}Wh + reserve {float(safety_reserve):.1f}Wh"
                 )
 
-        battery_pct = getattr(uav, "battery_pct", None)
+        battery_pct = getattr(uav, "battery_percent", getattr(uav, "battery_pct", None))
         if battery_pct is not None and float(battery_pct) <= self.config.min_battery_pct:
             return False, f"Battery level {float(battery_pct):.1f}% below minimum threshold {self.config.min_battery_pct:.1f}%"
 
@@ -208,8 +210,9 @@ class A0TaskAllocator:
     ) -> tuple[bool, str]:
         """Check whether a task is eligible for allocation."""
         # Lifecycle status
-        status = str(getattr(task, "status", "PENDING")).upper().split(".")[-1]
-        if status in ("COMPLETED", "FAILED", "CANCELLED"):
+        status_obj = getattr(task, "status", "PENDING")
+        status = (status_obj.value if hasattr(status_obj, "value") else str(status_obj)).upper().split(".")[-1]
+        if status in ("COMPLETED", "COMPLETE", "FAILED", "CANCELLED", "UNREACHABLE"):
             return False, f"Task is in terminal state '{status}'"
         if status in ("ASSIGNED", "IN_PROGRESS"):
             assignee = getattr(task, "assigned_uav_id", None)
@@ -217,7 +220,7 @@ class A0TaskAllocator:
 
         # Task deadline
         deadline = getattr(task, "deadline", None)
-        if deadline is not None and simulation_time >= float(deadline):
+        if deadline is not None and float(deadline) > 0.0 and simulation_time >= float(deadline):
             return False, f"Task deadline {float(deadline):.1f}s expired at t={simulation_time:.1f}s"
 
         return True, ""
@@ -241,14 +244,16 @@ class A0TaskAllocator:
         priority_term = w.wP * priority
 
         # 2. Travel cost term (Euclidean distance)
-        uav_pos = _extract_position(uav.position)
-        task_pos = _extract_position(task.position)
+        uav_pos_val = getattr(uav, "position_xy", getattr(uav, "position", None))
+        task_pos_val = getattr(task, "position_xy", getattr(task, "position", None))
+        uav_pos = _extract_position(uav_pos_val)
+        task_pos = _extract_position(task_pos_val)
         travel_cost = _euclidean_distance(uav_pos, task_pos)
         travel_cost_term = w.wT * travel_cost
 
         # 3. Energy risk term [0.0, 1.0] when data is available
-        battery_pct = getattr(uav, "battery_pct", None)
-        energy_remaining = getattr(uav, "energy_remaining", None)
+        battery_pct = getattr(uav, "battery_percent", getattr(uav, "battery_pct", None))
+        energy_remaining = getattr(uav, "battery_energy", getattr(uav, "energy_remaining", None))
         if battery_pct is not None:
             energy_risk = max(0.0, min(1.0, (100.0 - float(battery_pct)) / 100.0))
         elif energy_remaining is not None:
@@ -317,20 +322,26 @@ class A0TaskAllocator:
         elif snapshot_or_uavs is not None and hasattr(snapshot_or_uavs, "state"):
             # StateSnapshot protocol
             state = snapshot_or_uavs.state
-            raw_uavs = list(getattr(state, "uavs", ()))
-            raw_tasks = list(getattr(state, "tasks", ()))
+            uavs_obj = getattr(state, "uavs", ())
+            tasks_obj = getattr(state, "tasks", ())
+            raw_uavs = list(uavs_obj.values() if isinstance(uavs_obj, Mapping) else uavs_obj)
+            raw_tasks = list(tasks_obj.values() if isinstance(tasks_obj, Mapping) else tasks_obj)
             sim_time = simulation_time if simulation_time is not None else float(getattr(state, "simulation_time", 0.0))
-            revision = snapshot_revision or int(getattr(snapshot_or_uavs, "revision", 0))
+            revision = snapshot_revision or int(getattr(snapshot_or_uavs, "revision", getattr(snapshot_or_uavs, "state_version", 0)))
         elif snapshot_or_uavs is not None and isinstance(snapshot_or_uavs, dict):
-            raw_uavs = list(snapshot_or_uavs.get("uavs", ()))
-            raw_tasks = list(snapshot_or_uavs.get("tasks", ()))
+            uavs_obj = snapshot_or_uavs.get("uavs", ())
+            tasks_obj = snapshot_or_uavs.get("tasks", ())
+            raw_uavs = list(uavs_obj.values() if isinstance(uavs_obj, Mapping) else uavs_obj)
+            raw_tasks = list(tasks_obj.values() if isinstance(tasks_obj, Mapping) else tasks_obj)
             sim_time = simulation_time if simulation_time is not None else float(snapshot_or_uavs.get("simulation_time", 0.0))
-            revision = snapshot_revision or int(snapshot_or_uavs.get("revision", 0))
+            revision = snapshot_revision or int(snapshot_or_uavs.get("revision", snapshot_or_uavs.get("state_version", 0)))
         elif snapshot_or_uavs is not None:
-            raw_uavs = list(getattr(snapshot_or_uavs, "uavs", ()))
-            raw_tasks = list(getattr(snapshot_or_uavs, "tasks", ()))
+            uavs_obj = getattr(snapshot_or_uavs, "uavs", ())
+            tasks_obj = getattr(snapshot_or_uavs, "tasks", ())
+            raw_uavs = list(uavs_obj.values() if isinstance(uavs_obj, Mapping) else uavs_obj)
+            raw_tasks = list(tasks_obj.values() if isinstance(tasks_obj, Mapping) else tasks_obj)
             sim_time = simulation_time if simulation_time is not None else float(getattr(snapshot_or_uavs, "simulation_time", 0.0))
-            revision = snapshot_revision or int(getattr(snapshot_or_uavs, "revision", 0))
+            revision = snapshot_revision or int(getattr(snapshot_or_uavs, "revision", getattr(snapshot_or_uavs, "state_version", 0)))
         else:
             raw_uavs = []
             raw_tasks = []
@@ -366,7 +377,7 @@ class A0TaskAllocator:
         feasible_tasks.sort(
             key=lambda t: (
                 -float(getattr(t, "priority", 1.0)),
-                0 if getattr(t, "is_emergency", False) else 1,
+                0 if (getattr(t, "emergency_flag", False) or getattr(t, "is_emergency", False)) else 1,
                 str(getattr(t, "id", "")),
             )
         )

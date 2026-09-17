@@ -22,16 +22,19 @@ class A0AutonomyAdapter:
         if not eligible_uavs or not pending_tasks:
             return []
 
-        assignments = self.allocator.allocate(eligible_uavs, pending_tasks)
+        allocation_result = self.allocator.allocate(
+            eligible_uavs,
+            pending_tasks,
+            simulation_time=snapshot.simulation_time,
+        )
         commands: List[AssignTaskCommand] = []
 
-        for uav_id in sorted(assignments.keys()):
-            task_id = assignments[uav_id]
+        for assignment in sorted(allocation_result.assignments, key=lambda a: a.uav_id):
             commands.append(
                 AssignTaskCommand(
                     source_tick=snapshot.simulation_tick,
-                    uav_id=uav_id,
-                    task_id=task_id,
+                    uav_id=assignment.uav_id,
+                    task_id=assignment.task_id,
                 )
             )
         return commands
