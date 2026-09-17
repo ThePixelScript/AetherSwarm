@@ -12,8 +12,11 @@ from .task_allocator import (
     UtilityScore,
 )
 
+from .a1_allocator import A1CommunicationAwareAllocator
+
 __all__ = [
     "A0TaskAllocator",
+    "A1CommunicationAwareAllocator",
     "AllocationResult",
     "AllocationWeights",
     "PositionProtocol",
