@@ -20,6 +20,7 @@ ares-validate-config = "ares_swarm.core.config:main"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["src"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
