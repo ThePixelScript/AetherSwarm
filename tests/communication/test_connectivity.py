@@ -2,7 +2,7 @@ import networkx as nx
 import pytest
 from ares_swarm.communication.connectivity import analyze_connectivity
 from ares_swarm.communication.graph import build_network_graph
-from ares_swarm.core.exceptions import ModelError
+
 
 def graph(edges=(), nodes=()):
     result=nx.Graph()
@@ -76,5 +76,5 @@ def test_order_independence_and_immutability():
                                 nx.MultiGraph([("gcs","u")]),
                                 nx.Graph([("gcs","gcs")])])
 def test_invalid_graph(bad):
-    with pytest.raises(ModelError):
+    with pytest.raises(ValueError):
         analyze_connectivity(bad,"gcs")

@@ -3,9 +3,9 @@ import networkx as nx
 import pytest
 from ares_swarm.communication.graph import build_network_graph
 from ares_swarm.communication.channel import LinkCondition, ChannelModel
-from ares_swarm.core.config import CommunicationConfig
-from ares_swarm.core.exceptions import ModelError
-from ares_swarm.core.serialization import dumps
+from ares_swarm.communication.config import CommunicationConfig
+
+import copy
 
 def signature(graph):
     return list(graph.nodes(data=True)), list(graph.edges(data=True)), dict(graph.graph)
@@ -27,7 +27,7 @@ def test_direct_and_chain(snapshot_factory, channel, count):
         assert data["etx"] == 2
         assert data["latency_ms"] == 10
         assert data["active"] and data["range_feasible"]
-        assert data["last_updated"] == snapshot.state.simulation_time
+        assert data["last_updated"] == snapshot.simulation_time
 
 def test_partition_and_failed_intermediate(snapshot_factory,channel):
     positions = (("u1",10,0),("u2",20,0),("u3",100,0),("u4",110,0))
@@ -44,16 +44,16 @@ def test_inactive_excluded(snapshot_factory,channel):
 def test_rebuild_order_and_snapshot_unchanged(snapshot_factory,channel):
     positions=(("u2",20,0),("u1",10,0))
     snapshot=snapshot_factory(positions)
-    before=dumps(snapshot)
+    before=repr(snapshot)
     first=build_network_graph(snapshot,channel)
     assert signature(first) == signature(build_network_graph(snapshot,channel))
     assert signature(first) == signature(build_network_graph(snapshot_factory(positions,reverse=True),channel))
-    assert dumps(snapshot) == before
+    assert repr(snapshot) == before
     with pytest.raises(nx.NetworkXError):
         first.remove_node("gcs")
     first.nodes["u1"]["position"] = "local-only"
     first.edges["gcs","u1"]["etx"] = 99
-    assert dumps(snapshot) == before
+    assert repr(snapshot) == before
     assert build_network_graph(snapshot,channel).edges["gcs","u1"]["etx"] == 2
 
 def test_condition_hooks(snapshot_factory,channel):
@@ -77,5 +77,5 @@ def test_zero_pdr_excluded(snapshot_factory):
     {("gcs","gcs"):LinkCondition()},
 ])
 def test_invalid_conditions(snapshot_factory,channel,conditions):
-    with pytest.raises(ModelError):
+    with pytest.raises(ValueError):
         build_network_graph(snapshot_factory((("u1",1,0),)),channel,conditions=conditions)

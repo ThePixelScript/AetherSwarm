@@ -4,9 +4,9 @@ from itertools import combinations
 from typing import Mapping
 import networkx as nx
 
-from ..core.snapshot import StateSnapshot
-from ..core.validation import require
-from .channel import ChannelModel, LinkCondition, node_available
+from ..core.models import StateSnapshot
+from .validation import require
+from .channel import ChannelModel, LinkCondition, node_available, GCSNode
 
 
 def validate_graph(graph: nx.Graph, gcs_id: str) -> None:
@@ -47,24 +47,32 @@ def build_network_graph(
     """
     require(isinstance(snapshot, StateSnapshot), "expected StateSnapshot")
     require(isinstance(channel, ChannelModel), "expected ChannelModel")
-    state = snapshot.state
-    all_nodes = {state.gcs.id: state.gcs, **{u.id: u for u in state.uavs}}
+    
+    gcs_node = GCSNode(id="gcs", position_xy=snapshot.gcs_position)
+    all_nodes = {"gcs": gcs_node, **snapshot.uavs}
+    
     pair_conditions = normalize_conditions(conditions)
     require(all(a in all_nodes and b in all_nodes for a,b in pair_conditions),
             "condition references unknown node")
+            
     nodes = {uid: node for uid, node in sorted(all_nodes.items()) if node_available(node)}
-    graph = nx.Graph(gcs_id=state.gcs.id, snapshot_revision=snapshot.revision,
-                     simulation_time=state.simulation_time)
+    
+    graph = nx.Graph(gcs_id="gcs", snapshot_revision=snapshot.state_version,
+                     simulation_time=snapshot.simulation_time)
+                     
     for uid, node in nodes.items():
-        graph.add_node(uid, kind="GCS" if uid == state.gcs.id else "UAV",
-                       position=node.position)
+        graph.add_node(uid, kind="GCS" if uid == "gcs" else "UAV",
+                       position=node.position_xy)
+                       
     for a,b in combinations(nodes, 2):
         evaluation = channel.evaluate(
-            nodes[a], nodes[b], simulation_time=state.simulation_time,
-            condition=pair_conditions.get((a,b)))
+            nodes[a], nodes[b], simulation_time=snapshot.simulation_time,
+            condition=pair_conditions.get(tuple(sorted((a,b)))))
+            
         if evaluation.usable:
             link = evaluation.link
             metrics = {field.name: getattr(link, field.name) for field in fields(link)}
             graph.add_edge(a,b, **metrics, link=link, range_feasible=True)
+            
     # Topology is read-only; attribute dictionaries remain local derived NetworkX data.
     return nx.freeze(graph)

@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from typing import Mapping
 import networkx as nx
 
-from ..core.validation import Validated, freeze
+from .validation import Validated, freeze
 from .graph import validate_graph
 
 

@@ -3,7 +3,7 @@ import networkx as nx
 import pytest
 from ares_swarm.communication.routing import shortest_hop_routes
 from ares_swarm.communication.graph import build_network_graph
-from ares_swarm.core.exceptions import ModelError
+
 
 def make(edges=(), nodes=()):
     graph=nx.Graph()
@@ -66,5 +66,5 @@ def test_exhaustive_small_graph_oracle():
             assert routes[uid] == expected
 
 def test_invalid_directed_graph():
-    with pytest.raises(ModelError):
+    with pytest.raises(ValueError):
         shortest_hop_routes(nx.DiGraph([("u","gcs")]),"gcs")

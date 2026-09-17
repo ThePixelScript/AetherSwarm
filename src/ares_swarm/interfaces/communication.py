@@ -2,9 +2,9 @@
 from dataclasses import dataclass, field
 from typing import Mapping, Protocol
 
-from ..core.models import NetworkState, LinkState
-from ..core.snapshot import StateSnapshot
-from ..core.validation import Validated, nonnegative, freeze, require
+from ..communication.models import NetworkState, LinkState
+from ..core.models import StateSnapshot
+from ..communication.validation import Validated, nonnegative, freeze, require
 
 
 @dataclass(frozen=True, slots=True)

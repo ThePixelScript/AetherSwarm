@@ -3,10 +3,10 @@ from dataclasses import dataclass, field
 from types import MappingProxyType
 from typing import Mapping
 
-from ..core.config import CommunicationConfig
-from ..core.models import NetworkState
-from ..core.snapshot import StateSnapshot
-from ..core.validation import Validated
+from .config import CommunicationConfig
+from .models import NetworkState
+from ..core.models import StateSnapshot
+from .validation import Validated
 from ..interfaces.communication import NetworkAnalysis
 from .channel import ChannelModel, LinkCondition
 from .graph import build_network_graph, normalize_conditions
@@ -21,23 +21,22 @@ class BaselineCommunicationAnalyzer(Validated):
     conditions: Mapping[tuple[str, str], LinkCondition] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
-        super(BaselineCommunicationAnalyzer, self).__post_init__()
         object.__setattr__(self, "conditions", MappingProxyType(normalize_conditions(self.conditions)))
 
     def analyze(self, snapshot: StateSnapshot) -> NetworkAnalysis:
         """Rebuild topology and report it without modifying any authoritative state."""
         graph = build_network_graph(snapshot, ChannelModel(self.config), conditions=self.conditions)
-        gcs_id = snapshot.state.gcs.id
+        gcs_id = "gcs"
         connectivity = analyze_connectivity(graph, gcs_id)
         routes = shortest_hop_routes(graph, gcs_id)
         links = tuple(sorted((data["link"] for _,_,data in graph.edges(data=True)),
                              key=lambda link: (link.source_id, link.target_id)))
         return NetworkAnalysis(
-            snapshot_revision=snapshot.revision,
-            network=NetworkState(links=links, recovery_state=snapshot.state.network.recovery_state),
+            snapshot_revision=snapshot.state_version,
+            network=NetworkState(links=links),
             connected_uav_ids=connectivity.connected_uav_ids,
             gcs_id=gcs_id,
-            simulation_time=snapshot.state.simulation_time,
+            simulation_time=snapshot.simulation_time,
             disconnected_uav_ids=connectivity.disconnected_uav_ids,
             components=connectivity.components,
             routes_to_gcs=routes,
