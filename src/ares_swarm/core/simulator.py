@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from ares_swarm.core.commands import StartRTHCommand, StepPhysicsCommand
+from ares_swarm.core.enums import FailureState
 from ares_swarm.core.kinematics import move_towards
 from ares_swarm.core.state_store import StateStore
 from ares_swarm.energy.battery import calculate_energy_cost
@@ -67,6 +68,12 @@ class SimulationEngine:
 
         for uav_id in sorted(snapshot.uavs):
             uav = snapshot.uavs[uav_id]
+
+            if not uav.active:
+                continue
+
+            if uav.failure_state == FailureState.FAILED:
+                continue
 
             if uav.target_position is None:
                 continue

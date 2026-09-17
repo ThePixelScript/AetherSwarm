@@ -1,5 +1,5 @@
 from types import MappingProxyType
-
+from ares_swarm.core.enums import FailureState
 from ares_swarm.core.models import StateSnapshot, UAVState
 from ares_swarm.core.state_store import StateStore
 from ares_swarm.core.simulator import SimulationEngine
@@ -311,3 +311,75 @@ def test_step_swarm_updates_velocity_and_battery_through_state_store():
     assert updated.position_xy == (5.0, 0.0)
     assert updated.velocity_xy == (5.0, 0.0)
     assert updated.battery_energy == 96.5
+def test_step_swarm_skips_inactive_uav():
+    uav = UAVState(
+        id="u1",
+        position_xy=(0.0, 0.0),
+        target_position=(10.0, 0.0),
+        battery_energy=100.0,
+        active=False,
+    )
+
+    snapshot = StateSnapshot(
+        simulation_tick=0,
+        simulation_time=0.0,
+        state_version=0,
+        uavs=MappingProxyType({"u1": uav}),
+        tasks=MappingProxyType({}),
+    )
+
+    store = StateStore(snapshot)
+    engine = SimulationEngine(store)
+
+    result = engine.step_swarm()
+
+    assert result.applied_commands == ()
+    assert store.snapshot().uavs["u1"].position_xy == (0.0, 0.0)
+def test_step_swarm_skips_failed_uav():
+    uav = UAVState(
+        id="u1",
+        position_xy=(0.0, 0.0),
+        target_position=(10.0, 0.0),
+        battery_energy=100.0,
+        failure_state=FailureState.FAILED,
+    )
+
+    snapshot = StateSnapshot(
+        simulation_tick=0,
+        simulation_time=0.0,
+        state_version=0,
+        uavs=MappingProxyType({"u1": uav}),
+        tasks=MappingProxyType({}),
+    )
+
+    store = StateStore(snapshot)
+    engine = SimulationEngine(store)
+
+    result = engine.step_swarm()
+
+    assert result.applied_commands == ()
+    assert store.snapshot().uavs["u1"].position_xy == (0.0, 0.0)
+def test_step_swarm_steps_active_uav():
+    uav = UAVState(
+        id="u1",
+        position_xy=(0.0, 0.0),
+        target_position=(10.0, 0.0),
+        battery_energy=100.0,
+        active=True,
+    )
+
+    snapshot = StateSnapshot(
+        simulation_tick=0,
+        simulation_time=0.0,
+        state_version=0,
+        uavs=MappingProxyType({"u1": uav}),
+        tasks=MappingProxyType({}),
+    )
+
+    store = StateStore(snapshot)
+    engine = SimulationEngine(store)
+
+    result = engine.step_swarm()
+
+    assert len(result.applied_commands) == 1
+    assert store.snapshot().uavs["u1"].position_xy == (5.0, 0.0)
