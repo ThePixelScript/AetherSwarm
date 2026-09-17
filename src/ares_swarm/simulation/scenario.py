@@ -23,9 +23,13 @@ class ScenarioConfig:
     gcs_position: tuple[float, float] = (0.0, 0.0)
     arena_bounds_x: tuple[float, float] = (-100.0, 100.0)
     arena_bounds_y: tuple[float, float] = (-100.0, 100.0)
+    max_height: float = 100.0
+    min_separation_m: float = 20.0
     communication: CommunicationConfig = field(default_factory=CommunicationConfig)
     battery_idle_rate: float = 1.0
     battery_movement_rate: float = 0.5
+    enable_auto_rth: bool = True
+    return_by_mission_end: bool = False
     uavs: tuple[dict[str, Any], ...] = ()
     tasks: tuple[dict[str, Any], ...] = ()
 
@@ -68,6 +72,8 @@ def load_scenario(source: str | Path | dict[str, Any]) -> ScenarioConfig:
         float(arena_raw.get("bounds_y", (-100.0, 100.0))[0]),
         float(arena_raw.get("bounds_y", (-100.0, 100.0))[1]),
     )
+    max_height = float(arena_raw.get("max_height", raw.get("max_height", 100.0)))
+    min_separation_m = float(raw.get("min_separation_m", 20.0))
 
     comm_raw = raw.get("communication", {})
     communication = CommunicationConfig(
@@ -80,6 +86,8 @@ def load_scenario(source: str | Path | dict[str, Any]) -> ScenarioConfig:
     battery_raw = raw.get("battery", {})
     battery_idle_rate = float(battery_raw.get("idle_rate", 1.0))
     battery_movement_rate = float(battery_raw.get("movement_rate", 0.5))
+    enable_auto_rth = bool(raw.get("enable_auto_rth", True))
+    return_by_mission_end = bool(raw.get("return_by_mission_end", False))
 
     uavs_raw = tuple(raw.get("uavs", []))
     tasks_raw = tuple(raw.get("tasks", []))
@@ -94,9 +102,13 @@ def load_scenario(source: str | Path | dict[str, Any]) -> ScenarioConfig:
         gcs_position=gcs_position,
         arena_bounds_x=arena_bounds_x,
         arena_bounds_y=arena_bounds_y,
+        max_height=max_height,
+        min_separation_m=min_separation_m,
         communication=communication,
         battery_idle_rate=battery_idle_rate,
         battery_movement_rate=battery_movement_rate,
+        enable_auto_rth=enable_auto_rth,
+        return_by_mission_end=return_by_mission_end,
         uavs=uavs_raw,
         tasks=tasks_raw,
     )
@@ -133,10 +145,21 @@ def create_initial_snapshot(scenario: ScenarioConfig) -> StateSnapshot:
         priority = int(item.get("priority", 1))
         service_duration = float(item.get("service_duration", item.get("required_progress", 1.0)))
 
+        created_time = float(item.get("created_time", item.get("spawn_time", 0.0)))
+        deadline_raw = float(item.get("deadline", item.get("deadline_offset", 0.0)))
+        if deadline_raw > 0.0 and deadline_raw < created_time:
+            deadline = created_time + deadline_raw
+        elif deadline_raw > 0.0:
+            deadline = deadline_raw
+        else:
+            deadline = 0.0
+
         tasks[t_id] = TaskState(
             id=t_id,
             position_xy=pos_xy,
             priority=priority,
+            created_time=created_time,
+            deadline=deadline,
             service_duration=service_duration,
             status=TaskStatus(item.get("status", "PENDING")),
             emergency_flag=bool(item.get("emergency_flag", False)),

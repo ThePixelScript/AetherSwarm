@@ -1,0 +1,124 @@
+# Official Organizer Sample Scenario for ARES Swarm Round-1 PoC
+name: poc_round1_mission
+seed: 42
+dt: 1.0
+speed_limit: 5.0
+duration: 2700.0
+max_ticks: 2700
+
+# GCS located outside the 1000x1000 arena
+gcs_position: [-50.0, 500.0]
+
+# 1000x1000m arena
+arena:
+  bounds_x: [0.0, 1000.0]
+  bounds_y: [0.0, 1000.0]
+  max_height: 100.0
+
+# Safety constraints
+min_separation_m: 20.0
+enable_auto_rth: true
+return_by_mission_end: true
+
+# RF Communication model (100m range constraint)
+communication:
+  max_range: 100.0
+  base_latency: 5.0
+  packet_loss: 0.0
+  degradation_multiplier: 1.0
+
+# Battery endurance (20 min max flight endurance = 1200s at 3.5 Wh/s => 4200 Wh capacity)
+battery:
+  idle_rate: 1.0
+  movement_rate: 0.5
+
+# Swarm initial state near operational center [50.0, 500.0], strictly separated >= 20m (40m lane spacing)
+uavs:
+  - id: uav_1
+    position: [50.0, 420.0]
+    battery_capacity: 4200.0
+    battery_energy: 4200.0
+    role: IDLE
+  - id: uav_2
+    position: [50.0, 460.0]
+    battery_capacity: 4200.0
+    battery_energy: 4200.0
+    role: IDLE
+  - id: uav_3
+    position: [50.0, 500.0]
+    battery_capacity: 4200.0
+    battery_energy: 4200.0
+    role: IDLE
+  - id: uav_4
+    position: [50.0, 540.0]
+    battery_capacity: 4200.0
+    battery_energy: 4200.0
+    role: IDLE
+  - id: uav_5
+    position: [50.0, 580.0]
+    battery_capacity: 4200.0
+    battery_energy: 4200.0
+    role: IDLE
+
+# 10 PoIs with dynamic scheduled appearance and 10s detection/reporting deadline
+tasks:
+  - id: poi_01
+    position: [80.0, 420.0]
+    priority: 3
+    spawn_time: 0.0
+    deadline_offset: 10.0
+    service_duration: 2.0
+  - id: poi_02
+    position: [80.0, 460.0]
+    priority: 2
+    spawn_time: 30.0
+    deadline_offset: 10.0
+    service_duration: 2.0
+  - id: poi_03
+    position: [80.0, 500.0]
+    priority: 3
+    spawn_time: 60.0
+    deadline_offset: 10.0
+    service_duration: 2.0
+  - id: poi_04
+    position: [80.0, 540.0]
+    priority: 1
+    spawn_time: 90.0
+    deadline_offset: 10.0
+    service_duration: 2.0
+  - id: poi_05
+    position: [80.0, 580.0]
+    priority: 2
+    spawn_time: 120.0
+    deadline_offset: 10.0
+    service_duration: 2.0
+  - id: poi_06
+    position: [120.0, 420.0]
+    priority: 3
+    spawn_time: 180.0
+    deadline_offset: 10.0
+    service_duration: 2.0
+  - id: poi_07
+    position: [120.0, 460.0]
+    priority: 2
+    spawn_time: 240.0
+    deadline_offset: 10.0
+    service_duration: 2.0
+  - id: poi_08
+    position: [120.0, 500.0]
+    priority: 1
+    spawn_time: 300.0
+    deadline_offset: 10.0
+    service_duration: 2.0
+  - id: poi_09
+    position: [120.0, 540.0]
+    priority: 3
+    spawn_time: 360.0
+    deadline_offset: 10.0
+    service_duration: 2.0
+  - id: poi_10
+    position: [120.0, 580.0]
+    priority: 2
+    spawn_time: 420.0
+    deadline_offset: 10.0
+    service_duration: 2.0

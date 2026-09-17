@@ -175,4 +175,7 @@ def test_ares_simulate_cli(tmp_path):
     assert data["scenario_name"] == "basic_mission"
     assert data["total_ticks"] == 4
     assert data["seed"] == 42
-    assert data["metrics"]["tasks_assigned"] == 2
+    assert data["metrics"]["tasks_total"] == 2
+    assert data["metrics"]["tasks_completed"] == 2
+    assert data["metrics"]["tasks_assigned"] == 0
+    assert data["metrics"]["mission_completion_rate"] == 1.0
