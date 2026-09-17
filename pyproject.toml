@@ -26,6 +26,9 @@ ml = [
     "torch-geometric",
 ]
 
+[project.scripts]
+ares-simulate = "ares_swarm.simulation.runner:main"
+
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 testpaths = ["tests"]

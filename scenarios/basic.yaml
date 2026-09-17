@@ -1,0 +1,48 @@
+name: "basic_mission"
+seed: 42
+duration: 10.0
+dt: 1.0
+speed_limit: 5.0
+
+gcs_position: [0.0, 0.0]
+
+arena:
+  bounds_x: [-100.0, 100.0]
+  bounds_y: [-100.0, 100.0]
+
+communication:
+  max_range: 1000.0
+  base_latency: 5.0
+  packet_loss: 0.0
+  degradation_multiplier: 1.0
+
+battery:
+  idle_rate: 1.0
+  movement_rate: 0.5
+
+uavs:
+  - id: "u1"
+    position: [0.0, 0.0]
+    battery_capacity: 100.0
+    battery_energy: 100.0
+    role: "IDLE"
+  - id: "u2"
+    position: [0.0, 0.0]
+    battery_capacity: 100.0
+    battery_energy: 100.0
+    role: "IDLE"
+  - id: "u3"
+    position: [0.0, 0.0]
+    battery_capacity: 100.0
+    battery_energy: 100.0
+    role: "IDLE"
+
+tasks:
+  - id: "t_high"
+    position: [0.0, 10.0]
+    priority: 2
+    service_duration: 2.0
+  - id: "t_low"
+    position: [10.0, 0.0]
+    priority: 1
+    service_duration: 2.0
