@@ -29,34 +29,34 @@ class BaselineCommunicationAnalyzer(Validated):
 
     def analyze(self, snapshot: StateSnapshot) -> NetworkAnalysis:
         """Rebuild topology and report it without modifying any authoritative state."""
-        
+
         # Merge scenario-driven conditions for the current simulation time
         resolved = resolve_conditions(snapshot.simulation_time, self.scenario_conditions)
         active_conditions = dict(self.conditions)
-        
+
         for pair, cond in resolved.items():
             active_conditions[pair] = cond
-            
+
         active_conditions = normalize_conditions(active_conditions)
-        
+
         graph = build_network_graph(snapshot, ChannelModel(self.config), conditions=active_conditions)
         gcs_id = "gcs"
         connectivity = analyze_connectivity(graph, gcs_id)
-        
+
         # M0 shortest hop routes
         routes = shortest_hop_routes(graph, gcs_id)
-        
+
         # M2 reliability-aware weighted routes (optional)
         reliable_routes = reliability_aware_routes(graph, gcs_id, self.routing_weights)
-        
+
         links = tuple(sorted((data["link"] for _,_,data in graph.edges(data=True)),
                              key=lambda link: (link.source_id, link.target_id)))
-                             
+
         reliable_hop_counts = {
             uid: len(r) - 1 if r is not None else None
             for uid, r in reliable_routes.items()
         }
-                             
+
         return NetworkAnalysis(
             snapshot_revision=snapshot.state_version,
             network=NetworkState(links=links),
@@ -74,11 +74,19 @@ class BaselineCommunicationAnalyzer(Validated):
         )
 
 
-def route_latency_ms(analysis: NetworkAnalysis, route: tuple[str, ...]) -> float | None:
-    """Calculate the end-to-end latency sum for a specific route based on derived edge metrics."""
-    if not route or len(route) < 2:
+def route_latency_ms(analysis: NetworkAnalysis, route: tuple[str, ...] | None) -> float | None:
+    """Calculate the end-to-end latency sum for a specific route based on derived edge metrics.
+
+    - Valid multi-hop route -> summed latency
+    - Single-node route (e.g., GCS only) -> 0.0
+    - Route is None or empty -> None
+    - Missing/unusable link in route -> None
+    """
+    if not route:
         return None
-        
+    if len(route) == 1:
+        return 0.0
+
     total_ms = 0.0
     for a, b in zip(route, route[1:]):
         pair = tuple(sorted((a, b)))
@@ -86,5 +94,5 @@ def route_latency_ms(analysis: NetworkAnalysis, route: tuple[str, ...]) -> float
         if link is None:
             return None
         total_ms += link.latency_ms
-        
+
     return total_ms
