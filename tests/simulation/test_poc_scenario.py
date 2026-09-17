@@ -2,7 +2,7 @@
 from pathlib import Path
 import pytest
 
-from ares_swarm.core.enums import TaskStatus
+from ares_swarm.core.enums import EventType, Role, RTHState, TaskStatus
 from ares_swarm.simulation.runner import MissionRunner
 from ares_swarm.simulation.scenario import load_scenario
 
@@ -125,13 +125,21 @@ def test_poc_round1_full_duration_execution():
     assert eval_metrics["safety"]["battery_exhaustion_count"] == 0
     assert eval_metrics["safety"]["geofence_violation_count"] == 0
 
-    # All UAVs returned to GCS by mission end
+    # All UAVs returned to GCS and completed RTH landing by mission end
+    landed_events = [e for e in result.all_events if e.event_type == EventType.UAV_LANDED]
+    assert len(landed_events) == 5
+
     for uid, u in result.final_snapshot.uavs.items():
         dx = u.position_xy[0] - result.final_snapshot.gcs_position[0]
         dy = u.position_xy[1] - result.final_snapshot.gcs_position[1]
         dist_gcs = (dx**2 + dy**2) ** 0.5
         assert dist_gcs <= 1.0, f"UAV {uid} did not return to GCS: {dist_gcs:.2f}m away"
         assert u.battery_energy > 0.0, f"UAV {uid} exhausted battery"
+        assert u.rth_state == RTHState.COMPLETE, f"UAV {uid} rth_state is not COMPLETE"
+        assert u.active is False, f"UAV {uid} active is not False after landing"
+        assert u.role == Role.IDLE, f"UAV {uid} role is not IDLE after landing"
+        assert u.target_position is None, f"UAV {uid} target_position not cleared after landing"
+        assert u.velocity_xy == (0.0, 0.0), f"UAV {uid} velocity not zeroed after landing"
 
     # Resilience metrics explicitly unsupported/not applicable in M0
     assert eval_metrics["resilience"]["status"] == "NOT_APPLICABLE_M0"

@@ -12,8 +12,14 @@ from typing import Any, Callable, Optional, Sequence
 from ..autonomy.a0_adapter import A0AutonomyAdapter
 from ..autonomy.task_allocator import A0TaskAllocator
 from ..communication.analysis import BaselineCommunicationAnalyzer
-from ..core.commands import AssignTaskCommand, ProgressTaskCommand, SetTargetPositionCommand, StepPhysicsCommand
-from ..core.enums import TaskStatus
+from ..core.commands import (
+    AssignTaskCommand,
+    CompleteRTHCommand,
+    ProgressTaskCommand,
+    SetTargetPositionCommand,
+    StepPhysicsCommand,
+)
+from ..core.enums import RTHState, TaskStatus
 from ..core.events import CommandRejection, DomainEvent, EventType, StateTransitionResult
 from ..core.models import StateSnapshot, TaskState, UAVState
 from ..core.simulator import SimulationEngine
@@ -57,6 +63,8 @@ class MissionResult:
                 "battery_energy": round(u.battery_energy, 4),
                 "battery_percent": round(u.battery_percent, 2),
                 "role": u.role.value if hasattr(u.role, "value") else str(u.role),
+                "rth_state": u.rth_state.value if hasattr(u.rth_state, "value") else str(u.rth_state),
+                "active": u.active,
                 "assigned_task_id": u.assigned_task_id,
             }
             for uid, u in sorted(snap.uavs.items())
@@ -299,14 +307,36 @@ class MissionRunner:
         rejected_commands.extend(step_res.rejected_commands)
         tick_events.extend(step_res.emitted_events)
 
-        # 7. Deterministic Safety Assessment After Physics Movement
+        # 7. RTH Arrival Completion (Canonical CompleteRTHCommand on GCS arrival)
+        snap_post_step = self.state_store.snapshot()
+        complete_rth_cmds = []
+        gcs_pos = self.scenario.gcs_position
+        for uav in sorted(snap_post_step.uavs.values(), key=lambda u: u.id):
+            if uav.rth_state == RTHState.ACTIVE:
+                dx = uav.position_xy[0] - gcs_pos[0]
+                dy = uav.position_xy[1] - gcs_pos[1]
+                dist_to_gcs = (dx**2 + dy**2) ** 0.5
+                if dist_to_gcs <= 0.05:  # Arrived at GCS landing threshold
+                    complete_rth_cmds.append(
+                        CompleteRTHCommand(
+                            source_tick=current_tick,
+                            uav_id=uav.id,
+                        )
+                    )
+        if complete_rth_cmds:
+            res_complete = self.state_store.apply(complete_rth_cmds)
+            applied_commands.extend(res_complete.applied_commands)
+            rejected_commands.extend(res_complete.rejected_commands)
+            tick_events.extend(res_complete.emitted_events)
+
+        # 8. Deterministic Safety Assessment After Physics Movement & Landing
         post_physics_snap = self.state_store.snapshot()
         self.safety_assessor.assess_snapshot(post_physics_snap, net_analysis)
 
-        # 8. Authoritative Clock Advance
+        # 9. Authoritative Clock Advance
         self.sim_engine.advance_tick()
 
-        # 9. Collect updated authoritative state
+        # 10. Collect updated authoritative state
         final_snap = self.state_store.snapshot()
         self.all_events.extend(tick_events)
 
