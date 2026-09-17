@@ -2,8 +2,13 @@ import pytest
 from types import MappingProxyType
 from ares_swarm.core.state_store import StateStore
 from ares_swarm.core.models import UAVState, TaskState, StateSnapshot
-from ares_swarm.core.enums import TaskStatus, RejectionCode, EventType
-from ares_swarm.core.commands import AssignTaskCommand, ProgressTaskCommand
+from ares_swarm.core.enums import Role, RTHState, TaskStatus, RejectionCode, EventType
+from ares_swarm.core.commands import (
+    AssignTaskCommand,
+    ProgressTaskCommand,
+    StartRTHCommand,
+    CompleteRTHCommand,
+)
 
 def test_state_store_atomic_rollback():
     uav = UAVState(id="u1", active=True)
@@ -79,3 +84,43 @@ def test_task_completion():
     assert snap_after.tasks["t1"].status == TaskStatus.COMPLETE
     assert snap_after.tasks["t1"].assigned_uav_id is None
     assert snap_after.uavs["u1"].assigned_task_id is None
+
+def test_rth_full_lifecycle():
+    uav = UAVState(id="u1", active=True, assigned_task_id="t1", rth_state=RTHState.NONE)
+    task = TaskState(
+        id="t1",
+        position_xy=(10.0, 10.0),
+        priority=1,
+        status=TaskStatus.ASSIGNED,
+        assigned_uav_id="u1",
+    )
+    snap = StateSnapshot(
+        simulation_tick=2,
+        simulation_time=2.0,
+        state_version=0,
+        uavs=MappingProxyType({"u1": uav}),
+        tasks=MappingProxyType({"t1": task}),
+        gcs_position=(0.0, 0.0),
+    )
+    store = StateStore(snap)
+
+    # 1. Trigger RTH
+    r1 = store.apply([StartRTHCommand(source_tick=2, uav_id="u1")])
+    assert len(r1.applied_commands) == 1
+    snap1 = store.snapshot()
+    assert snap1.uavs["u1"].rth_state == RTHState.ACTIVE
+    assert snap1.uavs["u1"].assigned_task_id is None
+    assert snap1.uavs["u1"].target_position == (0.0, 0.0)
+    assert snap1.tasks["t1"].status == TaskStatus.DEFERRED
+    assert snap1.tasks["t1"].assigned_uav_id is None
+
+    # 2. Complete RTH arrival
+    r2 = store.apply([CompleteRTHCommand(source_tick=2, uav_id="u1")])
+    assert len(r2.applied_commands) == 1
+    snap2 = store.snapshot()
+    uav_final = snap2.uavs["u1"]
+    assert uav_final.rth_state == RTHState.COMPLETE
+    assert uav_final.active is False
+    assert uav_final.role == Role.IDLE
+    assert uav_final.target_position is None
+    assert any(e.event_type == EventType.UAV_LANDED for e in r2.emitted_events)

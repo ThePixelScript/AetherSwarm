@@ -8,6 +8,7 @@ from typing import Dict, List, Optional, Sequence, Tuple
 from .commands import (
     AssignTaskCommand,
     Command,
+    CompleteRTHCommand,
     ProgressTaskCommand,
     ReleaseTaskCommand,
     SetTargetPositionCommand,
@@ -15,7 +16,7 @@ from .commands import (
     StepPhysicsCommand,
 )
 from .constants import EPSILON
-from .enums import EventType, FailureState, RejectionCode, RTHState, TaskStatus
+from .enums import EventType, FailureState, RejectionCode, Role, RTHState, TaskStatus
 from .events import CommandRejection, DomainEvent, StateTransitionResult
 from .models import StateSnapshot, TaskState, UAVState
 
@@ -152,6 +153,31 @@ class StateStore:
                     payload={},
                     sequence=len(events) + len(staged_events),
                 ))
+
+            elif isinstance(cmd, CompleteRTHCommand):
+                if uav.rth_state != RTHState.ACTIVE:
+                    rejection = CommandRejection(
+                        cmd,
+                        RejectionCode.ILLEGAL_LIFECYCLE_TRANSITION,
+                        f"UAV {uav.id} is in RTHState {uav.rth_state}, expected ACTIVE",
+                    )
+                else:
+                    staged_uavs[uav.id] = replace(
+                        uav,
+                        rth_state=RTHState.COMPLETE,
+                        role=Role.IDLE,
+                        velocity_xy=(0.0, 0.0),
+                        target_position=None,
+                        active=False,
+                    )
+                    staged_events.append(DomainEvent.create(
+                        simulation_tick=self._simulation_tick,
+                        simulation_time=self._simulation_time,
+                        event_type=EventType.UAV_LANDED,
+                        entity_id=uav.id,
+                        payload={"final_energy": uav.battery_energy},
+                        sequence=len(events) + len(staged_events),
+                    ))
 
             elif isinstance(cmd, SetTargetPositionCommand):
                 staged_uavs[uav.id] = replace(uav, target_position=cmd.target_position)
