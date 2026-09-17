@@ -137,3 +137,177 @@ def test_start_rth_updates_uav_state():
     assert updated.rth_state.value == "ACTIVE"
     assert updated.target_position == (0.0, 0.0)
     assert updated.assigned_task_id is None
+def test_step_swarm_updates_multiple_uavs():
+    uav1 = UAVState(
+        id="u1",
+        position_xy=(0.0, 0.0),
+        target_position=(10.0, 0.0),
+        battery_energy=100.0,
+    )
+
+    uav2 = UAVState(
+        id="u2",
+        position_xy=(0.0, 0.0),
+        target_position=(0.0, 10.0),
+        battery_energy=100.0,
+    )
+
+    snapshot = StateSnapshot(
+        simulation_tick=0,
+        simulation_time=0.0,
+        state_version=0,
+        uavs=MappingProxyType({"u1": uav1, "u2": uav2}),
+        tasks=MappingProxyType({}),
+    )
+
+    store = StateStore(snapshot)
+    engine = SimulationEngine(store)
+
+    engine.step_swarm()
+
+    updated = store.snapshot()
+
+    assert updated.uavs["u1"].position_xy == (5.0, 0.0)
+    assert updated.uavs["u2"].position_xy == (0.0, 5.0)
+def test_step_swarm_uses_deterministic_uav_order():
+    uav2 = UAVState(
+        id="u2",
+        position_xy=(0.0, 0.0),
+        target_position=(10.0, 0.0),
+        battery_energy=100.0,
+    )
+
+    uav1 = UAVState(
+        id="u1",
+        position_xy=(0.0, 0.0),
+        target_position=(0.0, 10.0),
+        battery_energy=100.0,
+    )
+
+    snapshot = StateSnapshot(
+        simulation_tick=5,
+        simulation_time=5.0,
+        state_version=0,
+        uavs=MappingProxyType({"u2": uav2, "u1": uav1}),
+        tasks=MappingProxyType({}),
+    )
+
+    store = StateStore(snapshot)
+    engine = SimulationEngine(store)
+
+    result = engine.step_swarm()
+
+    assert [cmd.uav_id for cmd in result.applied_commands] == ["u1", "u2"]
+def test_step_swarm_uses_one_state_store_apply_call(monkeypatch):
+    uav1 = UAVState(
+        id="u1",
+        position_xy=(0.0, 0.0),
+        target_position=(10.0, 0.0),
+        battery_energy=100.0,
+    )
+
+    uav2 = UAVState(
+        id="u2",
+        position_xy=(0.0, 0.0),
+        target_position=(0.0, 10.0),
+        battery_energy=100.0,
+    )
+
+    snapshot = StateSnapshot(
+        simulation_tick=0,
+        simulation_time=0.0,
+        state_version=0,
+        uavs=MappingProxyType({"u1": uav1, "u2": uav2}),
+        tasks=MappingProxyType({}),
+    )
+
+    store = StateStore(snapshot)
+    engine = SimulationEngine(store)
+
+    calls = []
+    original_apply = store.apply
+
+    def tracked_apply(commands):
+        calls.append(list(commands))
+        return original_apply(commands)
+
+    monkeypatch.setattr(store, "apply", tracked_apply)
+
+    engine.step_swarm()
+
+    assert len(calls) == 1
+    assert len(calls[0]) == 2
+def test_step_swarm_uses_snapshot_tick():
+    uav = UAVState(
+        id="u1",
+        position_xy=(0.0, 0.0),
+        target_position=(10.0, 0.0),
+        battery_energy=100.0,
+    )
+
+    snapshot = StateSnapshot(
+        simulation_tick=7,
+        simulation_time=7.0,
+        state_version=0,
+        uavs=MappingProxyType({"u1": uav}),
+        tasks=MappingProxyType({}),
+    )
+
+    store = StateStore(snapshot)
+    engine = SimulationEngine(store)
+
+    result = engine.step_swarm()
+
+    assert result.applied_commands[0].source_tick == 7
+
+
+def test_step_swarm_enforces_max_speed():
+    uav = UAVState(
+        id="u1",
+        position_xy=(0.0, 0.0),
+        target_position=(20.0, 0.0),
+        battery_energy=100.0,
+    )
+
+    snapshot = StateSnapshot(
+        simulation_tick=0,
+        simulation_time=0.0,
+        state_version=0,
+        uavs=MappingProxyType({"u1": uav}),
+        tasks=MappingProxyType({}),
+    )
+
+    store = StateStore(snapshot)
+    engine = SimulationEngine(store)
+
+    try:
+        engine.step_swarm(speed=6.0)
+        assert False
+    except ValueError:
+        assert True
+def test_step_swarm_updates_velocity_and_battery_through_state_store():
+    uav = UAVState(
+        id="u1",
+        position_xy=(0.0, 0.0),
+        target_position=(10.0, 0.0),
+        battery_energy=100.0,
+    )
+
+    snapshot = StateSnapshot(
+        simulation_tick=0,
+        simulation_time=0.0,
+        state_version=0,
+        uavs=MappingProxyType({"u1": uav}),
+        tasks=MappingProxyType({}),
+    )
+
+    store = StateStore(snapshot)
+    engine = SimulationEngine(store)
+
+    engine.step_swarm()
+
+    updated = store.snapshot().uavs["u1"]
+
+    assert updated.position_xy == (5.0, 0.0)
+    assert updated.velocity_xy == (5.0, 0.0)
+    assert updated.battery_energy == 96.5
