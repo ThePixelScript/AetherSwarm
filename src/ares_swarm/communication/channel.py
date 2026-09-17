@@ -1,7 +1,7 @@
 """Deterministic Stage-1 link abstraction; no physical-radio accuracy claim."""
 from dataclasses import dataclass
 from math import hypot, isfinite
-from typing import Union, Tuple
+from typing import Union, Tuple, Optional
 
 from .config import CommunicationConfig
 from ..core.enums import FailureState
@@ -16,12 +16,14 @@ class LinkCondition(Validated):
     quality_multiplier: float = 1.0
     latency_penalty_ms: float = 0.0
     outage: bool = False
+    packet_loss_override: Optional[float] = None
 
     def __post_init__(self) -> None:
-        
         require(0 <= self.quality_multiplier <= 1, "quality multiplier must be in [0,1]")
         nonnegative(self.latency_penalty_ms)
         require(isinstance(self.outage, bool), "outage must be bool")
+        if self.packet_loss_override is not None:
+            require(0 <= self.packet_loss_override <= 1, "packet_loss_override must be in [0,1]")
 
 
 @dataclass(frozen=True, slots=True)
@@ -79,7 +81,7 @@ class ChannelModel(Validated):
         """Evaluate an unordered pair without touching either endpoint.
 
         q = multiplier / (1 + d/R)
-        loss = 1 - (1-p)*q; PDR = 1-loss; latency = L*(1+d/R)+penalty.
+        loss = override if provided else 1 - (1-p)*q; PDR = 1-loss; latency = L*(1+d/R)+penalty.
         d=R is range-feasible. No positive-PDR threshold is imposed.
         """
         source_available = node_available(source)
@@ -103,7 +105,12 @@ class ChannelModel(Validated):
             return ChannelEvaluation(distance, True, None, "outage")
         ratio = distance / self.config.max_range
         quality = condition.quality_multiplier / (1.0 + ratio)
-        loss = 1.0 - (1.0 - self.config.packet_loss) * quality
+        
+        if condition.packet_loss_override is not None:
+            loss = condition.packet_loss_override
+        else:
+            loss = 1.0 - (1.0 - self.config.packet_loss) * quality
+            
         pdr = 1.0 - loss
         if pdr <= 0.0:
             return ChannelEvaluation(distance, True, None, "zero_pdr")
