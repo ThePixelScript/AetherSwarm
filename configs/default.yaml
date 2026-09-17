@@ -1,0 +1,28 @@
+simulation:
+  timestep: 0.1
+  duration: 600.0
+  seed: 42
+gcs:
+  x: 0.0
+  y: 0.0
+uavs:
+  count: 2
+  speed: 10.0
+  battery_capacity: 100.0
+  communication_range: 200.0
+safety:
+  minimum_separation: 5.0
+  battery_reserve: 10.0
+  geofence:
+    min_x: -50.0
+    max_x: 500.0
+    min_y: -50.0
+    max_y: 500.0
+communication:
+  max_range: 200.0
+  base_latency: 5.0
+  packet_loss: 0.05
+autonomy:
+  role_cooldown: 10.0
+  assignment_cooldown: 5.0
+  minimum_improvement_threshold: 0.1

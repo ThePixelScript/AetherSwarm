@@ -1,7 +1,2 @@
-numpy
-scipy
-networkx
-pyyaml
-pandas
-matplotlib
-pytest
+-c constraints.txt
+-e .[test]

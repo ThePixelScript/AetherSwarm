@@ -7,24 +7,16 @@ name = "ares-swarm"
 version = "0.1.0"
 description = "Resilient autonomous multi-UAV coordination for disaster-response missions"
 requires-python = ">=3.12,<3.13"
-dependencies = [
-    "numpy",
-    "scipy",
-    "networkx",
-    "pyyaml",
-    "pandas",
-    "matplotlib",
-]
+dependencies = ["numpy>=1.26,<3", "PyYAML>=6,<7", "networkx>=3.4,<4"]
 
 [project.optional-dependencies]
-dev = [
-    "pytest",
-]
+test = ["pytest>=8,<10"]
+dev = ["pytest>=8,<10"]
+simulation = ["scipy", "pandas", "matplotlib"]
+ml = ["torch", "torch-geometric"]
 
-ml = [
-    "torch",
-    "torch-geometric",
-]
+[project.scripts]
+ares-validate-config = "ares_swarm.core.config:main"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

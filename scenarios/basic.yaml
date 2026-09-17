@@ -1,0 +1,16 @@
+name: basic
+uavs:
+  - id: uav-1
+    position: {x: 10.0, y: 0.0}
+  - id: uav-2
+    position: {x: 20.0, y: 0.0}
+tasks:
+  - id: poi-1
+    position: {x: 100.0, y: 100.0}
+    priority: 1.0
+    service_duration: 10.0
+events:
+  - id: mission-start
+    timestamp: 0.0
+    event_type: MISSION_START
+    priority: 0

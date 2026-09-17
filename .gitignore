@@ -38,3 +38,8 @@ mlruns/
 # Temporary
 *.tmp
 *.swp
+
+# Python packaging artifacts
+*.egg-info/
+build/
+dist/
