@@ -156,6 +156,7 @@ class MissionRunner:
         seed: int | None = None,
         enable_task_progress: bool = True,
         safety_hook: Optional[Callable[[StateSnapshot, NetworkAnalysis], Any]] = None,
+        autonomy_adapter: Optional[Any] = None,
     ):
         if isinstance(scenario, ScenarioConfig):
             self.scenario = scenario
@@ -165,11 +166,12 @@ class MissionRunner:
         self.seed = seed if seed is not None else self.scenario.seed
         self.enable_task_progress = enable_task_progress
         self.safety_hook = safety_hook
+        self._custom_autonomy_adapter = autonomy_adapter
 
         self.initial_snapshot: StateSnapshot
         self.state_store: StateStore
         self.comm_analyzer: BaselineCommunicationAnalyzer
-        self.autonomy_adapter: A0AutonomyAdapter
+        self.autonomy_adapter: Any
         self.sim_engine: SimulationEngine
         self.safety_assessor = SafetyAssessor(
             arena_bounds_x=self.scenario.arena_bounds_x,
@@ -191,7 +193,10 @@ class MissionRunner:
         self.initial_snapshot = create_initial_snapshot(self.scenario)
         self.state_store = StateStore(self.initial_snapshot)
         self.comm_analyzer = BaselineCommunicationAnalyzer(config=self.scenario.communication)
-        self.autonomy_adapter = A0AutonomyAdapter(allocator=A0TaskAllocator())
+        if self._custom_autonomy_adapter is not None:
+            self.autonomy_adapter = self._custom_autonomy_adapter
+        else:
+            self.autonomy_adapter = A0AutonomyAdapter(allocator=A0TaskAllocator())
         self.sim_engine = SimulationEngine(
             state_store=self.state_store,
             dt=self.scenario.dt,
@@ -247,7 +252,10 @@ class MissionRunner:
         pending_visible = [t for t in visible_tasks.values() if t.status == TaskStatus.PENDING]
         if pending_visible:
             alloc_snap = replace(snap_for_alloc, tasks=MappingProxyType(visible_tasks))
-            assign_cmds = self.autonomy_adapter.plan(alloc_snap)
+            try:
+                assign_cmds = self.autonomy_adapter.plan(alloc_snap, net_analysis)
+            except TypeError:
+                assign_cmds = self.autonomy_adapter.plan(alloc_snap)
             if assign_cmds:
                 res_assign = self.state_store.apply(assign_cmds)
                 applied_commands.extend(res_assign.applied_commands)
