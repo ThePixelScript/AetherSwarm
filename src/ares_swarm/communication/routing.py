@@ -32,35 +32,56 @@ def shortest_hop_routes(graph: nx.Graph, gcs_id: str) -> Mapping[str, tuple[str,
 
 @dataclass(frozen=True)
 class RoutingWeights:
-    """Weights for M2 reliability-aware routing. Cost must be minimized."""
+    """Weights and normalization bounds for M2 reliability-aware routing. Cost must be minimized."""
     w_etx: float = 0.50
     w_latency: float = 0.20
     w_energy: float = 0.15
     w_instability: float = 0.15
+    
+    # Normalization bounds
+    etx_max: float = 10.0
+    latency_max_ms: float = 50.0
 
 
 def normalize_link_cost(link_data: dict, weights: RoutingWeights) -> float:
-    """Compute deterministic normalized link cost [0, 1+].
+    """Compute deterministic normalized link cost [0, 1].
 
-    - ETX_norm: 1.0 - estimated_pdr (probability of failure).
-    - latency_norm: min(1.0, latency_ms / 50.0).
-    - energy_risk_norm: 0.0 (Energy risk not available on M0 static links).
-    - instability_norm: 1.0 - link_quality (Static proxy for dynamic instability).
+    - ETX_norm: clip((ETX - 1) / (ETX_MAX - 1), 0, 1) using actual link.etx.
+    - latency_norm: min(1.0, latency_ms / LATENCY_MAX_MS).
+    - energy_risk_norm: 0.0 (Energy term reserved for later integration; no fabricated energy signal).
+    - instability_proxy_norm: 1.0 - link_quality (This is an instantaneous deterministic proxy based on current link quality, not a temporal instability estimator).
     """
-    pdr = link_data.get("estimated_pdr", 0.0)
+    etx = link_data.get("etx", 1.0)
     latency = link_data.get("latency_ms", 0.0)
     quality = link_data.get("link_quality", 1.0)
 
-    etx_norm = 1.0 - pdr
-    latency_norm = min(1.0, latency / 50.0)
+    # 1. ETX normalization
+    # ETX >= 1.0. ETX=1 means perfect delivery.
+    if weights.etx_max <= 1.0:
+        etx_norm = 1.0 if etx > 1.0 else 0.0
+    else:
+        raw_etx_norm = (etx - 1.0) / (weights.etx_max - 1.0)
+        etx_norm = max(0.0, min(1.0, raw_etx_norm))
+
+    # 2. Latency normalization
+    if weights.latency_max_ms <= 0.0:
+        latency_norm = 1.0 if latency > 0.0 else 0.0
+    else:
+        latency_norm = min(1.0, latency / weights.latency_max_ms)
+
+    # 3. Energy normalization
+    # Energy term reserved for later integration; no fabricated energy signal.
     energy_norm = 0.0
-    instability_norm = 1.0 - quality
+
+    # 4. Instability proxy normalization
+    # This is an instantaneous deterministic proxy based on current link quality, not a temporal instability estimator.
+    instability_proxy_norm = 1.0 - quality
 
     return (
         weights.w_etx * etx_norm
         + weights.w_latency * latency_norm
         + weights.w_energy * energy_norm
-        + weights.w_instability * instability_norm
+        + weights.w_instability * instability_proxy_norm
     )
 
 
@@ -75,12 +96,6 @@ def reliability_aware_routes(
     validate_graph(graph, gcs_id)
     if weights is None:
         weights = RoutingWeights()
-
-    # Create a directed graph to incorporate deterministic tie-breaking.
-    # We want paths TO the GCS. We compute single-source shortest paths FROM GCS
-    # on the reversed edges (which are symmetric in cost but we add a tie-breaker).
-    # Since networkx Dijkstra tie-breaking isn't strictly guaranteed by node names
-    # internally without a custom queue, we will implement a deterministic Dijkstra.
 
     # We compute shortest paths FROM gcs_id to all other nodes.
     import heapq
@@ -107,8 +122,6 @@ def reliability_aware_routes(
             # Since we search FROM GCS TO UAV, v is a UAV (or intermediate)
             # and u is its next_hop towards GCS.
             # We want to minimize new_cost.
-            # If new_cost == existing cost, we tie-break by choosing the lexicographically
-            # smaller next_hop `u`.
             old_cost = distances.get(v, float('inf'))
             if new_cost < old_cost - 1e-9:
                 distances[v] = new_cost
@@ -118,7 +131,6 @@ def reliability_aware_routes(
                 # Tie-breaker: choose smaller next_hop (u)
                 if u < next_hop[v]:
                     next_hop[v] = u
-                    # No need to push to PQ again, cost is identical.
                     
     routes = {}
     for uid in sorted(graph):
