@@ -371,6 +371,30 @@ def test_step_swarm_updates_velocity_and_battery_through_state_store():
     assert updated.position_xy == (5.0, 0.0)
     assert updated.velocity_xy == (5.0, 0.0)
     assert updated.battery_energy == 96.5
+def test_step_swarm_does_not_make_battery_negative():
+    uav = UAVState(
+        id="u1",
+        position_xy=(0.0, 0.0),
+        target_position=(10.0, 0.0),
+        battery_energy=1.0,
+    )
+
+    snapshot = StateSnapshot(
+        simulation_tick=0,
+        simulation_time=0.0,
+        state_version=0,
+        uavs=MappingProxyType({"u1": uav}),
+        tasks=MappingProxyType({}),
+    )
+
+    store = StateStore(snapshot)
+    engine = SimulationEngine(store)
+
+    engine.step_swarm()
+
+    updated = store.snapshot().uavs["u1"]
+
+    assert updated.battery_energy == 0.0
 def test_step_swarm_skips_inactive_uav():
     uav = UAVState(
         id="u1",
