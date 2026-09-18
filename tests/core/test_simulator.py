@@ -1,7 +1,8 @@
 from types import MappingProxyType
-from ares_swarm.core.enums import FailureState, TaskStatus, RTHState
+from ares_swarm.core.enums import FailureState, TaskStatus, RTHState, Role
 from ares_swarm.core.models import StateSnapshot, UAVState, TaskState
 from ares_swarm.core.state_store import StateStore
+from ares_swarm.core.commands import CompleteRTHCommand
 from ares_swarm.core.simulator import SimulationEngine
 from ares_swarm.core.event_scheduler import (
     ScheduledEvent,
@@ -814,3 +815,42 @@ def test_process_scheduled_events_processes_multiple_events_in_order():
     assert [cmd.uav_id for cmd in result.applied_commands] == ["u1", "u2"]
     assert store.snapshot().uavs["u1"].failure_state == FailureState.FAILED
     assert store.snapshot().uavs["u2"].failure_state == FailureState.FAILED
+def test_rth_completion_lands_uav_at_gcs():
+    uav = UAVState(
+        id="u1",
+        position_xy=(0.0, 0.0),
+        velocity_xy=(5.0, 0.0),
+        target_position=(0.0, 0.0),
+        battery_energy=50.0,
+        rth_state=RTHState.ACTIVE,
+    )
+
+    store = StateStore(
+        StateSnapshot(
+            simulation_tick=5,
+            simulation_time=5.0,
+            state_version=0,
+            uavs={"u1": uav},
+            tasks={},
+            gcs_position=(0.0, 0.0),
+        )
+    )
+
+    result = store.apply(
+        [
+            CompleteRTHCommand(
+                source_tick=5,
+                uav_id="u1",
+            )
+        ]
+    )
+
+    assert len(result.applied_commands) == 1
+
+    updated = store.snapshot().uavs["u1"]
+
+    assert updated.rth_state == RTHState.COMPLETE
+    assert updated.role == Role.IDLE
+    assert updated.active is False
+    assert updated.velocity_xy == (0.0, 0.0)
+    assert updated.target_position is None
