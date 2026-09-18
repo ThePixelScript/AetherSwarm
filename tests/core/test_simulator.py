@@ -768,3 +768,49 @@ def test_process_scheduled_failure_defers_assigned_task():
 
     assert updated.tasks["t1"].status == TaskStatus.DEFERRED
     assert updated.tasks["t1"].assigned_uav_id is None
+def test_process_scheduled_events_processes_multiple_events_in_order():
+    uav1 = UAVState(
+        id="u1",
+        position_xy=(0.0, 0.0),
+        battery_energy=100.0,
+    )
+    uav2 = UAVState(
+        id="u2",
+        position_xy=(10.0, 0.0),
+        battery_energy=100.0,
+    )
+
+    store = StateStore(
+        StateSnapshot(
+            simulation_tick=5,
+            simulation_time=5.0,
+            state_version=0,
+            uavs={"u2": uav2, "u1": uav1},
+            tasks={},
+        )
+    )
+
+    engine = SimulationEngine(store)
+
+    engine.event_scheduler.schedule(
+        ScheduledEvent(
+            tick=5,
+            event_type=ScheduledEventType.UAV_FAILURE,
+            uav_id="u2",
+            reason="FAILURE_2",
+        )
+    )
+    engine.event_scheduler.schedule(
+        ScheduledEvent(
+            tick=5,
+            event_type=ScheduledEventType.UAV_FAILURE,
+            uav_id="u1",
+            reason="FAILURE_1",
+        )
+    )
+
+    result = engine.process_scheduled_events()
+
+    assert [cmd.uav_id for cmd in result.applied_commands] == ["u1", "u2"]
+    assert store.snapshot().uavs["u1"].failure_state == FailureState.FAILED
+    assert store.snapshot().uavs["u2"].failure_state == FailureState.FAILED
