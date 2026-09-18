@@ -22,6 +22,9 @@ class ReplayRecorder:
         if not self.snapshots:
             return None
         return self.snapshots[-1]
+    def replay(self) -> tuple[StateSnapshot, ...]:
+        """Return recorded snapshots in deterministic recording order."""
+        return tuple(self.snapshots)
 
     def clear(self) -> None:
         """Clear all recorded snapshots."""
