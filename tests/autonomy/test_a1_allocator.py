@@ -10,10 +10,13 @@ from ares_swarm.autonomy.task_allocator import A0TaskAllocator, AllocationWeight
 from ares_swarm.communication.analysis import BaselineCommunicationAnalyzer
 from ares_swarm.communication.channel import LinkCondition
 from ares_swarm.communication.config import CommunicationConfig
-from ares_swarm.core.commands import AssignTaskCommand
+from ares_swarm.core.commands import AssignTaskCommand, Command
 from ares_swarm.core.enums import FailureState, Role, RTHState, TaskStatus
+from ares_swarm.core.events import StateTransitionResult
 from ares_swarm.core.models import StateSnapshot, TaskState, UAVState
 from ares_swarm.core.state_store import StateStore
+from ares_swarm.simulation.runner import MissionRunner
+from ares_swarm.simulation.scenario import ScenarioConfig
 
 
 def make_snapshot(
@@ -398,3 +401,274 @@ def test_controlled_a0_vs_a1_scenario():
     score_a = a1.compute_utility(uav_a, task, net).total
     score_b = a1.compute_utility(uav_b, task, net).total
     assert score_b > score_a
+
+
+def test_a1_rejects_failed_and_inactive_uavs():
+    """Validations 1 & 2: A1 rejects both FAILED and inactive UAVs."""
+    u_failed_active = UAVState(id="u-fa", position_xy=(5.0, 0.0), active=True, failure_state=FailureState.FAILED)
+    u_inactive_normal = UAVState(id="u-in", position_xy=(10.0, 0.0), active=False, failure_state=FailureState.NORMAL)
+    u_both = UAVState(id="u-both", position_xy=(15.0, 0.0), active=False, failure_state=FailureState.FAILED)
+    t = TaskState(id="t1", position_xy=(5.0, 0.0), priority=5)
+
+    snap = make_snapshot([u_failed_active, u_inactive_normal, u_both], [t])
+    analyzer = BaselineCommunicationAnalyzer(config=CommunicationConfig(max_range=50.0))
+    net = analyzer.analyze(snap)
+
+    allocator = A1TaskAllocator()
+    res = allocator.allocate(snap, network_analysis=net)
+
+    assert len(res.assignments) == 0
+    assert "u-fa" in res.infeasible_uavs
+    assert "FAILED" in res.infeasible_uavs["u-fa"]
+    assert "u-in" in res.infeasible_uavs
+    assert "inactive" in res.infeasible_uavs["u-in"]
+    assert "u-both" in res.infeasible_uavs
+
+
+def test_a1_reassigns_deferred_task_from_failed_uav_to_operational_uav():
+    """Validations 3, 4, 5, 9: Failed UAV's DEFERRED task is reallocated to feasible UAV without mutating state."""
+    # State matching Alpha 714f999 post-failure contract
+    u_failed = UAVState(
+        id="u-failed",
+        position_xy=(5.0, 0.0),
+        active=False,
+        failure_state=FailureState.FAILED,
+        assigned_task_id=None,
+        velocity_xy=(0.0, 0.0),
+        target_position=None,
+    )
+    u_operational = UAVState(
+        id="u-operational",
+        position_xy=(10.0, 0.0),
+        active=True,
+        failure_state=FailureState.NORMAL,
+        assigned_task_id=None,
+    )
+    t_deferred = TaskState(
+        id="t-deferred",
+        position_xy=(12.0, 0.0),
+        priority=8,
+        status=TaskStatus.DEFERRED,
+        assigned_uav_id=None,
+    )
+
+    snap = make_snapshot([u_failed, u_operational], [t_deferred], sim_tick=5, sim_time=2.5)
+    store = StateStore(snap)
+    snap_before = store.snapshot()
+
+    analyzer = BaselineCommunicationAnalyzer(config=CommunicationConfig(max_range=50.0))
+    net = analyzer.analyze(snap_before)
+
+    # 1. Direct A1TaskAllocator allocation
+    allocator = A1TaskAllocator()
+    res = allocator.allocate(snap_before, network_analysis=net)
+
+    assert len(res.assignments) == 1
+    assert res.assignments[0].uav_id == "u-operational"
+    assert res.assignments[0].task_id == "t-deferred"
+    assert "u-failed" in res.infeasible_uavs
+    assert "t-deferred" not in res.infeasible_tasks
+
+    # 2. A0AutonomyAdapter planning with A1 allocator
+    adapter = A0AutonomyAdapter(allocator=allocator)
+    cmds = adapter.plan(snap_before, network_analysis=net)
+    assert len(cmds) == 1
+    assert isinstance(cmds[0], AssignTaskCommand)
+    assert cmds[0].uav_id == "u-operational"
+    assert cmds[0].task_id == "t-deferred"
+    assert cmds[0].source_tick == 5
+
+    # 3. Validation 9: StateStore and snapshots are 100% unmutated
+    snap_after = store.snapshot()
+    assert snap_after.simulation_tick == snap_before.simulation_tick
+    assert snap_after.state_version == snap_before.state_version
+    assert snap_after.uavs["u-failed"] == snap_before.uavs["u-failed"]
+    assert snap_after.uavs["u-operational"] == snap_before.uavs["u-operational"]
+    assert snap_after.tasks["t-deferred"] == snap_before.tasks["t-deferred"]
+
+
+def test_a1_deferred_task_respects_all_feasibility_constraints():
+    """Validation 7: Battery, RTH, deadline, lock, and busy constraints remain strictly enforced."""
+    u_failed = UAVState(id="u-fail", position_xy=(1.0, 0.0), active=False, failure_state=FailureState.FAILED)
+    u_inactive = UAVState(id="u-inact", position_xy=(2.0, 0.0), active=False)
+    u_low_batt = UAVState(id="u-low", position_xy=(3.0, 0.0), battery_capacity=100.0, battery_energy=10.0)
+    u_rth = UAVState(id="u-rth", position_xy=(4.0, 0.0), rth_state=RTHState.ACTIVE)
+    u_locked = UAVState(id="u-lock", position_xy=(5.0, 0.0), assignment_lock_until=15.0)
+    u_busy = UAVState(id="u-busy", position_xy=(6.0, 0.0), assigned_task_id="t-existing")
+    u_feasible = UAVState(id="u-good", position_xy=(7.0, 0.0), battery_capacity=100.0, battery_energy=100.0)
+
+    t_deferred = TaskState(id="t-def", position_xy=(7.0, 0.0), priority=5, status=TaskStatus.DEFERRED)
+    t_expired_deferred = TaskState(id="t-exp-def", position_xy=(7.0, 0.0), priority=10, status=TaskStatus.DEFERRED, deadline=8.0)
+
+    snap = make_snapshot(
+        [u_failed, u_inactive, u_low_batt, u_rth, u_locked, u_busy, u_feasible],
+        [t_deferred, t_expired_deferred],
+        sim_time=10.0,
+    )
+    analyzer = BaselineCommunicationAnalyzer(config=CommunicationConfig(max_range=50.0))
+    net = analyzer.analyze(snap)
+
+    allocator = A1TaskAllocator()
+    res = allocator.allocate(snap, network_analysis=net)
+
+    # Infeasible UAVs
+    assert "u-fail" in res.infeasible_uavs
+    assert "u-inact" in res.infeasible_uavs
+    assert "u-low" in res.infeasible_uavs
+    assert "u-rth" in res.infeasible_uavs
+    assert "u-lock" in res.infeasible_uavs
+    assert "u-busy" in res.infeasible_uavs
+
+    # Infeasible tasks: expired deadline rejected even if priority is higher
+    assert "t-exp-def" in res.infeasible_tasks
+    assert "expired" in res.infeasible_tasks["t-exp-def"]
+
+    # Only feasible UAV receives the feasible deferred task
+    assert len(res.assignments) == 1
+    assert res.assignments[0].uav_id == "u-good"
+    assert res.assignments[0].task_id == "t-def"
+
+
+def test_a1_deferred_task_deterministic_tie_breaking_and_repeated_replay():
+    """Validations 6 & 8: Deterministic tie-breaking on deferred task and repeated allocation replay."""
+    # uav-alpha and uav-beta are equidistant to task (both at x=10m, task at x=20m)
+    u_alpha = UAVState(id="uav-alpha", position_xy=(10.0, 0.0), active=True, battery_capacity=100.0, battery_energy=100.0)
+    u_beta = UAVState(id="uav-beta", position_xy=(10.0, 0.0), active=True, battery_capacity=100.0, battery_energy=100.0)
+    t_def = TaskState(id="task-def", position_xy=(20.0, 0.0), priority=5, status=TaskStatus.DEFERRED)
+
+    snap = make_snapshot([u_beta, u_alpha], [t_def])
+    analyzer = BaselineCommunicationAnalyzer(config=CommunicationConfig(max_range=50.0))
+    net = analyzer.analyze(snap)
+
+    allocator = A1TaskAllocator()
+    ref_res = allocator.allocate(snap, network_analysis=net)
+
+    # Tie-break selects uav-alpha (ascending lexicographical ID)
+    assert len(ref_res.assignments) == 1
+    assert ref_res.assignments[0].uav_id == "uav-alpha"
+    assert ref_res.assignments[0].task_id == "task-def"
+
+    # Repeated allocation replay produces bitwise identical results
+    for _ in range(50):
+        res = allocator.allocate(snap, network_analysis=net)
+        assert res.assignments == ref_res.assignments
+        assert res.unassigned_tasks == ref_res.unassigned_tasks
+        assert res.unassigned_uavs == ref_res.unassigned_uavs
+        assert res.infeasible_uavs == ref_res.infeasible_uavs
+        assert res.infeasible_tasks == ref_res.infeasible_tasks
+
+
+def test_mission_runner_deferred_task_reallocation_under_fail_uav_command(monkeypatch):
+    """Prove FailUAVCommand -> DEFERRED task -> MissionRunner allocation -> A1 reassigns to feasible UAV.
+
+    StateStore.apply() only, no direct state mutation.
+    """
+    from dataclasses import dataclass, replace as dc_replace
+
+    @dataclass(frozen=True)
+    class FailUAVCommand(Command):
+        failure_state: FailureState = FailureState.FAILED
+        reason: str = ""
+
+    # Canonical Alpha 714f999 FailUAVCommand handler on StateStore.apply
+    orig_apply = StateStore.apply
+
+    def patched_apply(self, commands):
+        handled_cmds = []
+        fail_cmds = []
+        for c in commands:
+            if isinstance(c, FailUAVCommand):
+                fail_cmds.append(c)
+            else:
+                handled_cmds.append(c)
+
+        result = orig_apply(self, handled_cmds) if handled_cmds else StateTransitionResult((), (), ())
+        if not fail_cmds:
+            return result
+
+        applied = list(result.applied_commands)
+        rejected = list(result.rejected_commands)
+        events = list(result.emitted_events)
+        for cmd in fail_cmds:
+            uav = self._uavs.get(cmd.uav_id)
+            target_failure = cmd.failure_state
+            new_active = False if target_failure == FailureState.FAILED else uav.active
+            if target_failure == FailureState.FAILED and uav.assigned_task_id and uav.assigned_task_id in self._tasks:
+                old_task = self._tasks[uav.assigned_task_id]
+                self._tasks[old_task.id] = dc_replace(old_task, status=TaskStatus.DEFERRED, assigned_uav_id=None)
+                self._uavs[uav.id] = dc_replace(
+                    uav,
+                    failure_state=target_failure,
+                    active=new_active,
+                    assigned_task_id=None,
+                    velocity_xy=(0.0, 0.0),
+                    target_position=None,
+                )
+            else:
+                self._uavs[uav.id] = dc_replace(uav, failure_state=target_failure, active=new_active)
+            applied.append(cmd)
+        prev_v = self._state_version
+        if applied:
+            self._state_version += 1
+        return StateTransitionResult(
+            previous_version=prev_v,
+            new_version=self._state_version,
+            simulation_tick=self._simulation_tick,
+            applied_commands=tuple(applied),
+            rejected_commands=tuple(rejected),
+            emitted_events=tuple(events),
+        )
+
+    monkeypatch.setattr(StateStore, "apply", patched_apply)
+
+    config = ScenarioConfig(
+        name="test_runner_deferred",
+        seed=42,
+        dt=1.0,
+        speed_limit=5.0,
+        duration=10.0,
+        max_ticks=10,
+        gcs_position=(0.0, 0.0),
+        uavs=(
+            {"id": "u1", "position": [10.0, 0.0], "battery_capacity": 100.0},
+            {"id": "u2", "position": [20.0, 0.0], "battery_capacity": 100.0},
+        ),
+        tasks=(
+            {"id": "t1", "position": [15.0, 0.0], "priority": 5, "service_duration": 5.0},
+        ),
+    )
+    runner = MissionRunner(scenario=config, autonomy_adapter=A0AutonomyAdapter(allocator=A1TaskAllocator()))
+
+    # Tick 0: initial allocation of t1 to u1 (distance tie broken by ascending ID)
+    step1 = runner.step()
+    snap1 = runner.state_store.snapshot()
+    assert snap1.uavs["u1"].assigned_task_id == "t1"
+    assert snap1.uavs["u2"].assigned_task_id is None
+    assert snap1.tasks["t1"].status == TaskStatus.ASSIGNED
+    assert snap1.tasks["t1"].assigned_uav_id == "u1"
+
+    # Inject FailUAVCommand purely via StateStore.apply()
+    fail_res = runner.state_store.apply([
+        FailUAVCommand(source_tick=snap1.simulation_tick, uav_id="u1", reason="hardware_fault")
+    ])
+    assert len(fail_res.applied_commands) == 1
+
+    # Verify StateStore state immediately post-failure: task is DEFERRED, zero PENDING tasks
+    snap_fail = runner.state_store.snapshot()
+    assert snap_fail.uavs["u1"].active is False
+    assert snap_fail.uavs["u1"].failure_state == FailureState.FAILED
+    assert snap_fail.uavs["u1"].assigned_task_id is None
+    assert snap_fail.tasks["t1"].status == TaskStatus.DEFERRED
+    assert snap_fail.tasks["t1"].assigned_uav_id is None
+    assert sum(1 for t in snap_fail.tasks.values() if t.status == TaskStatus.PENDING) == 0
+
+    # Tick 1: MissionRunner must discover DEFERRED task via unassigned_visible and A1 must reallocate it to u2
+    step2 = runner.step()
+    snap2 = runner.state_store.snapshot()
+
+    assert snap2.uavs["u1"].assigned_task_id is None
+    assert snap2.uavs["u2"].assigned_task_id == "t1"
+    assert snap2.tasks["t1"].status == TaskStatus.ASSIGNED
+    assert snap2.tasks["t1"].assigned_uav_id == "u2"
+
+

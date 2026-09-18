@@ -250,8 +250,11 @@ class MissionRunner:
             for tid, t in snap_for_alloc.tasks.items()
             if t.created_time <= snap_for_alloc.simulation_time
         }
-        pending_visible = [t for t in visible_tasks.values() if t.status == TaskStatus.PENDING]
-        if pending_visible:
+        unassigned_visible = [
+            t for t in visible_tasks.values()
+            if t.status in (TaskStatus.PENDING, TaskStatus.DEFERRED)
+        ]
+        if unassigned_visible:
             alloc_snap = replace(snap_for_alloc, tasks=MappingProxyType(visible_tasks))
             accepts_net = getattr(
                 self.autonomy_adapter,

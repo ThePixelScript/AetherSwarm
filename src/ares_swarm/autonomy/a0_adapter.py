@@ -16,7 +16,7 @@ class A0AutonomyAdapter:
         ]
         pending_tasks = [
             t for t in sorted(snapshot.tasks.values(), key=lambda x: x.id)
-            if t.status == TaskStatus.PENDING
+            if t.status in (TaskStatus.PENDING, TaskStatus.DEFERRED)
         ]
 
         if not eligible_uavs or not pending_tasks:
