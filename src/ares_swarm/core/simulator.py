@@ -1,9 +1,15 @@
 from __future__ import annotations
 
 from ares_swarm.core.commands import (
+    FailUAVCommand,
     ProgressTaskCommand,
+    RecoverUAVCommand,
     StartRTHCommand,
     StepPhysicsCommand,
+)
+from ares_swarm.core.event_scheduler import (
+    EventScheduler,
+    ScheduledEventType,
 )
 from ares_swarm.core.enums import FailureState, RTHState
 from ares_swarm.core.kinematics import move_towards
@@ -29,6 +35,7 @@ class SimulationEngine:
         self.idle_rate = idle_rate
         self.movement_rate = movement_rate
         self.max_speed = 5.0
+        self.event_scheduler = EventScheduler()
 
     def advance_tick(self) -> float:
         """Advance the authoritative simulation clock by one tick."""
@@ -55,6 +62,33 @@ class SimulationEngine:
         )
 
         return self.state_store.apply([command])
+    def process_scheduled_events(self):
+        """Apply all scheduled failure/recovery events for the current tick."""
+
+        snapshot = self.state_store.snapshot()
+        due_events = self.event_scheduler.due_events(snapshot.simulation_tick)
+
+        commands = []
+
+        for event in due_events:
+            if event.event_type == ScheduledEventType.UAV_FAILURE:
+                commands.append(
+                    FailUAVCommand(
+                        source_tick=snapshot.simulation_tick,
+                        uav_id=event.uav_id,
+                        reason=event.reason,
+                    )
+                )
+
+            elif event.event_type == ScheduledEventType.UAV_RECOVERY:
+                commands.append(
+                    RecoverUAVCommand(
+                        source_tick=snapshot.simulation_tick,
+                        uav_id=event.uav_id,
+                    )
+                )
+
+        return self.state_store.apply(commands)
     def check_battery_rth(self, rth_reserve: float = 0.0):
         """Trigger RTH for UAVs whose battery cannot safely cover the return trip."""
 
