@@ -8,6 +8,7 @@ from pathlib import Path
 import random
 from types import MappingProxyType
 from typing import Any, Callable, Optional, Sequence
+import inspect
 
 from ..autonomy.a0_adapter import A0AutonomyAdapter
 from ..autonomy.task_allocator import A0TaskAllocator
@@ -252,10 +253,21 @@ class MissionRunner:
         pending_visible = [t for t in visible_tasks.values() if t.status == TaskStatus.PENDING]
         if pending_visible:
             alloc_snap = replace(snap_for_alloc, tasks=MappingProxyType(visible_tasks))
-            try:
+            accepts_net = getattr(
+                self.autonomy_adapter,
+                "accepts_network_analysis",
+                getattr(getattr(self.autonomy_adapter, "allocator", None), "accepts_network_analysis", None),
+            )
+            if accepts_net is True:
                 assign_cmds = self.autonomy_adapter.plan(alloc_snap, net_analysis)
-            except TypeError:
+            elif accepts_net is False:
                 assign_cmds = self.autonomy_adapter.plan(alloc_snap)
+            else:
+                sig = inspect.signature(self.autonomy_adapter.plan)
+                if "network_analysis" in sig.parameters:
+                    assign_cmds = self.autonomy_adapter.plan(alloc_snap, net_analysis)
+                else:
+                    assign_cmds = self.autonomy_adapter.plan(alloc_snap)
             if assign_cmds:
                 res_assign = self.state_store.apply(assign_cmds)
                 applied_commands.extend(res_assign.applied_commands)
