@@ -4,7 +4,7 @@ from types import MappingProxyType
 from typing import Mapping, Sequence
 
 from .config import CommunicationConfig
-from .models import NetworkState
+from .models import NetworkState, LinkState
 from ..core.models import StateSnapshot
 from .validation import Validated, require
 from ..interfaces.communication import NetworkAnalysis
@@ -57,6 +57,11 @@ class BaselineCommunicationAnalyzer(Validated):
             for uid, r in reliable_routes.items()
         }
 
+        route_pdrs = {
+            uid: route_pdr(links, r)
+            for uid, r in routes.items()
+        }
+
         return NetworkAnalysis(
             snapshot_revision=snapshot.state_version,
             network=NetworkState(links=links),
@@ -67,11 +72,31 @@ class BaselineCommunicationAnalyzer(Validated):
             components=connectivity.components,
             routes_to_gcs=routes,
             hop_counts=connectivity.hop_counts,
+            route_pdr_to_gcs=route_pdrs,
             reliable_routes_to_gcs=reliable_routes,
             reliable_hop_counts=reliable_hop_counts,
             articulation_points=connectivity.articulation_points,
             network_health=connectivity.network_health,
         )
+
+def route_pdr(edges: tuple[LinkState, ...], route: tuple[str, ...] | None) -> float | None:
+    """Calculate the end-to-end PDR for a specific route based on derived edge metrics.
+
+    - No route (None) -> 0.0
+    - Missing/unusable link in route -> None
+    """
+    if route is None:
+        return 0.0
+
+    pdr = 1.0
+    for a, b in zip(route, route[1:]):
+        pair = tuple(sorted((a, b)))
+        link = next((l for l in edges if l.source_id == pair[0] and l.target_id == pair[1]), None)
+        if link is None:
+            return None
+        pdr *= link.estimated_pdr
+
+    return pdr
 
 
 def route_latency_ms(analysis: NetworkAnalysis, route: tuple[str, ...] | None) -> float | None:
