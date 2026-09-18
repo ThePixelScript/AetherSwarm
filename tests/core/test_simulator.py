@@ -589,3 +589,54 @@ def test_completed_task_does_not_continue_moving_uav():
 
     assert updated.tasks["t1"].status == TaskStatus.COMPLETE
     assert updated.uavs["u1"].assigned_task_id is None
+def test_check_battery_rth_triggers_for_low_battery():
+    uav = UAVState(
+        id="u1",
+        position_xy=(10.0, 0.0),
+        battery_energy=5.0,
+        target_position=(20.0, 0.0),
+    )
+
+    store = StateStore(
+        StateSnapshot(
+            simulation_tick=0,
+            simulation_time=0.0,
+            state_version=0,
+            uavs={"u1": uav},
+            gcs_position=(0.0, 0.0),
+        )
+    )
+
+    engine = SimulationEngine(store)
+
+    result = engine.check_battery_rth(rth_reserve=1.0)
+
+    assert len(result.applied_commands) == 1
+    assert store.snapshot().uavs["u1"].rth_state == RTHState.ACTIVE
+    assert store.snapshot().uavs["u1"].target_position == (0.0, 0.0)
+
+
+def test_check_battery_rth_does_not_trigger_with_sufficient_battery():
+    uav = UAVState(
+        id="u1",
+        position_xy=(10.0, 0.0),
+        battery_energy=100.0,
+        target_position=(20.0, 0.0),
+    )
+
+    store = StateStore(
+        StateSnapshot(
+            simulation_tick=0,
+            simulation_time=0.0,
+            state_version=0,
+            uavs={"u1": uav},
+            gcs_position=(0.0, 0.0),
+        )
+    )
+
+    engine = SimulationEngine(store)
+
+    result = engine.check_battery_rth(rth_reserve=1.0)
+
+    assert len(result.applied_commands) == 0
+    assert store.snapshot().uavs["u1"].rth_state == RTHState.NONE

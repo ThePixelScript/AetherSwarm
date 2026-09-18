@@ -5,7 +5,7 @@ from ares_swarm.core.commands import (
     StartRTHCommand,
     StepPhysicsCommand,
 )
-from ares_swarm.core.enums import FailureState
+from ares_swarm.core.enums import FailureState, RTHState
 from ares_swarm.core.kinematics import move_towards
 from ares_swarm.core.state_store import StateStore
 from ares_swarm.energy.battery import calculate_energy_cost
@@ -55,6 +55,49 @@ class SimulationEngine:
         )
 
         return self.state_store.apply([command])
+    def check_battery_rth(self, rth_reserve: float = 0.0):
+        """Trigger RTH for UAVs whose battery cannot safely cover the return trip."""
+
+        if rth_reserve < 0:
+            raise ValueError("rth_reserve must be non-negative")
+
+        snapshot = self.state_store.snapshot()
+        commands = []
+
+        for uav_id in sorted(snapshot.uavs):
+            uav = snapshot.uavs[uav_id]
+
+            if not uav.active:
+                continue
+
+            if uav.failure_state == FailureState.FAILED:
+                continue
+
+            if uav.rth_state.value != "NONE":
+                continue
+
+            dx = snapshot.gcs_position[0] - uav.position_xy[0]
+            dy = snapshot.gcs_position[1] - uav.position_xy[1]
+            distance = (dx**2 + dy**2) ** 0.5
+
+            return_energy = calculate_energy_cost(
+                dt=self.dt,
+                distance=distance,
+                idle_rate=self.idle_rate,
+                movement_rate=self.movement_rate,
+            )
+
+            required_energy = return_energy + rth_reserve
+
+            if uav.battery_energy <= required_energy:
+                commands.append(
+                    StartRTHCommand(
+                        source_tick=snapshot.simulation_tick,
+                        uav_id=uav_id,
+                    )
+                )
+
+        return self.state_store.apply(commands)
     def step_swarm(self, speed: float | None = None):
         """Step all active UAVs with targets in one deterministic batch."""
 
@@ -192,3 +235,54 @@ class SimulationEngine:
         )
 
         return self.state_store.apply([command])
+def test_check_battery_rth_triggers_for_low_battery():
+    uav = UAVState(
+        id="u1",
+        position_xy=(10.0, 0.0),
+        battery_energy=5.0,
+        target_position=(20.0, 0.0),
+    )
+
+    store = StateStore(
+        StateSnapshot(
+            simulation_tick=0,
+            simulation_time=0.0,
+            state_version=0,
+            uavs={"u1": uav},
+            gcs_position=(0.0, 0.0),
+        )
+    )
+
+    engine = SimulationEngine(store)
+
+    result = engine.check_battery_rth(rth_reserve=1.0)
+
+    assert len(result.applied_commands) == 1
+    assert store.snapshot().uavs["u1"].rth_state == RTHState.ACTIVE
+    assert store.snapshot().uavs["u1"].target_position == (0.0, 0.0)
+
+
+def test_check_battery_rth_does_not_trigger_with_sufficient_battery():
+    uav = UAVState(
+        id="u1",
+        position_xy=(10.0, 0.0),
+        battery_energy=100.0,
+        target_position=(20.0, 0.0),
+    )
+
+    store = StateStore(
+        StateSnapshot(
+            simulation_tick=0,
+            simulation_time=0.0,
+            state_version=0,
+            uavs={"u1": uav},
+            gcs_position=(0.0, 0.0),
+        )
+    )
+
+    engine = SimulationEngine(store)
+
+    result = engine.check_battery_rth(rth_reserve=1.0)
+
+    assert len(result.applied_commands) == 0
+    assert store.snapshot().uavs["u1"].rth_state == RTHState.NONE
