@@ -1,5 +1,5 @@
 from types import MappingProxyType
-from ares_swarm.core.enums import FailureState, TaskStatus
+from ares_swarm.core.enums import FailureState, TaskStatus, RTHState
 from ares_swarm.core.models import StateSnapshot, UAVState, TaskState
 from ares_swarm.core.state_store import StateStore
 from ares_swarm.core.simulator import SimulationEngine
@@ -137,6 +137,66 @@ def test_start_rth_updates_uav_state():
     assert updated.rth_state.value == "ACTIVE"
     assert updated.target_position == (0.0, 0.0)
     assert updated.assigned_task_id is None
+def test_rth_moves_uav_toward_gcs():
+    uav = UAVState(
+        id="u1",
+        position_xy=(10.0, 0.0),
+        velocity_xy=(0.0, 0.0),
+        target_position=None,
+        battery_capacity=100.0,
+        battery_energy=50.0,
+    )
+
+    snapshot = StateSnapshot(
+        simulation_tick=0,
+        simulation_time=0.0,
+        state_version=0,
+        uavs={"u1": uav},
+        tasks={},
+        gcs_position=(0.0, 0.0),
+    )
+
+    store = StateStore(initial_snapshot=snapshot)
+    engine = SimulationEngine(store, dt=1.0)
+
+    engine.start_rth("u1")
+    engine.step_swarm(speed=5.0)
+
+    updated = store.snapshot().uavs["u1"]
+
+    assert updated.rth_state == RTHState.ACTIVE
+    assert updated.position_xy == (5.0, 0.0)
+    assert updated.target_position == (0.0, 0.0)
+def test_rth_snaps_uav_to_gcs_on_arrival():
+    uav = UAVState(
+        id="u1",
+        position_xy=(4.0, 0.0),
+        velocity_xy=(0.0, 0.0),
+        target_position=None,
+        battery_capacity=100.0,
+        battery_energy=50.0,
+    )
+
+    snapshot = StateSnapshot(
+        simulation_tick=0,
+        simulation_time=0.0,
+        state_version=0,
+        uavs={"u1": uav},
+        tasks={},
+        gcs_position=(0.0, 0.0),
+    )
+
+    store = StateStore(initial_snapshot=snapshot)
+    engine = SimulationEngine(store, dt=1.0)
+
+    engine.start_rth("u1")
+    engine.step_swarm(speed=5.0)
+
+    updated = store.snapshot().uavs["u1"]
+
+    assert updated.rth_state == RTHState.ACTIVE
+    assert updated.position_xy == (0.0, 0.0)
+    assert updated.velocity_xy == (0.0, 0.0)
 def test_step_swarm_updates_multiple_uavs():
     uav1 = UAVState(
         id="u1",
