@@ -1,6 +1,6 @@
 from types import MappingProxyType
-from ares_swarm.core.enums import FailureState
-from ares_swarm.core.models import StateSnapshot, UAVState
+from ares_swarm.core.enums import FailureState, TaskStatus
+from ares_swarm.core.models import StateSnapshot, UAVState, TaskState
 from ares_swarm.core.state_store import StateStore
 from ares_swarm.core.simulator import SimulationEngine
 
@@ -383,3 +383,125 @@ def test_step_swarm_steps_active_uav():
 
     assert len(result.applied_commands) == 1
     assert store.snapshot().uavs["u1"].position_xy == (5.0, 0.0)
+def test_step_swarm_progresses_task_on_arrival():
+    uav = UAVState(
+        id="u1",
+        position_xy=(0.0, 0.0),
+        target_position=(5.0, 0.0),
+        assigned_task_id="t1",
+        battery_energy=100.0,
+    )
+
+    task = TaskState(
+        id="t1",
+        position_xy=(5.0, 0.0),
+        priority=1,
+        service_duration=10.0,
+        status=TaskStatus.IN_PROGRESS,
+        assigned_uav_id="u1",
+    )
+
+    snapshot = StateSnapshot(
+        simulation_tick=0,
+        simulation_time=0.0,
+        state_version=0,
+        uavs=MappingProxyType({"u1": uav}),
+        tasks=MappingProxyType({"t1": task}),
+    )
+
+    store = StateStore(snapshot)
+    engine = SimulationEngine(store, dt=1.0)
+
+    physics_result = engine.step_swarm()
+
+    assert len(physics_result.applied_commands) == 1
+    assert store.snapshot().uavs["u1"].position_xy == (5.0, 0.0)
+
+    progress_result = engine.progress_arrived_tasks()
+
+    assert len(progress_result.applied_commands) == 1
+    assert progress_result.applied_commands[0].task_id == "t1"
+
+    updated = store.snapshot()
+    assert updated.tasks["t1"].service_progress == 1.0
+def test_task_service_progresses_until_completion():
+    uav = UAVState(
+        id="u1",
+        position_xy=(5.0, 0.0),
+        assigned_task_id="t1",
+        battery_energy=100.0,
+    )
+
+    task = TaskState(
+        id="t1",
+        position_xy=(5.0, 0.0),
+        priority=1,
+        service_duration=3.0,
+        service_progress=0.0,
+        status=TaskStatus.IN_PROGRESS,
+        assigned_uav_id="u1",
+    )
+
+    snapshot = StateSnapshot(
+        simulation_tick=0,
+        simulation_time=0.0,
+        state_version=0,
+        uavs=MappingProxyType({"u1": uav}),
+        tasks=MappingProxyType({"t1": task}),
+    )
+
+    store = StateStore(snapshot)
+    engine = SimulationEngine(store, dt=1.0)
+
+    engine.progress_arrived_tasks()
+    assert store.snapshot().tasks["t1"].service_progress == 1.0
+    assert store.snapshot().tasks["t1"].status == TaskStatus.IN_PROGRESS
+
+    engine.advance_tick()
+    engine.progress_arrived_tasks()
+    assert store.snapshot().tasks["t1"].service_progress == 2.0
+    assert store.snapshot().tasks["t1"].status == TaskStatus.IN_PROGRESS
+
+    engine.advance_tick()
+    engine.progress_arrived_tasks()
+
+    updated = store.snapshot()
+    assert updated.tasks["t1"].service_progress == 3.0
+    assert updated.tasks["t1"].status == TaskStatus.COMPLETE
+    assert updated.tasks["t1"].assigned_uav_id is None
+    assert updated.uavs["u1"].assigned_task_id is None
+def test_completed_task_does_not_continue_moving_uav():
+    uav = UAVState(
+        id="u1",
+        position_xy=(5.0, 0.0),
+        target_position=(5.0, 0.0),
+        assigned_task_id="t1",
+        battery_energy=100.0,
+    )
+
+    task = TaskState(
+        id="t1",
+        position_xy=(5.0, 0.0),
+        priority=1,
+        service_duration=1.0,
+        status=TaskStatus.IN_PROGRESS,
+        assigned_uav_id="u1",
+    )
+
+    snapshot = StateSnapshot(
+        simulation_tick=0,
+        simulation_time=0.0,
+        state_version=0,
+        uavs=MappingProxyType({"u1": uav}),
+        tasks=MappingProxyType({"t1": task}),
+    )
+
+    store = StateStore(snapshot)
+    engine = SimulationEngine(store, dt=1.0)
+
+    engine.progress_arrived_tasks()
+
+    updated = store.snapshot()
+
+    assert updated.tasks["t1"].status == TaskStatus.COMPLETE
+    assert updated.uavs["u1"].assigned_task_id is None

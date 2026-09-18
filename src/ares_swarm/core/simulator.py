@@ -1,6 +1,10 @@
 from __future__ import annotations
 
-from ares_swarm.core.commands import StartRTHCommand, StepPhysicsCommand
+from ares_swarm.core.commands import (
+    ProgressTaskCommand,
+    StartRTHCommand,
+    StepPhysicsCommand,
+)
 from ares_swarm.core.enums import FailureState
 from ares_swarm.core.kinematics import move_towards
 from ares_swarm.core.state_store import StateStore
@@ -103,6 +107,45 @@ class SimulationEngine:
                     new_position_xy=new_position,
                     new_velocity_xy=new_velocity,
                     delta_energy=energy_cost,
+                )
+            )
+
+        return self.state_store.apply(commands)
+    def progress_arrived_tasks(self):
+        """Progress tasks for UAVs that have reached their assigned PoI."""
+
+        snapshot = self.state_store.snapshot()
+        commands = []
+
+        for uav_id in sorted(snapshot.uavs):
+            uav = snapshot.uavs[uav_id]
+
+            if not uav.active:
+                continue
+
+            if uav.failure_state == FailureState.FAILED:
+                continue
+
+            if uav.assigned_task_id is None:
+                continue
+
+            task = snapshot.tasks.get(uav.assigned_task_id)
+
+            if task is None:
+                continue
+
+            if task.assigned_uav_id != uav_id:
+                continue
+
+            if uav.position_xy != task.position_xy:
+                continue
+
+            commands.append(
+                ProgressTaskCommand(
+                    source_tick=snapshot.simulation_tick,
+                    uav_id=uav_id,
+                    task_id=task.id,
+                    delta_progress=self.dt,
                 )
             )
 
