@@ -217,6 +217,13 @@ class MissionRunner:
         applied_commands = []
         rejected_commands = []
         tick_events = []
+        # 0. Apply scheduled simulation events before autonomy decisions
+        scheduled_res = self.sim_engine.process_scheduled_events()
+        applied_commands.extend(scheduled_res.applied_commands)
+        rejected_commands.extend(scheduled_res.rejected_commands)
+        tick_events.extend(scheduled_res.emitted_events)
+
+        current_snap = self.state_store.snapshot()  
 
         # 1. Gamma Communication Analysis (read-only)
         net_analysis = self.comm_analyzer.analyze(current_snap)

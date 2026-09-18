@@ -3,7 +3,8 @@ from __future__ import annotations
 
 from types import MappingProxyType
 import pytest
-
+from ares_swarm.core.commands import FailUAVCommand
+from ares_swarm.core.event_scheduler import ScheduledEvent, ScheduledEventType
 from ares_swarm.autonomy.a0_adapter import A0AutonomyAdapter
 from ares_swarm.autonomy.a1_allocator import A1AllocatorConfig, A1CommunicationAwareAllocator, A1TaskAllocator
 from ares_swarm.autonomy.task_allocator import A0TaskAllocator, AllocationWeights, TaskAllocatorConfig
@@ -556,73 +557,11 @@ def test_a1_deferred_task_deterministic_tie_breaking_and_repeated_replay():
         assert res.unassigned_uavs == ref_res.unassigned_uavs
         assert res.infeasible_uavs == ref_res.infeasible_uavs
         assert res.infeasible_tasks == ref_res.infeasible_tasks
-
-
-def test_mission_runner_deferred_task_reallocation_under_fail_uav_command(monkeypatch):
-    """Prove FailUAVCommand -> DEFERRED task -> MissionRunner allocation -> A1 reassigns to feasible UAV.
-
-    StateStore.apply() only, no direct state mutation.
-    """
-    from dataclasses import dataclass, replace as dc_replace
-
-    @dataclass(frozen=True)
-    class FailUAVCommand(Command):
-        failure_state: FailureState = FailureState.FAILED
-        reason: str = ""
-
-    # Canonical Alpha 714f999 FailUAVCommand handler on StateStore.apply
-    orig_apply = StateStore.apply
-
-    def patched_apply(self, commands):
-        handled_cmds = []
-        fail_cmds = []
-        for c in commands:
-            if isinstance(c, FailUAVCommand):
-                fail_cmds.append(c)
-            else:
-                handled_cmds.append(c)
-
-        result = orig_apply(self, handled_cmds) if handled_cmds else StateTransitionResult((), (), ())
-        if not fail_cmds:
-            return result
-
-        applied = list(result.applied_commands)
-        rejected = list(result.rejected_commands)
-        events = list(result.emitted_events)
-        for cmd in fail_cmds:
-            uav = self._uavs.get(cmd.uav_id)
-            target_failure = cmd.failure_state
-            new_active = False if target_failure == FailureState.FAILED else uav.active
-            if target_failure == FailureState.FAILED and uav.assigned_task_id and uav.assigned_task_id in self._tasks:
-                old_task = self._tasks[uav.assigned_task_id]
-                self._tasks[old_task.id] = dc_replace(old_task, status=TaskStatus.DEFERRED, assigned_uav_id=None)
-                self._uavs[uav.id] = dc_replace(
-                    uav,
-                    failure_state=target_failure,
-                    active=new_active,
-                    assigned_task_id=None,
-                    velocity_xy=(0.0, 0.0),
-                    target_position=None,
-                )
-            else:
-                self._uavs[uav.id] = dc_replace(uav, failure_state=target_failure, active=new_active)
-            applied.append(cmd)
-        prev_v = self._state_version
-        if applied:
-            self._state_version += 1
-        return StateTransitionResult(
-            previous_version=prev_v,
-            new_version=self._state_version,
-            simulation_tick=self._simulation_tick,
-            applied_commands=tuple(applied),
-            rejected_commands=tuple(rejected),
-            emitted_events=tuple(events),
-        )
-
-    monkeypatch.setattr(StateStore, "apply", patched_apply)
+def test_mission_runner_scheduled_failure_reallocates_deferred_task():
+    """Prove scheduled UAV failure -> DEFERRED task -> A1 reallocation."""
 
     config = ScenarioConfig(
-        name="test_runner_deferred",
+        name="test_runner_scheduled_failure",
         seed=42,
         dt=1.0,
         speed_limit=5.0,
@@ -634,41 +573,55 @@ def test_mission_runner_deferred_task_reallocation_under_fail_uav_command(monkey
             {"id": "u2", "position": [20.0, 0.0], "battery_capacity": 100.0},
         ),
         tasks=(
-            {"id": "t1", "position": [15.0, 0.0], "priority": 5, "service_duration": 5.0},
+            {"id": "t1", "position": [15.0, 0.0],
+             "priority": 5, "service_duration": 5.0},
         ),
     )
-    runner = MissionRunner(scenario=config, autonomy_adapter=A0AutonomyAdapter(allocator=A1TaskAllocator()))
 
-    # Tick 0: initial allocation of t1 to u1 (distance tie broken by ascending ID)
+    runner = MissionRunner(
+        scenario=config,
+        autonomy_adapter=A0AutonomyAdapter(
+            allocator=A1TaskAllocator()
+        ),
+    )
+
+    # Tick 0: A1 allocates t1 to u1.
     step1 = runner.step()
     snap1 = runner.state_store.snapshot()
+
     assert snap1.uavs["u1"].assigned_task_id == "t1"
     assert snap1.uavs["u2"].assigned_task_id is None
     assert snap1.tasks["t1"].status == TaskStatus.ASSIGNED
     assert snap1.tasks["t1"].assigned_uav_id == "u1"
 
-    # Inject FailUAVCommand purely via StateStore.apply()
-    fail_res = runner.state_store.apply([
-        FailUAVCommand(source_tick=snap1.simulation_tick, uav_id="u1", reason="hardware_fault")
-    ])
-    assert len(fail_res.applied_commands) == 1
+    # Schedule u1 failure for tick 1.
+    runner.sim_engine.event_scheduler.schedule(
+        ScheduledEvent(
+            tick=1,
+            event_type=ScheduledEventType.UAV_FAILURE,
+            uav_id="u1",
+            reason="hardware_fault",
+        )
+    )
 
-    # Verify StateStore state immediately post-failure: task is DEFERRED, zero PENDING tasks
-    snap_fail = runner.state_store.snapshot()
-    assert snap_fail.uavs["u1"].active is False
-    assert snap_fail.uavs["u1"].failure_state == FailureState.FAILED
-    assert snap_fail.uavs["u1"].assigned_task_id is None
-    assert snap_fail.tasks["t1"].status == TaskStatus.DEFERRED
-    assert snap_fail.tasks["t1"].assigned_uav_id is None
-    assert sum(1 for t in snap_fail.tasks.values() if t.status == TaskStatus.PENDING) == 0
-
-    # Tick 1: MissionRunner must discover DEFERRED task via unassigned_visible and A1 must reallocate it to u2
+    # Tick 1:
+    # scheduled failure -> canonical StateStore lifecycle
+    # -> task becomes DEFERRED -> A1 reallocates to u2.
     step2 = runner.step()
     snap2 = runner.state_store.snapshot()
 
+    assert snap2.uavs["u1"].active is False
+    assert snap2.uavs["u1"].failure_state == FailureState.FAILED
     assert snap2.uavs["u1"].assigned_task_id is None
-    assert snap2.uavs["u2"].assigned_task_id == "t1"
+
     assert snap2.tasks["t1"].status == TaskStatus.ASSIGNED
     assert snap2.tasks["t1"].assigned_uav_id == "u2"
+    assert snap2.uavs["u2"].assigned_task_id == "t1"
+
+    # Confirm the scheduled failure was actually applied during tick 1.
+    assert any(
+        isinstance(command, FailUAVCommand)
+        for command in step2.applied_commands
+    )
 
 
