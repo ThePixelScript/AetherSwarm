@@ -716,4 +716,55 @@ def test_process_scheduled_recovery():
     updated = store.snapshot().uavs["u1"]
 
     assert updated.failure_state == FailureState.NORMAL
-    assert updated.active is True   
+    assert updated.active is True
+def test_process_scheduled_failure_defers_assigned_task():
+    uav = UAVState(
+        id="u1",
+        position_xy=(10.0, 0.0),
+        battery_energy=100.0,
+        assigned_task_id="t1",
+        target_position=(20.0, 0.0),
+    )
+
+    task = TaskState(
+        id="t1",
+        position_xy=(20.0, 0.0),
+        priority=1,
+        status=TaskStatus.ASSIGNED,
+        assigned_uav_id="u1",
+    )
+
+    store = StateStore(
+        StateSnapshot(
+            simulation_tick=5,
+            simulation_time=5.0,
+            state_version=0,
+            uavs={"u1": uav},
+            tasks={"t1": task},
+        )
+    )
+
+    engine = SimulationEngine(store)
+
+    engine.event_scheduler.schedule(
+        ScheduledEvent(
+            tick=5,
+            event_type=ScheduledEventType.UAV_FAILURE,
+            uav_id="u1",
+            reason="LINK_LOSS",
+        )
+    )
+
+    result = engine.process_scheduled_events()
+
+    assert len(result.applied_commands) == 1
+
+    updated = store.snapshot()
+
+    assert updated.uavs["u1"].failure_state == FailureState.FAILED
+    assert updated.uavs["u1"].active is False
+    assert updated.uavs["u1"].assigned_task_id is None
+    assert updated.uavs["u1"].target_position is None
+
+    assert updated.tasks["t1"].status == TaskStatus.DEFERRED
+    assert updated.tasks["t1"].assigned_uav_id is None
