@@ -3,6 +3,10 @@ from ares_swarm.core.enums import FailureState
 from ares_swarm.core.models import StateSnapshot, UAVState
 from ares_swarm.core.state_store import StateStore
 from ares_swarm.core.simulator import SimulationEngine
+from ares_swarm.core.event_scheduler import (
+    ScheduledEvent,
+    ScheduledEventType,
+)
 
 
 def test_clock_starts_at_zero():
@@ -383,3 +387,77 @@ def test_step_swarm_steps_active_uav():
 
     assert len(result.applied_commands) == 1
     assert store.snapshot().uavs["u1"].position_xy == (5.0, 0.0)
+def test_process_scheduled_failure():
+    uav = UAVState(
+        id="u1",
+        position_xy=(10.0, 0.0),
+        battery_energy=100.0,
+        target_position=(20.0, 0.0),
+    )
+
+    store = StateStore(
+        StateSnapshot(
+            simulation_tick=5,
+            simulation_time=5.0,
+            state_version=0,
+            uavs={"u1": uav},
+        )
+    )
+
+    engine = SimulationEngine(store)
+
+    engine.event_scheduler.schedule(
+        ScheduledEvent(
+            tick=5,
+            event_type=ScheduledEventType.UAV_FAILURE,
+            uav_id="u1",
+            reason="TEST_FAILURE",
+        )
+    )
+
+    result = engine.process_scheduled_events()
+
+    assert len(result.applied_commands) == 1
+
+    updated = store.snapshot().uavs["u1"]
+
+    assert updated.failure_state == FailureState.FAILED
+    assert updated.active is False
+
+
+def test_process_scheduled_recovery():
+    uav = UAVState(
+        id="u1",
+        active=False,
+        failure_state=FailureState.FAILED,
+        position_xy=(10.0, 0.0),
+        battery_energy=100.0,
+    )
+
+    store = StateStore(
+        StateSnapshot(
+            simulation_tick=5,
+            simulation_time=5.0,
+            state_version=0,
+            uavs={"u1": uav},
+        )
+    )
+
+    engine = SimulationEngine(store)
+
+    engine.event_scheduler.schedule(
+        ScheduledEvent(
+            tick=5,
+            event_type=ScheduledEventType.UAV_RECOVERY,
+            uav_id="u1",
+        )
+    )
+
+    result = engine.process_scheduled_events()
+
+    assert len(result.applied_commands) == 1
+
+    updated = store.snapshot().uavs["u1"]
+
+    assert updated.failure_state == FailureState.NORMAL
+    assert updated.active is True
