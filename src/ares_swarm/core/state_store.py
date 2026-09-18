@@ -9,6 +9,8 @@ from .commands import (
     AssignTaskCommand,
     Command,
     CompleteRTHCommand,
+    FailUAVCommand,
+    RecoverUAVCommand,
     ProgressTaskCommand,
     ReleaseTaskCommand,
     SetTargetPositionCommand,
@@ -176,6 +178,66 @@ class StateStore:
                         event_type=EventType.UAV_LANDED,
                         entity_id=uav.id,
                         payload={"final_energy": uav.battery_energy},
+                        sequence=len(events) + len(staged_events),
+                    ))
+
+            elif isinstance(cmd, FailUAVCommand):
+                target_failure = cmd.failure_state
+                if uav.failure_state == target_failure:
+                    rejection = CommandRejection(
+                        cmd,
+                        RejectionCode.ILLEGAL_LIFECYCLE_TRANSITION,
+                        f"UAV {uav.id} already in failure state {target_failure}",
+                    )
+                else:
+                    new_active = False if target_failure == FailureState.FAILED else uav.active
+                    # If UAV drops into FAILED state, drop any assigned task
+                    if target_failure == FailureState.FAILED and uav.assigned_task_id and uav.assigned_task_id in self._tasks:
+                        old_task = self._tasks[uav.assigned_task_id]
+                        staged_tasks[old_task.id] = replace(old_task, status=TaskStatus.DEFERRED, assigned_uav_id=None)
+                        staged_uavs[uav.id] = replace(
+                            uav,
+                            failure_state=target_failure,
+                            active=new_active,
+                            assigned_task_id=None,
+                            velocity_xy=(0.0, 0.0),
+                            target_position=None,
+                        )
+                    else:
+                        staged_uavs[uav.id] = replace(
+                            uav,
+                            failure_state=target_failure,
+                            active=new_active,
+                        )
+                    staged_events.append(DomainEvent.create(
+                        simulation_tick=self._simulation_tick,
+                        simulation_time=self._simulation_time,
+                        event_type=EventType.UAV_FAILED,
+                        entity_id=uav.id,
+                        payload={"failure_state": target_failure.value, "reason": cmd.reason},
+                        sequence=len(events) + len(staged_events),
+                    ))
+
+            elif isinstance(cmd, RecoverUAVCommand):
+                if uav.failure_state == FailureState.NORMAL and uav.active:
+                    rejection = CommandRejection(
+                        cmd,
+                        RejectionCode.ILLEGAL_LIFECYCLE_TRANSITION,
+                        f"UAV {uav.id} is already NORMAL and active",
+                    )
+                else:
+                    staged_uavs[uav.id] = replace(
+                        uav,
+                        failure_state=FailureState.NORMAL,
+                        active=True,
+                        role=Role.IDLE,
+                    )
+                    staged_events.append(DomainEvent.create(
+                        simulation_tick=self._simulation_tick,
+                        simulation_time=self._simulation_time,
+                        event_type=EventType.UAV_ACTIVATED,
+                        entity_id=uav.id,
+                        payload={"uav_id": uav.id},
                         sequence=len(events) + len(staged_events),
                     ))
 

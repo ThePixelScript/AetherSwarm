@@ -4,6 +4,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Tuple
 
+from .enums import FailureState
+
 
 @dataclass(frozen=True)
 class Command:
@@ -41,6 +43,19 @@ class StartRTHCommand(Command):
 @dataclass(frozen=True)
 class CompleteRTHCommand(Command):
     """Complete Return-to-Home upon arrival at GCS landing threshold."""
+    pass
+
+
+@dataclass(frozen=True)
+class FailUAVCommand(Command):
+    """Inject simulated hardware/communication failure into a UAV."""
+    failure_state: FailureState = FailureState.FAILED
+    reason: str = ""
+
+
+@dataclass(frozen=True)
+class RecoverUAVCommand(Command):
+    """Restore a failed/degraded UAV back to operational status."""
     pass
 
 
