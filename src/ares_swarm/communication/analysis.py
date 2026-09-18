@@ -22,6 +22,7 @@ class BaselineCommunicationAnalyzer(Validated):
     conditions: Mapping[tuple[str, str], LinkCondition] = field(default_factory=dict)
     scenario_conditions: Sequence[CommunicationCondition] = ()
     routing_weights: RoutingWeights = field(default_factory=RoutingWeights)
+    enable_reliability_routing: bool = False
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "conditions", MappingProxyType(normalize_conditions(self.conditions)))
@@ -47,7 +48,10 @@ class BaselineCommunicationAnalyzer(Validated):
         routes = shortest_hop_routes(graph, gcs_id)
 
         # M2 reliability-aware weighted routes (optional)
-        reliable_routes = reliability_aware_routes(graph, gcs_id, self.routing_weights)
+        reliable_routes = (
+            reliability_aware_routes(graph, gcs_id, self.routing_weights)
+            if self.enable_reliability_routing else {}
+        )
 
         links = tuple(sorted((data["link"] for _,_,data in graph.edges(data=True)),
                              key=lambda link: (link.source_id, link.target_id)))
