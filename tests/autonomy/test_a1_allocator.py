@@ -3,6 +3,8 @@ from __future__ import annotations
 
 from types import MappingProxyType
 import pytest
+from ares_swarm.core.commands import StartRTHCommand
+from ares_swarm.core.enums import EventType
 from ares_swarm.core.commands import FailUAVCommand
 from ares_swarm.core.event_scheduler import ScheduledEvent, ScheduledEventType
 from ares_swarm.autonomy.a0_adapter import A0AutonomyAdapter
@@ -623,5 +625,89 @@ def test_mission_runner_scheduled_failure_reallocates_deferred_task():
         isinstance(command, FailUAVCommand)
         for command in step2.applied_commands
     )
+def test_scheduled_failure_reallocation_then_rth_landing():
+    """Prove failure -> task reallocation -> RTH -> canonical landing."""
 
+    config = ScenarioConfig(
+        name="test_failure_reallocation_rth",
+        seed=42,
+        dt=1.0,
+        speed_limit=5.0,
+        duration=20.0,
+        max_ticks=20,
+        gcs_position=(0.0, 0.0),
+        uavs=(
+            {"id": "u1", "position": [10.0, 0.0], "battery_capacity": 100.0},
+            {"id": "u2", "position": [20.0, 0.0], "battery_capacity": 100.0},
+        ),
+        tasks=(
+            {
+                "id": "t1",
+                "position": [15.0, 0.0],
+                "priority": 5,
+                "service_duration": 1.0,
+            },
+        ),
+        enable_auto_rth=False,
+    )
+
+    runner = MissionRunner(
+        scenario=config,
+        autonomy_adapter=A0AutonomyAdapter(
+            allocator=A1TaskAllocator()
+        ),
+    )
+
+    # Tick 0: A1 assigns t1 to u1.
+    runner.step()
+    snap1 = runner.state_store.snapshot()
+
+    assert snap1.tasks["t1"].assigned_uav_id == "u1"
+
+    # Tick 1: scheduled failure of u1.
+    runner.sim_engine.event_scheduler.schedule(
+        ScheduledEvent(
+            tick=1,
+            event_type=ScheduledEventType.UAV_FAILURE,
+            uav_id="u1",
+            reason="hardware_fault",
+        )
+    )
+
+    runner.step()
+    snap2 = runner.state_store.snapshot()
+
+    # Failure -> task becomes available -> A1 reallocates to u2.
+    assert snap2.uavs["u1"].failure_state == FailureState.FAILED
+    assert snap2.uavs["u1"].active is False
+    assert snap2.uavs["u1"].assigned_task_id is None
+    assert snap2.tasks["t1"].assigned_uav_id == "u2"
+    assert snap2.uavs["u2"].assigned_task_id == "t1"
+
+    # Put surviving UAV into canonical RTH.
+    runner.state_store.apply([
+        StartRTHCommand(
+            source_tick=snap2.simulation_tick,
+            uav_id="u2",
+        )
+    ])
+
+    # Run until u2 reaches GCS and lands.
+    landed = False
+
+    for _ in range(10):
+        result = runner.step()
+        snap = runner.state_store.snapshot()
+
+        if snap.uavs["u2"].rth_state == RTHState.COMPLETE:
+            landed = True
+            break
+
+    assert landed is True
+    assert snap.uavs["u2"].active is False
+    assert snap.uavs["u2"].position_xy == config.gcs_position
+    assert any(
+        event.event_type == EventType.UAV_LANDED
+        for event in runner.all_events
+    )
 
