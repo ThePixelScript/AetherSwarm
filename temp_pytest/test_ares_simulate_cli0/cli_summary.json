@@ -1,0 +1,119 @@
+{
+  "scenario_name": "basic_mission",
+  "seed": 42,
+  "total_ticks": 4,
+  "final_simulation_time": 4.0,
+  "metrics": {
+    "tasks_total": 2,
+    "tasks_spawned": 2,
+    "tasks_assigned": 0,
+    "tasks_completed": 2,
+    "tasks_expired": 0,
+    "mission_completion_rate": 1.0,
+    "total_energy_consumed": 22.0,
+    "final_connected_uav_count": 3,
+    "final_connected_uavs": [
+      "u1",
+      "u2",
+      "u3"
+    ],
+    "total_events_generated": 6
+  },
+  "uavs": {
+    "u1": {
+      "position": [
+        0.0,
+        10.0
+      ],
+      "velocity": [
+        0.0,
+        0.0
+      ],
+      "battery_energy": 91.0,
+      "battery_percent": 91.0,
+      "role": "IDLE",
+      "rth_state": "NONE",
+      "active": true,
+      "assigned_task_id": null
+    },
+    "u2": {
+      "position": [
+        10.0,
+        0.0
+      ],
+      "velocity": [
+        0.0,
+        0.0
+      ],
+      "battery_energy": 91.0,
+      "battery_percent": 91.0,
+      "role": "IDLE",
+      "rth_state": "NONE",
+      "active": true,
+      "assigned_task_id": null
+    },
+    "u3": {
+      "position": [
+        0.0,
+        0.0
+      ],
+      "velocity": [
+        0.0,
+        0.0
+      ],
+      "battery_energy": 96.0,
+      "battery_percent": 96.0,
+      "role": "IDLE",
+      "rth_state": "NONE",
+      "active": true,
+      "assigned_task_id": null
+    }
+  },
+  "tasks": {
+    "t_high": {
+      "status": "COMPLETE",
+      "service_progress": 2.0,
+      "service_duration": 2.0,
+      "assigned_uav_id": null
+    },
+    "t_low": {
+      "status": "COMPLETE",
+      "service_progress": 2.0,
+      "service_duration": 2.0,
+      "assigned_uav_id": null
+    }
+  },
+  "evaluation": {
+    "mission": {
+      "tasks_total": 2,
+      "tasks_spawned": 2,
+      "tasks_assigned": 0,
+      "tasks_completed": 2,
+      "tasks_expired": 0,
+      "mission_completion_rate": 1.0,
+      "completion_time_s": 3.0,
+      "priority_weighted_score": 1.0,
+      "total_energy_consumed_wh": 22.0
+    },
+    "communication": {
+      "model_estimated_route_pdr": 0.9959,
+      "model_estimated_route_latency_ms": 5.02,
+      "connectivity_availability": 1.0,
+      "downtime_s": 0.0
+    },
+    "resilience": {
+      "status": "NOT_APPLICABLE_M0",
+      "note": "Dynamic relay allocation and failure recovery deferred to A1+/M1",
+      "relay_reallocations": null,
+      "recovery_time_s": null,
+      "network_reconfiguration_efficiency": null,
+      "performance_after_failure": null
+    },
+    "safety": {
+      "separation_violation_count": 4,
+      "min_inter_uav_separation_m": 7.07,
+      "battery_exhaustion_count": 0,
+      "geofence_violation_count": 0
+    }
+  }
+}

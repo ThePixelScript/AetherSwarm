@@ -36,7 +36,7 @@ class MissionMetricsReport:
     resilience_status: str = "NOT_APPLICABLE_M0"
 
     # Safety metrics
-    collision_count: int = 0
+    separation_violation_count: int = 0
     min_inter_uav_separation_m: float = float("inf")
     battery_exhaustion_count: int = 0
     geofence_violation_count: int = 0
@@ -69,7 +69,7 @@ class MissionMetricsReport:
                 "performance_after_failure": self.performance_after_failure,
             },
             "safety": {
-                "collision_count": self.collision_count,
+                "separation_violation_count": self.separation_violation_count,
                 "min_inter_uav_separation_m": (
                     round(self.min_inter_uav_separation_m, 2)
                     if self.min_inter_uav_separation_m != float("inf") and self.min_inter_uav_separation_m is not None
@@ -141,6 +141,10 @@ def compute_mission_metrics(
     for step in step_history:
         net = step.network_analysis
         active_uavs = [uid for uid, u in step.snapshot.uavs.items() if u.active]
+        edge_latencies = {}
+        for link in net.network.links:
+            key = (min(link.source_id, link.target_id), max(link.source_id, link.target_id))
+            edge_latencies[key] = link.latency_ms
 
         # Use route_pdr_to_gcs instead of arbitrary edges
         for uid in active_uavs:
@@ -148,9 +152,14 @@ def compute_mission_metrics(
             if route_pdr is not None and route_pdr > 0.0:
                 pdr_samples.append(route_pdr)
 
-        # We can still capture link latency for active links, or just leave it for now.
-        for link in net.network.links:
-            latency_samples.append(link.latency_ms)
+            # Derive end-to-end latency for active routes
+            route = net.routes_to_gcs.get(uid)
+            if route and len(route) >= 2:
+                route_lat = sum(
+                    edge_latencies.get((min(a, b), max(a, b)), 0.0) 
+                    for a, b in zip(route, route[1:])
+                )
+                latency_samples.append(route_lat)
 
         # Reachability
         has_disconnected_node = False
@@ -180,7 +189,7 @@ def compute_mission_metrics(
 
     # 4. Safety Metrics & Hard Constraints
     if safety_report:
-        report.collision_count = safety_report.separation_violations_count
+        report.separation_violation_count = safety_report.separation_violations_count
         report.min_inter_uav_separation_m = safety_report.min_observed_separation_m
         report.battery_exhaustion_count = safety_report.battery_exhaustions_count
         report.geofence_violation_count = safety_report.geofence_violations_count

@@ -25,7 +25,7 @@ def test_metrics_report_to_dict():
         relay_reallocations=3,
         recovery_time_s=5.0,
         network_reconfiguration_efficiency=0.9,
-        collision_count=0,
+        separation_violation_count=0,
         min_inter_uav_separation_m=25.4,
         battery_exhaustion_count=0,
         geofence_violation_count=0,
@@ -41,7 +41,7 @@ def test_metrics_report_to_dict():
     assert d["mission"]["mission_completion_rate"] == 0.8
     assert d["communication"]["model_estimated_route_pdr"] == 0.98
     assert d["resilience"]["relay_reallocations"] == 3
-    assert d["safety"]["collision_count"] == 0
+    assert d["safety"]["separation_violation_count"] == 0
     assert d["safety"]["min_inter_uav_separation_m"] == 25.4
 
 
@@ -77,12 +77,20 @@ def test_compute_mission_metrics_flow():
     )
 
     # Mock step history
-    mock_link = MagicMock()
-    mock_link.estimated_pdr = 0.99
-    mock_link.latency_ms = 8.0
+    mock_link1 = MagicMock()
+    mock_link1.source_id = "u1"
+    mock_link1.target_id = "GCS"
+    mock_link1.estimated_pdr = 0.99
+    mock_link1.latency_ms = 8.0
+
+    mock_link2 = MagicMock()
+    mock_link2.source_id = "u2"
+    mock_link2.target_id = "GCS"
+    mock_link2.estimated_pdr = 0.95
+    mock_link2.latency_ms = 12.0
 
     mock_net = MagicMock()
-    mock_net.network.links = [mock_link]
+    mock_net.network.links = [mock_link1, mock_link2]
     mock_net.connected_uav_ids = {"u1", "u2"}
     mock_net.routes_to_gcs = {"u1": ("u1", "GCS"), "u2": ("u2", "GCS")}
     mock_net.route_pdr_to_gcs = {"u1": 0.99, "u2": 0.95}
@@ -116,7 +124,7 @@ def test_compute_mission_metrics_flow():
     assert metrics.priority_weighted_score == 1.0
     assert metrics.total_energy_consumed_wh == pytest.approx(25.0)  # (100+100) - (90+85)
     assert metrics.model_estimated_route_pdr == pytest.approx(0.97)
-    assert metrics.model_estimated_route_latency_ms == pytest.approx(8.0)
+    assert metrics.model_estimated_route_latency_ms == pytest.approx(10.0)
     assert metrics.connectivity_availability == 1.0
-    assert metrics.collision_count == 0
+    assert metrics.separation_violation_count == 0
     assert metrics.min_inter_uav_separation_m == 28.5

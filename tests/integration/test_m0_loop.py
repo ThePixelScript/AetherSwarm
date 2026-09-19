@@ -109,7 +109,7 @@ def _execute_m0_loop(num_ticks: int = 5):
         # 4. Delta Simulation Swarm Step (Batched)
         step_result = engine.step_swarm(speed=5.0)
         assert len(step_result.rejected_commands) == 0
-        assert len(step_result.applied_commands) == 2
+        assert len(step_result.applied_commands) == 3
 
         # 5. Advance simulation clock
         new_time = engine.advance_tick()
@@ -152,7 +152,7 @@ def test_m0_loop_deterministic_end_to_end():
     # Energy: idle (1.0*1.0) + movement (0.5*5.0) = 3.5 consumed -> 96.5 remaining
     assert t0_bat["u1"] == 96.5
     assert t0_bat["u2"] == 96.5
-    assert t0_bat["u3"] == 100.0
+    assert t0_bat["u3"] == 99.0
 
     # Invariants at Tick 1 (second step: arrives at target 10.0m)
     t1_pos = run_1[1]["positions"]
@@ -162,7 +162,7 @@ def test_m0_loop_deterministic_end_to_end():
     assert t1_pos["u3"] == (0.0, 0.0)
     assert t1_bat["u1"] == 93.0
     assert t1_bat["u2"] == 93.0
-    assert t1_bat["u3"] == 100.0
+    assert t1_bat["u3"] == 98.0
 
     # Invariants at final tick (Tick 4): stopped at target, zero velocity
     final_pos = run_1[4]["positions"]
@@ -177,7 +177,7 @@ def test_m0_loop_deterministic_end_to_end():
     # Zero distance consumes only idle energy (1.0 Wh/tick) on ticks 2, 3, 4
     assert final_bat["u1"] == 90.0
     assert final_bat["u2"] == 90.0
-    assert final_bat["u3"] == 100.0
+    assert final_bat["u3"] == 95.0
 
 
 def test_m0_step_swarm_uses_single_batched_transaction(monkeypatch):
@@ -203,6 +203,6 @@ def test_m0_step_swarm_uses_single_batched_transaction(monkeypatch):
     step_result = engine.step_swarm(speed=5.0)
 
     assert len(apply_calls) == 1
-    assert len(apply_calls[0]) == 2
-    assert len(step_result.applied_commands) == 2
+    assert len(apply_calls[0]) == 3
+    assert len(step_result.applied_commands) == 3
     assert len(step_result.rejected_commands) == 0

@@ -157,6 +157,21 @@ class SimulationEngine:
                 continue
 
             if uav.target_position is None:
+                energy_cost = calculate_energy_cost(
+                    dt=self.dt,
+                    distance=0.0,
+                    idle_rate=self.idle_rate,
+                    movement_rate=self.movement_rate,
+                )
+                commands.append(
+                    StepPhysicsCommand(
+                        source_tick=snapshot.simulation_tick,
+                        uav_id=uav_id,
+                        new_position_xy=uav.position_xy,
+                        new_velocity_xy=(0.0, 0.0),
+                        delta_energy=energy_cost,
+                    )
+                )
                 continue
 
             new_position, new_velocity = move_towards(

@@ -59,7 +59,7 @@ def test_poc_round1_execution_and_metrics(tmp_path):
             assert u.target_position is None
 
     # Safety metrics should report no collisions (initial separation >= 20m)
-    assert summary["evaluation"]["safety"]["collision_count"] == 0
+    assert summary["evaluation"]["safety"]["separation_violation_count"] == 0
     assert summary["evaluation"]["safety"]["min_inter_uav_separation_m"] >= 20.0
 
     # Save and verify JSON serialization
@@ -120,7 +120,7 @@ def test_poc_round1_full_duration_execution():
     assert metrics["mission_completion_rate"] == 1.0
 
     # Safety constraints & hard constraints
-    assert eval_metrics["safety"]["collision_count"] == 0
+    assert eval_metrics["safety"]["separation_violation_count"] == 0
     assert eval_metrics["safety"]["min_inter_uav_separation_m"] >= 20.0
     assert eval_metrics["safety"]["battery_exhaustion_count"] == 0
     assert eval_metrics["safety"]["geofence_violation_count"] == 0

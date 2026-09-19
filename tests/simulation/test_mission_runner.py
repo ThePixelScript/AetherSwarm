@@ -88,7 +88,7 @@ def test_mission_runner_deterministic_execution():
     assert summary["uavs"]["u3"]["position"] == [0.0, 0.0]
     assert summary["uavs"]["u1"]["battery_energy"] < 100.0
     assert summary["uavs"]["u2"]["battery_energy"] < 100.0
-    assert summary["uavs"]["u3"]["battery_energy"] == 100.0
+    assert summary["uavs"]["u3"]["battery_energy"] == 94.0
 
     # Events were generated
     assert len(result.all_events) > 0
