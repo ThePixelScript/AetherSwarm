@@ -22,11 +22,11 @@ def run_experiment(name: str, a1: bool, seed: int = 42):
     # E1: Relay failure
     scheduled_events = []
     if name == "E1":
-        # Fail u2 at 300s
+        # Fail uav_2 at 300s
         scheduled_events.append(ScheduledEvent(
             tick=300,
             event_type=ScheduledEventType.UAV_FAILURE,
-            uav_id="uav-2",
+            uav_id="uav_2",
             reason="Relay failure E1"
         ))
         
@@ -43,12 +43,12 @@ def run_experiment(name: str, a1: bool, seed: int = 42):
         tasks = tuple(new_tasks)
             
     if name == "E4":
-        # Battery constrained
+        # Battery constrained (75% of 4200 baseline)
         new_uavs = []
         for u in base_scenario.uavs:
             u_mod = dict(u)
-            u_mod["battery_capacity"] = 5000.0
-            u_mod["battery_energy"] = 5000.0
+            u_mod["battery_capacity"] = 3150.0
+            u_mod["battery_energy"] = 3150.0
             new_uavs.append(u_mod)
         uavs = tuple(new_uavs)
 
