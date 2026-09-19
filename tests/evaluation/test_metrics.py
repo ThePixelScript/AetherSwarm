@@ -18,8 +18,8 @@ def test_metrics_report_to_dict():
         completion_time_s=150.0,
         priority_weighted_score=0.85,
         total_energy_consumed_wh=250.0,
-        average_pdr=0.98,
-        average_latency_ms=12.5,
+        model_estimated_route_pdr=0.98,
+        model_estimated_route_latency_ms=12.5,
         connectivity_availability=0.95,
         downtime_s=15.0,
         relay_reallocations=3,
@@ -39,7 +39,7 @@ def test_metrics_report_to_dict():
     assert d["mission"]["tasks_total"] == 10
     assert d["mission"]["tasks_completed"] == 8
     assert d["mission"]["mission_completion_rate"] == 0.8
-    assert d["communication"]["average_pdr"] == 0.98
+    assert d["communication"]["model_estimated_route_pdr"] == 0.98
     assert d["resilience"]["relay_reallocations"] == 3
     assert d["safety"]["collision_count"] == 0
     assert d["safety"]["min_inter_uav_separation_m"] == 25.4
@@ -85,6 +85,7 @@ def test_compute_mission_metrics_flow():
     mock_net.network.links = [mock_link]
     mock_net.connected_uav_ids = {"u1", "u2"}
     mock_net.routes_to_gcs = {"u1": ("u1", "GCS"), "u2": ("u2", "GCS")}
+    mock_net.route_pdr_to_gcs = {"u1": 0.99, "u2": 0.95}
 
     mock_step = MagicMock()
     mock_step.simulation_time = 5.0
@@ -114,8 +115,8 @@ def test_compute_mission_metrics_flow():
     assert metrics.mission_completion_rate == 1.0
     assert metrics.priority_weighted_score == 1.0
     assert metrics.total_energy_consumed_wh == pytest.approx(25.0)  # (100+100) - (90+85)
-    assert metrics.average_pdr == pytest.approx(0.99)
-    assert metrics.average_latency_ms == pytest.approx(8.0)
+    assert metrics.model_estimated_route_pdr == pytest.approx(0.97)
+    assert metrics.model_estimated_route_latency_ms == pytest.approx(8.0)
     assert metrics.connectivity_availability == 1.0
     assert metrics.collision_count == 0
     assert metrics.min_inter_uav_separation_m == 28.5

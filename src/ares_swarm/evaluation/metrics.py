@@ -23,8 +23,8 @@ class MissionMetricsReport:
     total_energy_consumed_wh: float = 0.0
 
     # Communication metrics
-    average_pdr: float = 1.0
-    average_latency_ms: float = 0.0
+    model_estimated_route_pdr: float | None = None
+    model_estimated_route_latency_ms: float | None = None
     connectivity_availability: float = 1.0
     downtime_s: float = 0.0
 
@@ -55,8 +55,8 @@ class MissionMetricsReport:
                 "total_energy_consumed_wh": round(self.total_energy_consumed_wh, 4),
             },
             "communication": {
-                "average_pdr": round(self.average_pdr, 4),
-                "average_latency_ms": round(self.average_latency_ms, 2),
+                "model_estimated_route_pdr": round(self.model_estimated_route_pdr, 4) if self.model_estimated_route_pdr is not None else None,
+                "model_estimated_route_latency_ms": round(self.model_estimated_route_latency_ms, 2) if self.model_estimated_route_latency_ms is not None else None,
                 "connectivity_availability": round(self.connectivity_availability, 4),
                 "downtime_s": round(self.downtime_s, 2),
             },
@@ -142,9 +142,14 @@ def compute_mission_metrics(
         net = step.network_analysis
         active_uavs = [uid for uid, u in step.snapshot.uavs.items() if u.active]
 
-        # Links metrics
+        # Use route_pdr_to_gcs instead of arbitrary edges
+        for uid in active_uavs:
+            route_pdr = net.route_pdr_to_gcs.get(uid)
+            if route_pdr is not None and route_pdr > 0.0:
+                pdr_samples.append(route_pdr)
+
+        # We can still capture link latency for active links, or just leave it for now.
         for link in net.network.links:
-            pdr_samples.append(link.estimated_pdr)
             latency_samples.append(link.latency_ms)
 
         # Reachability
@@ -159,8 +164,8 @@ def compute_mission_metrics(
         if has_disconnected_node:
             downtime_ticks += 1
 
-    report.average_pdr = (sum(pdr_samples) / len(pdr_samples)) if pdr_samples else 1.0
-    report.average_latency_ms = (sum(latency_samples) / len(latency_samples)) if latency_samples else 0.0
+    report.model_estimated_route_pdr = (sum(pdr_samples) / len(pdr_samples)) if pdr_samples else None
+    report.model_estimated_route_latency_ms = (sum(latency_samples) / len(latency_samples)) if latency_samples else None
     report.connectivity_availability = (connected_slots / connectivity_slots) if connectivity_slots > 0 else 1.0
     report.downtime_s = downtime_ticks * dt
 
