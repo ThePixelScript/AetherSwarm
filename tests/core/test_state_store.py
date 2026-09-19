@@ -2,12 +2,14 @@ import pytest
 from types import MappingProxyType
 from ares_swarm.core.state_store import StateStore
 from ares_swarm.core.models import UAVState, TaskState, StateSnapshot
-from ares_swarm.core.enums import Role, RTHState, TaskStatus, RejectionCode, EventType
+from ares_swarm.core.enums import Role, RTHState, FailureState, TaskStatus, RejectionCode, EventType
 from ares_swarm.core.commands import (
     AssignTaskCommand,
     ProgressTaskCommand,
     StartRTHCommand,
     CompleteRTHCommand,
+    FailUAVCommand,
+    RecoverUAVCommand,
 )
 
 def test_state_store_atomic_rollback():
@@ -124,3 +126,42 @@ def test_rth_full_lifecycle():
     assert uav_final.role == Role.IDLE
     assert uav_final.target_position is None
     assert any(e.event_type == EventType.UAV_LANDED for e in r2.emitted_events)
+
+
+def test_uav_failure_and_recovery_lifecycle():
+    uav = UAVState(id="u1", active=True, assigned_task_id="t1", failure_state=FailureState.NORMAL)
+    task = TaskState(
+        id="t1",
+        position_xy=(10.0, 10.0),
+        priority=1,
+        status=TaskStatus.ASSIGNED,
+        assigned_uav_id="u1",
+    )
+    snap = StateSnapshot(
+        simulation_tick=3,
+        simulation_time=3.0,
+        state_version=0,
+        uavs=MappingProxyType({"u1": uav}),
+        tasks=MappingProxyType({"t1": task}),
+    )
+    store = StateStore(snap)
+
+    # 1. Inject failure
+    r1 = store.apply([FailUAVCommand(source_tick=3, uav_id="u1", failure_state=FailureState.FAILED, reason="motor_stall")])
+    assert len(r1.applied_commands) == 1
+    snap1 = store.snapshot()
+    assert snap1.uavs["u1"].failure_state == FailureState.FAILED
+    assert snap1.uavs["u1"].active is False
+    assert snap1.uavs["u1"].assigned_task_id is None
+    assert snap1.tasks["t1"].status == TaskStatus.DEFERRED
+    assert snap1.tasks["t1"].assigned_uav_id is None
+    assert any(e.event_type == EventType.UAV_FAILED for e in r1.emitted_events)
+
+    # 2. Recover UAV
+    r2 = store.apply([RecoverUAVCommand(source_tick=3, uav_id="u1")])
+    assert len(r2.applied_commands) == 1
+    snap2 = store.snapshot()
+    assert snap2.uavs["u1"].failure_state == FailureState.NORMAL
+    assert snap2.uavs["u1"].active is True
+    assert snap2.uavs["u1"].role == Role.IDLE
+    assert any(e.event_type == EventType.UAV_ACTIVATED for e in r2.emitted_events)
