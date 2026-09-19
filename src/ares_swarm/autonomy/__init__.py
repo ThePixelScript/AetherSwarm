@@ -1,5 +1,10 @@
 """Autonomy package for ARES-Swarm."""
 
+from .a1_allocator import (
+    A1AllocatorConfig,
+    A1CommunicationAwareAllocator,
+    A1TaskAllocator,
+)
 from .task_allocator import (
     A0TaskAllocator,
     AllocationResult,
@@ -14,6 +19,9 @@ from .task_allocator import (
 
 __all__ = [
     "A0TaskAllocator",
+    "A1AllocatorConfig",
+    "A1CommunicationAwareAllocator",
+    "A1TaskAllocator",
     "AllocationResult",
     "AllocationWeights",
     "PositionProtocol",

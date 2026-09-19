@@ -9,24 +9,32 @@ class A0AutonomyAdapter:
     def __init__(self, allocator: Any) -> None:
         self.allocator = allocator
 
-    def plan(self, snapshot: StateSnapshot) -> List[AssignTaskCommand]:
+    def plan(self, snapshot: StateSnapshot, network_analysis: Any = None) -> List[AssignTaskCommand]:
         eligible_uavs = [
             u for u in sorted(snapshot.uavs.values(), key=lambda x: x.id)
             if u.active and u.assigned_task_id is None and u.rth_state == RTHState.NONE
         ]
         pending_tasks = [
             t for t in sorted(snapshot.tasks.values(), key=lambda x: x.id)
-            if t.status == TaskStatus.PENDING
+            if t.status in (TaskStatus.PENDING, TaskStatus.DEFERRED)
         ]
 
         if not eligible_uavs or not pending_tasks:
             return []
 
-        allocation_result = self.allocator.allocate(
-            eligible_uavs,
-            pending_tasks,
-            simulation_time=snapshot.simulation_time,
-        )
+        try:
+            allocation_result = self.allocator.allocate(
+                eligible_uavs,
+                pending_tasks,
+                simulation_time=snapshot.simulation_time,
+                network_analysis=network_analysis,
+            )
+        except TypeError:
+            allocation_result = self.allocator.allocate(
+                eligible_uavs,
+                pending_tasks,
+                simulation_time=snapshot.simulation_time,
+            )
         commands: List[AssignTaskCommand] = []
 
         for assignment in sorted(allocation_result.assignments, key=lambda a: a.uav_id):

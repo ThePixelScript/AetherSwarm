@@ -8,6 +8,7 @@ from pathlib import Path
 import random
 from types import MappingProxyType
 from typing import Any, Callable, Optional, Sequence
+import inspect
 
 from ..autonomy.a0_adapter import A0AutonomyAdapter
 from ..autonomy.task_allocator import A0TaskAllocator
@@ -156,6 +157,7 @@ class MissionRunner:
         seed: int | None = None,
         enable_task_progress: bool = True,
         safety_hook: Optional[Callable[[StateSnapshot, NetworkAnalysis], Any]] = None,
+        autonomy_adapter: Optional[Any] = None,
     ):
         if isinstance(scenario, ScenarioConfig):
             self.scenario = scenario
@@ -165,11 +167,12 @@ class MissionRunner:
         self.seed = seed if seed is not None else self.scenario.seed
         self.enable_task_progress = enable_task_progress
         self.safety_hook = safety_hook
+        self._custom_autonomy_adapter = autonomy_adapter
 
         self.initial_snapshot: StateSnapshot
         self.state_store: StateStore
         self.comm_analyzer: BaselineCommunicationAnalyzer
-        self.autonomy_adapter: A0AutonomyAdapter
+        self.autonomy_adapter: Any
         self.sim_engine: SimulationEngine
         self.safety_assessor = SafetyAssessor(
             arena_bounds_x=self.scenario.arena_bounds_x,
@@ -191,7 +194,10 @@ class MissionRunner:
         self.initial_snapshot = create_initial_snapshot(self.scenario)
         self.state_store = StateStore(self.initial_snapshot)
         self.comm_analyzer = BaselineCommunicationAnalyzer(config=self.scenario.communication)
-        self.autonomy_adapter = A0AutonomyAdapter(allocator=A0TaskAllocator())
+        if self._custom_autonomy_adapter is not None:
+            self.autonomy_adapter = self._custom_autonomy_adapter
+        else:
+            self.autonomy_adapter = A0AutonomyAdapter(allocator=A0TaskAllocator())
         self.sim_engine = SimulationEngine(
             state_store=self.state_store,
             dt=self.scenario.dt,
@@ -211,6 +217,13 @@ class MissionRunner:
         applied_commands = []
         rejected_commands = []
         tick_events = []
+        # 0. Apply scheduled simulation events before autonomy decisions
+        scheduled_res = self.sim_engine.process_scheduled_events()
+        applied_commands.extend(scheduled_res.applied_commands)
+        rejected_commands.extend(scheduled_res.rejected_commands)
+        tick_events.extend(scheduled_res.emitted_events)
+
+        current_snap = self.state_store.snapshot()  
 
         # 1. Gamma Communication Analysis (read-only)
         net_analysis = self.comm_analyzer.analyze(current_snap)
@@ -244,10 +257,27 @@ class MissionRunner:
             for tid, t in snap_for_alloc.tasks.items()
             if t.created_time <= snap_for_alloc.simulation_time
         }
-        pending_visible = [t for t in visible_tasks.values() if t.status == TaskStatus.PENDING]
-        if pending_visible:
+        unassigned_visible = [
+            t for t in visible_tasks.values()
+            if t.status in (TaskStatus.PENDING, TaskStatus.DEFERRED)
+        ]
+        if unassigned_visible:
             alloc_snap = replace(snap_for_alloc, tasks=MappingProxyType(visible_tasks))
-            assign_cmds = self.autonomy_adapter.plan(alloc_snap)
+            accepts_net = getattr(
+                self.autonomy_adapter,
+                "accepts_network_analysis",
+                getattr(getattr(self.autonomy_adapter, "allocator", None), "accepts_network_analysis", None),
+            )
+            if accepts_net is True:
+                assign_cmds = self.autonomy_adapter.plan(alloc_snap, net_analysis)
+            elif accepts_net is False:
+                assign_cmds = self.autonomy_adapter.plan(alloc_snap)
+            else:
+                sig = inspect.signature(self.autonomy_adapter.plan)
+                if "network_analysis" in sig.parameters:
+                    assign_cmds = self.autonomy_adapter.plan(alloc_snap, net_analysis)
+                else:
+                    assign_cmds = self.autonomy_adapter.plan(alloc_snap)
             if assign_cmds:
                 res_assign = self.state_store.apply(assign_cmds)
                 applied_commands.extend(res_assign.applied_commands)
