@@ -23,6 +23,7 @@ class NetworkAnalysis(Validated):
     components: tuple[tuple[str, ...], ...] = ()
     routes_to_gcs: Mapping[str, tuple[str, ...] | None] = field(default_factory=dict)
     hop_counts: Mapping[str, int | None] = field(default_factory=dict)
+    route_pdr_to_gcs: Mapping[str, float | None] = field(default_factory=dict)
     reliable_routes_to_gcs: Mapping[str, tuple[str, ...] | None] = field(default_factory=dict)
     reliable_hop_counts: Mapping[str, int | None] = field(default_factory=dict)
     articulation_points: tuple[str, ...] = ()
@@ -31,7 +32,7 @@ class NetworkAnalysis(Validated):
     def __post_init__(self) -> None:
         super(NetworkAnalysis, self).__post_init__()
         nonnegative(self.snapshot_revision, self.simulation_time)
-        for name in ("routes_to_gcs", "hop_counts", "reliable_routes_to_gcs", "reliable_hop_counts", "network_health"):
+        for name in ("routes_to_gcs", "hop_counts", "route_pdr_to_gcs", "reliable_routes_to_gcs", "reliable_hop_counts", "network_health"):
             object.__setattr__(self, name, freeze(dict(sorted(getattr(self, name).items()))))
         if self.gcs_id is None:
             return  # Keep the existing Phase-1 partial constructor/JSON readable.
@@ -56,12 +57,16 @@ class NetworkAnalysis(Validated):
         require(set(gcs_component)-{self.gcs_id} == connected, "component/reachability mismatch")
         require(set(self.routes_to_gcs) == active and set(self.hop_counts) == active,
                 "route/hop keys must cover all active UAVs")
-                
+
+        has_pdr = len(self.route_pdr_to_gcs) > 0
+        if has_pdr:
+            require(set(self.route_pdr_to_gcs) == active, "route pdr keys must cover all active UAVs")
+
         has_reliable = len(self.reliable_routes_to_gcs) > 0
         if has_reliable:
             require(set(self.reliable_routes_to_gcs) == active and set(self.reliable_hop_counts) == active,
                     "reliable route/hop keys must cover all active UAVs")
-                    
+
         links = self.network.links
         edge_keys = tuple((link.source_id, link.target_id) for link in links)
         require(edge_keys == tuple(sorted(set(edge_keys))), "edge metrics must be sorted and unique")
@@ -73,13 +78,13 @@ class NetworkAnalysis(Validated):
                     "edge references unknown node")
             require(component_index[link.source_id] == component_index[link.target_id],
                     "edge crosses declared components")
-                    
+
         for uid in sorted(active):
             route, hops = self.routes_to_gcs[uid], self.hop_counts[uid]
             if uid in disconnected:
                 require(route is None and hops is None, "disconnected UAV cannot have route/hops")
                 if has_reliable:
-                    require(self.reliable_routes_to_gcs[uid] is None and self.reliable_hop_counts[uid] is None, 
+                    require(self.reliable_routes_to_gcs[uid] is None and self.reliable_hop_counts[uid] is None,
                             "disconnected UAV cannot have reliable route/hops")
             else:
                 require(route is not None and len(route) >= 2 and route[0] == uid
@@ -89,7 +94,7 @@ class NetworkAnalysis(Validated):
                 require(hops == len(route)-1, "route/hop mismatch")
                 require(all(tuple(sorted((a,b))) in edges for a,b in zip(route,route[1:])),
                         "route references missing edge")
-                        
+
                 if has_reliable:
                     r_route, r_hops = self.reliable_routes_to_gcs[uid], self.reliable_hop_counts[uid]
                     require(r_route is not None and len(r_route) >= 2 and r_route[0] == uid
@@ -99,7 +104,7 @@ class NetworkAnalysis(Validated):
                     require(r_hops == len(r_route)-1, "reliable route/hop mismatch")
                     require(all(tuple(sorted((a,b))) in edges for a,b in zip(r_route,r_route[1:])),
                             "reliable route references missing edge")
-                            
+
         require(set(self.articulation_points) <= nodes, "unknown articulation node")
 
     @property

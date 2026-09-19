@@ -4,7 +4,7 @@ from types import MappingProxyType
 from typing import Mapping, Sequence
 
 from .config import CommunicationConfig
-from .models import NetworkState
+from .models import NetworkState, LinkState
 from ..core.models import StateSnapshot
 from .validation import Validated, require
 from ..interfaces.communication import NetworkAnalysis
@@ -22,6 +22,7 @@ class BaselineCommunicationAnalyzer(Validated):
     conditions: Mapping[tuple[str, str], LinkCondition] = field(default_factory=dict)
     scenario_conditions: Sequence[CommunicationCondition] = ()
     routing_weights: RoutingWeights = field(default_factory=RoutingWeights)
+    enable_reliability_routing: bool = False
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "conditions", MappingProxyType(normalize_conditions(self.conditions)))
@@ -47,7 +48,10 @@ class BaselineCommunicationAnalyzer(Validated):
         routes = shortest_hop_routes(graph, gcs_id)
 
         # M2 reliability-aware weighted routes (optional)
-        reliable_routes = reliability_aware_routes(graph, gcs_id, self.routing_weights)
+        reliable_routes = (
+            reliability_aware_routes(graph, gcs_id, self.routing_weights)
+            if self.enable_reliability_routing else {}
+        )
 
         links = tuple(sorted((data["link"] for _,_,data in graph.edges(data=True)),
                              key=lambda link: (link.source_id, link.target_id)))
@@ -55,6 +59,11 @@ class BaselineCommunicationAnalyzer(Validated):
         reliable_hop_counts = {
             uid: len(r) - 1 if r is not None else None
             for uid, r in reliable_routes.items()
+        }
+
+        route_pdrs = {
+            uid: route_pdr(links, r)
+            for uid, r in routes.items()
         }
 
         return NetworkAnalysis(
@@ -67,11 +76,31 @@ class BaselineCommunicationAnalyzer(Validated):
             components=connectivity.components,
             routes_to_gcs=routes,
             hop_counts=connectivity.hop_counts,
+            route_pdr_to_gcs=route_pdrs,
             reliable_routes_to_gcs=reliable_routes,
             reliable_hop_counts=reliable_hop_counts,
             articulation_points=connectivity.articulation_points,
             network_health=connectivity.network_health,
         )
+
+def route_pdr(edges: tuple[LinkState, ...], route: tuple[str, ...] | None) -> float | None:
+    """Calculate the end-to-end PDR for a specific route based on derived edge metrics.
+
+    - No route (None) -> 0.0
+    - Missing/unusable link in route -> None
+    """
+    if route is None:
+        return 0.0
+
+    pdr = 1.0
+    for a, b in zip(route, route[1:]):
+        pair = tuple(sorted((a, b)))
+        link = next((l for l in edges if l.source_id == pair[0] and l.target_id == pair[1]), None)
+        if link is None:
+            return None
+        pdr *= link.estimated_pdr
+
+    return pdr
 
 
 def route_latency_ms(analysis: NetworkAnalysis, route: tuple[str, ...] | None) -> float | None:

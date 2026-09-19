@@ -88,50 +88,32 @@ def normalize_link_cost(link_data: dict, weights: RoutingWeights) -> float:
 def reliability_aware_routes(
     graph: nx.Graph, gcs_id: str, weights: RoutingWeights | None = None
 ) -> Mapping[str, tuple[str, ...] | None]:
-    """Compute optimal reliable routes using configurable weighted metrics.
+    """Return lexicographically smallest simple minimum-cost UAV-to-GCS paths.
 
-    Uses Dijkstra's algorithm to find minimum-cost paths to GCS.
-    Tie-breaking is strictly deterministic (lexicographical node order).
+    Dijkstra supplies distances; tight edges preserve those distances. Zero-cost
+    tight edges may form cycles, so reconstruction excludes visited nodes and
+    chooses the smallest neighbor that can still reach GCS without revisiting.
+    GCS is terminal and never needs a predecessor. No edge costs are perturbed.
+    Reachability checks avoid exponential enumeration of tied simple paths;
+    reconstruction costs at most O(V * E * (V + E)) for all sources.
     """
     validate_graph(graph, gcs_id)
     if weights is None:
         weights = RoutingWeights()
 
-    # We compute shortest paths FROM gcs_id to all other nodes.
-    import heapq
+    def cost(u: str, v: str, data: dict) -> float:
+        return normalize_link_cost(data, weights)
 
-    distances = {gcs_id: 0.0}
-    # Predecessor mapping: uid -> best_next_hop (towards GCS)
-    next_hop = {}
-    
-    # Priority queue: (cost, node_id)
-    pq = [(0.0, gcs_id)]
-    
-    while pq:
-        current_cost, u = heapq.heappop(pq)
-        
-        if current_cost > distances.get(u, float('inf')):
+    distances = nx.single_source_dijkstra_path_length(graph, gcs_id, weight=cost)
+    tight = nx.DiGraph()
+    tight.add_nodes_from(sorted(distances))
+    for u in sorted(distances):
+        if u == gcs_id:
             continue
-            
-        # To guarantee deterministic tie-breaking, sort neighbors.
-        for v in sorted(graph.neighbors(u)):
-            edge_data = graph.get_edge_data(u, v)
-            link_cost = normalize_link_cost(edge_data, weights)
-            new_cost = current_cost + link_cost
-            
-            # Since we search FROM GCS TO UAV, v is a UAV (or intermediate)
-            # and u is its next_hop towards GCS.
-            # We want to minimize new_cost.
-            old_cost = distances.get(v, float('inf'))
-            if new_cost < old_cost - 1e-9:
-                distances[v] = new_cost
-                next_hop[v] = u
-                heapq.heappush(pq, (new_cost, v))
-            elif abs(new_cost - old_cost) <= 1e-9:
-                # Tie-breaker: choose smaller next_hop (u)
-                if u < next_hop[v]:
-                    next_hop[v] = u
-                    
+        for v in sorted(graph[u]):
+            if v in distances and distances[u] == cost(u, v, graph[u][v]) + distances[v]:
+                tight.add_edge(u, v)
+
     routes = {}
     for uid in sorted(graph):
         if uid == gcs_id:
@@ -139,10 +121,15 @@ def reliability_aware_routes(
         if uid not in distances:
             routes[uid] = None
             continue
-            
         path = [uid]
+        visited = {uid}
         while path[-1] != gcs_id:
-            path.append(next_hop[path[-1]])
+            remaining = nx.subgraph_view(tight, filter_node=lambda node: node not in visited)
+            next_node = next(
+                neighbor for neighbor in sorted(tight[path[-1]])
+                if neighbor not in visited and nx.has_path(remaining, neighbor, gcs_id)
+            )
+            path.append(next_node)
+            visited.add(next_node)
         routes[uid] = tuple(path)
-        
     return MappingProxyType(routes)
