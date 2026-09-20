@@ -15,10 +15,14 @@ A1 v1 ARCHITECTURE & CONTRACTS:
 """
 from __future__ import annotations
 
+import dataclasses
 import math
 from dataclasses import dataclass, field
 from typing import Any, Mapping, Sequence
 
+from ..communication.analysis import BaselineCommunicationAnalyzer
+from ..communication.channel import LinkCondition
+from ..communication.config import CommunicationConfig
 from .task_allocator import (
     A0TaskAllocator,
     AllocationResult,
@@ -35,6 +39,7 @@ class A1AllocatorConfig(TaskAllocatorConfig):
     min_comm_factor: float = 0.2    # Non-zero floor for demoting disconnected UAVs (prevents deadlock)
     hop_decay: float = 0.85         # Hop attenuation decay factor per hop beyond 1
     default_pdr: float = 1.0        # Default PDR when edge data is unmeasured
+    destination_aware: bool = True  # Evaluate communication quality at candidate destination
 
 
 class A1TaskAllocator(A0TaskAllocator):
@@ -44,10 +49,18 @@ class A1TaskAllocator(A0TaskAllocator):
     Applies bounded communication modifiers to candidate utility scoring based on
     authoritative NetworkAnalysis signals.
     """
+    accepts_network_analysis: bool = True
+    accepts_snapshot: bool = True
 
-    def __init__(self, config: A1AllocatorConfig | TaskAllocatorConfig | None = None) -> None:
+    def __init__(
+        self,
+        config: A1AllocatorConfig | TaskAllocatorConfig | None = None,
+        comm_analyzer: Any = None,
+    ) -> None:
         super().__init__(config=config or A1AllocatorConfig())
         self._current_network_analysis: Any = None
+        self._current_snapshot: Any = None
+        self._comm_analyzer: Any = comm_analyzer
 
     def compute_communication_factor(
         self,
@@ -124,15 +137,107 @@ class A1TaskAllocator(A0TaskAllocator):
         raw_comm = route_pdr * hop_factor
         return float(max(min_factor, min(1.0, raw_comm)))
 
+    def _infer_comm_config_and_conditions(
+        self,
+        net: Any,
+    ) -> tuple[CommunicationConfig, dict[tuple[str, str], LinkCondition]]:
+        """Infer underlying CommunicationConfig and link conditions from edge metrics."""
+        default_config = CommunicationConfig(max_range=100.0, base_latency=5.0, packet_loss=0.0)
+        if net is None:
+            return default_config, {}
+
+        edge_metrics = getattr(net, "edge_metrics", ())
+        if not edge_metrics:
+            return default_config, {}
+
+        inferred_ranges: list[float] = []
+        inferred_latencies: list[float] = []
+        inferred_losses: list[float] = []
+        conditions: dict[tuple[str, str], LinkCondition] = {}
+
+        for link in edge_metrics:
+            q = float(getattr(link, "link_quality", 1.0))
+            d = float(getattr(link, "distance", 0.0))
+            lat = float(getattr(link, "latency_ms", 5.0))
+            pdr = float(getattr(link, "estimated_pdr", 1.0))
+
+            if q < 1.0 and d > 1e-3:
+                denom = (1.0 / q) - 1.0
+                if denom > 1e-6:
+                    inferred_ranges.append(d / denom)
+                    inferred_latencies.append(lat * q)
+                    if q > 1e-6:
+                        inferred_losses.append(max(0.0, min(1.0, 1.0 - (pdr / q))))
+
+        max_range = inferred_ranges[0] if inferred_ranges else 100.0
+        base_latency = inferred_latencies[0] if inferred_latencies else 5.0
+        packet_loss = inferred_losses[0] if inferred_losses else 0.0
+
+        for link in edge_metrics:
+            q = float(getattr(link, "link_quality", 1.0))
+            d = float(getattr(link, "distance", 0.0))
+            pdr = float(getattr(link, "estimated_pdr", 1.0))
+            lat = float(getattr(link, "latency_ms", base_latency))
+            expected_q = 1.0 / (1.0 + d / max_range) if max_range > 0 else 1.0
+            expected_pdr = (1.0 - packet_loss) * expected_q
+            expected_lat = base_latency * (1.0 + d / max_range)
+            pair = (min(link.source_id, link.target_id), max(link.source_id, link.target_id))
+
+            if abs(pdr - expected_pdr) > 1e-3 or abs(lat - expected_lat) > 1e-3:
+                loss_override = 1.0 - pdr
+                lat_penalty = max(0.0, lat - expected_lat)
+                conditions[pair] = LinkCondition(
+                    packet_loss_override=loss_override,
+                    latency_penalty_ms=lat_penalty,
+                )
+
+        config = CommunicationConfig(
+            max_range=round(max_range, 2),
+            base_latency=round(base_latency, 2),
+            packet_loss=round(packet_loss, 4),
+        )
+        return config, conditions
+
+    def _get_comm_analyzer(self, net: Any) -> Any:
+        if self._comm_analyzer is not None:
+            return self._comm_analyzer
+        config, conditions = self._infer_comm_config_and_conditions(net)
+        return BaselineCommunicationAnalyzer(config=config, conditions=conditions)
+
+    def _compute_destination_comm_factor(
+        self,
+        uav: Any,
+        task: Any,
+        snapshot: Any,
+        net: Any,
+    ) -> float:
+        """Compute communication factor if UAV were positioned at task destination."""
+        u_id = str(getattr(uav, "id", ""))
+        task_pos = getattr(task, "position_xy", getattr(task, "position", None))
+        if task_pos is None or not hasattr(snapshot, "uavs") or u_id not in snapshot.uavs:
+            return self.compute_communication_factor(uav, net)
+
+        analyzer = self._get_comm_analyzer(net)
+        dest_uavs = dict(snapshot.uavs)
+        curr_uav_state = dest_uavs[u_id]
+        dest_uavs[u_id] = dataclasses.replace(curr_uav_state, position_xy=tuple(task_pos))
+        dest_snap = dataclasses.replace(snapshot, uavs=dest_uavs)
+
+        dest_net = analyzer.analyze(dest_snap)
+        return self.compute_communication_factor(uav, dest_net)
+
     def compute_utility(
         self,
         uav: Any,
         task: Any,
         network_analysis: Any = None,
+        snapshot: Any = None,
     ) -> UtilityScore:
         """Compute communication-aware multi-factor utility score.
 
         A1Utility(i, j) = BaseMissionUtility(i, j) * CommunicationFactor(i)
+        When destination_aware is enabled and snapshot is available, evaluates
+        communication factor at candidate task destination.
         Preserves UtilityScore term consistency.
         """
         base_score = super().compute_utility(uav, task)
@@ -141,7 +246,14 @@ class A1TaskAllocator(A0TaskAllocator):
         if net is None:
             return base_score
 
-        comm_factor = self.compute_communication_factor(uav, net)
+        snap = snapshot if snapshot is not None else self._current_snapshot
+        dest_aware = getattr(self.config, "destination_aware", True)
+
+        if dest_aware and snap is not None and hasattr(snap, "uavs") and hasattr(snap, "gcs_position"):
+            comm_factor = self._compute_destination_comm_factor(uav, task, snap, net)
+        else:
+            comm_factor = self.compute_communication_factor(uav, net)
+
         if abs(comm_factor - 1.0) < 1e-9:
             return base_score
 
@@ -180,10 +292,13 @@ class A1TaskAllocator(A0TaskAllocator):
         simulation_time: float | None = None,
         snapshot_revision: int = 0,
         network_analysis: Any = None,
+        snapshot: Any = None,
     ) -> AllocationResult:
         """Deterministically allocate pending tasks using A0 matching with A1 scoring."""
         prev_net = self._current_network_analysis
+        prev_snap = self._current_snapshot
         self._current_network_analysis = network_analysis
+        self._current_snapshot = snapshot
         try:
             return super().allocate(
                 snapshot_or_uavs,
@@ -194,6 +309,7 @@ class A1TaskAllocator(A0TaskAllocator):
             )
         finally:
             self._current_network_analysis = prev_net
+            self._current_snapshot = prev_snap
 
     def plan(
         self,
@@ -201,7 +317,7 @@ class A1TaskAllocator(A0TaskAllocator):
         network_analysis: Any = None,
     ) -> list[TaskActionProposal]:
         """Autonomous planner interface implementation conforming to AutonomyPlanner protocol."""
-        result = self.allocate(snapshot, network_analysis=network_analysis)
+        result = self.allocate(snapshot, network_analysis=network_analysis, snapshot=snapshot)
         return result.to_action_proposals()
 
 

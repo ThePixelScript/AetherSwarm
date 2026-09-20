@@ -1,5 +1,6 @@
 """A0 Autonomy Adapter bridging authoritative StateSnapshot to A0Allocator."""
 from __future__ import annotations
+import inspect
 from typing import Any, List
 from ares_swarm.core.commands import AssignTaskCommand
 from ares_swarm.core.enums import RTHState, TaskStatus
@@ -22,19 +23,42 @@ class A0AutonomyAdapter:
         if not eligible_uavs or not pending_tasks:
             return []
 
-        try:
-            allocation_result = self.allocator.allocate(
-                eligible_uavs,
-                pending_tasks,
-                simulation_time=snapshot.simulation_time,
-                network_analysis=network_analysis,
-            )
-        except TypeError:
-            allocation_result = self.allocator.allocate(
-                eligible_uavs,
-                pending_tasks,
-                simulation_time=snapshot.simulation_time,
-            )
+        kwargs: dict[str, Any] = {"simulation_time": snapshot.simulation_time}
+
+        # Explicit capability detection (preserving cbb9776 design principle)
+        accepts_net = getattr(self.allocator, "accepts_network_analysis", None)
+        if accepts_net is None:
+            try:
+                sig = inspect.signature(self.allocator.allocate)
+                accepts_net = (
+                    "network_analysis" in sig.parameters
+                    or any(p.kind == inspect.Parameter.VAR_KEYWORD for p in sig.parameters.values())
+                )
+            except (ValueError, TypeError):
+                accepts_net = False
+
+        if accepts_net:
+            kwargs["network_analysis"] = network_analysis
+
+        accepts_snap = getattr(self.allocator, "accepts_snapshot", None)
+        if accepts_snap is None:
+            try:
+                sig = inspect.signature(self.allocator.allocate)
+                accepts_snap = (
+                    "snapshot" in sig.parameters
+                    or any(p.kind == inspect.Parameter.VAR_KEYWORD for p in sig.parameters.values())
+                )
+            except (ValueError, TypeError):
+                accepts_snap = False
+
+        if accepts_snap:
+            kwargs["snapshot"] = snapshot
+
+        allocation_result = self.allocator.allocate(
+            eligible_uavs,
+            pending_tasks,
+            **kwargs,
+        )
         commands: List[AssignTaskCommand] = []
 
         for assignment in sorted(allocation_result.assignments, key=lambda a: a.uav_id):
