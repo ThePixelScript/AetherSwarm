@@ -1,0 +1,166 @@
+#VRML_SIM R2025a utf8
+# Parameterized 3D drone representation for AetherSwarm multi-UAV mission simulation.
+
+PROTO SwarmDrone [
+  field SFVec3f    translation   0 0 0
+  field SFRotation rotation      0 0 1 0
+  field SFString   name          "uav"
+  field SFColor    color         0.1 0.5 0.9
+  field SFColor    emissiveColor 0 0 0
+  field SFVec3f    scale         2.0 2.0 2.0
+]
+{
+  Solid {
+    translation IS translation
+    rotation IS rotation
+    name IS name
+    children [
+      Transform {
+        scale IS scale
+        children [
+          # Central Fuselage
+          DEF FUSELAGE Shape {
+            appearance Appearance {
+              material DEF DRONE_MAT Material {
+                diffuseColor IS color
+                emissiveColor IS emissiveColor
+              }
+            }
+            geometry Box {
+              size 0.8 0.8 0.25
+            }
+          }
+          # Forward Direction Indicator (Nose Cone)
+          Transform {
+            translation 0.55 0 0
+            rotation 0 1 0 1.5708
+            children [
+              Shape {
+                appearance Appearance {
+                  material Material {
+                    diffuseColor 0.9 0.8 0.1
+                    emissiveColor 0.3 0.2 0.0
+                  }
+                }
+                geometry Cylinder {
+                  height 0.3
+                  radius 0.18
+                }
+              }
+            ]
+          }
+          # Rotor Arms (+ Configuration)
+          # Arm X+
+          Transform {
+            translation 0.8 0 0
+            children [
+              Shape {
+                appearance Appearance {
+                  material Material { diffuseColor 0.2 0.2 0.2 }
+                }
+                geometry Box { size 0.8 0.08 0.08 }
+              }
+              Transform {
+                translation 0.4 0 0.08
+                children [
+                  Shape {
+                    appearance Appearance {
+                      material Material { diffuseColor 0.1 0.1 0.1 }
+                    }
+                    geometry Cylinder { height 0.04 radius 0.45 }
+                  }
+                ]
+              }
+            ]
+          }
+          # Arm X-
+          Transform {
+            translation -0.8 0 0
+            children [
+              Shape {
+                appearance Appearance {
+                  material Material { diffuseColor 0.2 0.2 0.2 }
+                }
+                geometry Box { size 0.8 0.08 0.08 }
+              }
+              Transform {
+                translation -0.4 0 0.08
+                children [
+                  Shape {
+                    appearance Appearance {
+                      material Material { diffuseColor 0.1 0.1 0.1 }
+                    }
+                    geometry Cylinder { height 0.04 radius 0.45 }
+                  }
+                ]
+              }
+            ]
+          }
+          # Arm Y+
+          Transform {
+            translation 0 0.8 0
+            children [
+              Shape {
+                appearance Appearance {
+                  material Material { diffuseColor 0.2 0.2 0.2 }
+                }
+                geometry Box { size 0.08 0.8 0.08 }
+              }
+              Transform {
+                translation 0 0.4 0.08
+                children [
+                  Shape {
+                    appearance Appearance {
+                      material Material { diffuseColor 0.1 0.1 0.1 }
+                    }
+                    geometry Cylinder { height 0.04 radius 0.45 }
+                  }
+                ]
+              }
+            ]
+          }
+          # Arm Y-
+          Transform {
+            translation 0 -0.8 0
+            children [
+              Shape {
+                appearance Appearance {
+                  material Material { diffuseColor 0.2 0.2 0.2 }
+                }
+                geometry Box { size 0.08 0.8 0.08 }
+              }
+              Transform {
+                translation 0 -0.4 0.08
+                children [
+                  Shape {
+                    appearance Appearance {
+                      material Material { diffuseColor 0.1 0.1 0.1 }
+                    }
+                    geometry Cylinder { height 0.04 radius 0.45 }
+                  }
+                ]
+              }
+            ]
+          }
+          # Status Beacon Top
+          Transform {
+            translation 0 0 0.22
+            children [
+              Shape {
+                appearance Appearance {
+                  material DEF BEACON_MAT Material {
+                    diffuseColor IS color
+                    emissiveColor IS color
+                  }
+                }
+                geometry Sphere {
+                  radius 0.22
+                }
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
