@@ -1,0 +1,86 @@
+#VRML_SIM R2025a utf8
+# Visual beacon representing a Point-of-Interest (POI) task in AetherSwarm.
+
+PROTO TaskPOI [
+  field SFVec3f  translation   0 0 0
+  field SFString name          "poi"
+  field SFColor  color         0.85 0.70 0.10
+  field SFFloat  radius        2.0
+]
+{
+  Solid {
+    translation IS translation
+    name IS name
+    children [
+      # Ground Target Ring
+      Transform {
+        translation 0 0 0.05
+        children [
+          Shape {
+            appearance Appearance {
+              material DEF RING_MAT Material {
+                diffuseColor IS color
+                transparency 0.3
+              }
+            }
+            geometry Cylinder {
+              height 0.05
+              radius IS radius
+            }
+          }
+        ]
+      }
+      # Inner Target Marker
+      Transform {
+        translation 0 0 0.1
+        children [
+          Shape {
+            appearance Appearance {
+              material Material {
+                diffuseColor 0.1 0.1 0.1
+              }
+            }
+            geometry Cylinder {
+              height 0.08
+              radius 0.6
+            }
+          }
+        ]
+      }
+      # Vertical Signal Pylon
+      Transform {
+        translation 0 0 1.2
+        children [
+          Shape {
+            appearance Appearance {
+              material Material {
+                diffuseColor 0.3 0.3 0.3
+              }
+            }
+            geometry Cylinder {
+              height 2.2
+              radius 0.12
+            }
+          }
+        ]
+      }
+      # Status Beacon Sphere
+      Transform {
+        translation 0 0 2.4
+        children [
+          Shape {
+            appearance Appearance {
+              material DEF BEACON_MAT Material {
+                diffuseColor IS color
+                emissiveColor IS color
+              }
+            }
+            geometry Sphere {
+              radius 0.45
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

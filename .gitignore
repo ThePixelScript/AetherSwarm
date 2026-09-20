@@ -39,3 +39,8 @@ mlruns/
 *.tmp
 *.swp
 *.egg-info/
+
+# Webots traces
+visualization/webots/data/*.json
+visualization/webots/data/*.txt
+visualization/webots/data/screenshots/

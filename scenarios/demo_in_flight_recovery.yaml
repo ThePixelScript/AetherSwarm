@@ -1,0 +1,70 @@
+# Deterministic scenario for in-flight UAV failure and dynamic task recovery demo
+name: demo_in_flight_recovery
+seed: 42
+dt: 1.0
+speed_limit: 5.0
+duration: 100.0
+max_ticks: 100
+
+# GCS located at [-50.0, 500.0]
+gcs_position: [-50.0, 500.0]
+
+# 1000x1000m arena
+arena:
+  bounds_x: [0.0, 1000.0]
+  bounds_y: [0.0, 1000.0]
+  max_height: 100.0
+
+# Safety constraints
+min_separation_m: 20.0
+enable_auto_rth: true
+return_by_mission_end: true
+
+# RF Communication model (100m range constraint)
+communication:
+  max_range: 100.0
+  base_latency: 5.0
+  packet_loss: 0.0
+  degradation_multiplier: 1.0
+
+# Battery endurance
+battery:
+  idle_rate: 1.0
+  movement_rate: 0.5
+
+# Swarm initial state near operational center [50.0, 500.0], strictly separated >= 20m (40m lane spacing)
+uavs:
+  - id: uav_1
+    position: [50.0, 420.0]
+    battery_capacity: 4200.0
+    battery_energy: 4200.0
+    role: IDLE
+  - id: uav_2
+    position: [50.0, 460.0]
+    battery_capacity: 4200.0
+    battery_energy: 4200.0
+    role: IDLE
+  - id: uav_3
+    position: [50.0, 500.0]
+    battery_capacity: 4200.0
+    battery_energy: 4200.0
+    role: IDLE
+  - id: uav_4
+    position: [50.0, 540.0]
+    battery_capacity: 4200.0
+    battery_energy: 4200.0
+    role: IDLE
+  - id: uav_5
+    position: [50.0, 580.0]
+    battery_capacity: 4200.0
+    battery_energy: 4200.0
+    role: IDLE
+
+# Demonstration POI task
+tasks:
+  - id: poi_recovery
+    position: [80.0, 420.0]
+    priority: 3
+    spawn_time: 0.0
+    deadline_offset: 80.0
+    service_duration: 6.0
