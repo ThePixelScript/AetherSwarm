@@ -132,7 +132,13 @@ class SimulationEngine:
                 )
 
         return self.state_store.apply(commands)
-    def step_swarm(self, speed: float | None = None):
+    def step_swarm(
+        self,
+        speed: float | None = None,
+        separation_enforcer: Any = None,
+        airspace: Any = None,
+        flight_phases: Any = None,
+    ):
         """Step all active UAVs with targets in one deterministic batch."""
 
         snapshot = self.state_store.snapshot()
@@ -144,6 +150,22 @@ class SimulationEngine:
 
         if configured_speed > self.max_speed:
             raise ValueError("speed exceeds configured maximum")
+
+        if separation_enforcer is not None:
+            from dataclasses import replace
+            commands, events = separation_enforcer.enforce_step(
+                snapshot=snapshot,
+                configured_speed=configured_speed,
+                dt=self.dt,
+                idle_rate=self.idle_rate,
+                movement_rate=self.movement_rate,
+                airspace=airspace,
+                flight_phases=flight_phases,
+            )
+            res = self.state_store.apply(commands)
+            if events:
+                return replace(res, emitted_events=res.emitted_events + tuple(events))
+            return res
 
         commands = []
 

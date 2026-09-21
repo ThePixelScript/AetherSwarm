@@ -29,6 +29,7 @@ from ..evaluation.metrics import MissionMetricsReport, compute_mission_metrics
 from ..interfaces.communication import NetworkAnalysis
 from ..safety.airspace import ChallengeAirspace
 from ..safety.safety_assessor import SafetyAssessor, SafetyReport
+from ..safety.separation import SeparationEnforcer
 from ..telemetry.manager import DetectionManager
 from .scenario import ScenarioConfig, create_initial_snapshot, load_scenario
 
@@ -57,6 +58,7 @@ class MissionResult:
     safety_report: Any = None
     metrics_report: MissionMetricsReport | None = None
     telemetry_manager: Any = None
+    separation_enforcer: Any = None
 
     def to_dict(self) -> dict[str, Any]:
         snap = self.final_snapshot
@@ -148,6 +150,11 @@ class MissionResult:
                 tid: r.to_dict()
                 for tid, r in sorted(self.telemetry_manager.authoritative_reports.items())
             }
+        if self.separation_enforcer is not None:
+            res_dict["safety_interventions"] = {
+                "total_interventions": self.separation_enforcer.total_interventions,
+                "per_uav_interventions": dict(self.separation_enforcer.per_uav_interventions),
+            }
         return res_dict
 
     def save_json(self, output_path: str | Path) -> Path:
@@ -191,6 +198,7 @@ class MissionRunner:
         max_sortie_s = 1200.0
         rth_safety_margin_s = 15.0
         self.detection_manager: DetectionManager | None = None
+        self.separation_enforcer: SeparationEnforcer | None = None
 
         if challenge_profile and challenge_profile.enabled:
             enforce_sortie = challenge_profile.enforce_sortie_limit
@@ -211,6 +219,12 @@ class MissionRunner:
                 self.detection_manager = DetectionManager(
                     config=challenge_profile.detection_pipeline,
                     gcs_position=self.scenario.gcs_position,
+                )
+            if challenge_profile.enforce_separation:
+                self.separation_enforcer = SeparationEnforcer(
+                    min_separation_m=self.scenario.min_separation_m,
+                    gcs_position=self.scenario.gcs_position,
+                    staging_pad_radius_m=airspace.staging_pad_radius_m if airspace else 15.0,
                 )
 
         self.safety_assessor = SafetyAssessor(
@@ -251,6 +265,8 @@ class MissionRunner:
         self.safety_assessor.reset()
         if self.detection_manager is not None:
             self.detection_manager.reset()
+        if self.separation_enforcer is not None:
+            self.separation_enforcer.reset()
         self.history.clear()
         self.all_events.clear()
         return self.state_store.snapshot()
@@ -383,7 +399,10 @@ class MissionRunner:
                     tick_events.extend(res_clear.emitted_events)
 
         # 6. Delta Physics Simulation Swarm Stepping (Batched transaction)
-        step_res = self.sim_engine.step_swarm(speed=self.scenario.speed_limit)
+        step_res = self.sim_engine.step_swarm(
+            speed=self.scenario.speed_limit,
+            separation_enforcer=self.separation_enforcer,
+        )
         applied_commands.extend(step_res.applied_commands)
         rejected_commands.extend(step_res.rejected_commands)
         tick_events.extend(step_res.emitted_events)
@@ -465,6 +484,7 @@ class MissionRunner:
             dt=self.scenario.dt,
             safety_report=self.safety_assessor.report,
             telemetry_manager=self.detection_manager,
+            separation_enforcer=self.separation_enforcer,
         )
         return MissionResult(
             scenario_name=self.scenario.name,
@@ -478,6 +498,7 @@ class MissionRunner:
             safety_report=self.safety_assessor.report,
             metrics_report=metrics_report,
             telemetry_manager=self.detection_manager,
+            separation_enforcer=self.separation_enforcer,
         )
 
 

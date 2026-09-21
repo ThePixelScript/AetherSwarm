@@ -35,11 +35,12 @@ class MissionMetricsReport:
     performance_after_failure: dict[str, Any] | None = None
     resilience_status: str = "NOT_APPLICABLE_M0"
 
-    # Safety metrics
     separation_violation_count: int = 0
     min_inter_uav_separation_m: float = float("inf")
     battery_exhaustion_count: int = 0
     geofence_violation_count: int = 0
+    separation_interventions: int = 0
+    per_uav_intervention_counts: dict[str, int] = field(default_factory=dict)
 
     # Detection & Telemetry metrics
     total_detections: int = 0
@@ -87,6 +88,8 @@ class MissionMetricsReport:
                 ),
                 "battery_exhaustion_count": self.battery_exhaustion_count,
                 "geofence_violation_count": self.geofence_violation_count,
+                "separation_interventions": self.separation_interventions,
+                "per_uav_intervention_counts": dict(self.per_uav_intervention_counts),
             },
             "telemetry": {
                 "total_detections": self.total_detections,
@@ -108,6 +111,7 @@ def compute_mission_metrics(
     dt: float = 1.0,
     safety_report: Any = None,
     telemetry_manager: Any = None,
+    separation_enforcer: Any = None,
 ) -> MissionMetricsReport:
     """Compute official benchmark metrics from simulation step history and snapshots."""
     report = MissionMetricsReport()
@@ -214,6 +218,9 @@ def compute_mission_metrics(
         report.min_inter_uav_separation_m = safety_report.min_observed_separation_m
         report.battery_exhaustion_count = safety_report.battery_exhaustions_count
         report.geofence_violation_count = safety_report.geofence_violations_count
+    if separation_enforcer:
+        report.separation_interventions = separation_enforcer.total_interventions
+        report.per_uav_intervention_counts = dict(separation_enforcer.per_uav_interventions)
 
     # 5. Detection & Telemetry Metrics
     if telemetry_manager:
