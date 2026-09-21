@@ -27,6 +27,7 @@ from ..core.simulator import SimulationEngine
 from ..core.state_store import StateStore
 from ..evaluation.metrics import MissionMetricsReport, compute_mission_metrics
 from ..interfaces.communication import NetworkAnalysis
+from ..safety.airspace import ChallengeAirspace
 from ..safety.safety_assessor import SafetyAssessor, SafetyReport
 from .scenario import ScenarioConfig, create_initial_snapshot, load_scenario
 
@@ -174,11 +175,39 @@ class MissionRunner:
         self.comm_analyzer: BaselineCommunicationAnalyzer
         self.autonomy_adapter: Any
         self.sim_engine: SimulationEngine
+        airspace = None
+        challenge_profile = getattr(self.scenario, "challenge_profile", None)
+        enforce_sortie = False
+        enforce_single = False
+        max_sortie_s = 1200.0
+        rth_safety_margin_s = 15.0
+
+        if challenge_profile and challenge_profile.enabled:
+            enforce_sortie = challenge_profile.enforce_sortie_limit
+            enforce_single = challenge_profile.enforce_single_sortie
+            max_sortie_s = challenge_profile.max_sortie_duration_s
+            rth_safety_margin_s = challenge_profile.rth_safety_margin_s
+            if challenge_profile.airspace.enabled:
+                airspace = ChallengeAirspace(
+                    arena_bounds_x=challenge_profile.airspace.arena_bounds_x,
+                    arena_bounds_y=challenge_profile.airspace.arena_bounds_y,
+                    max_height=challenge_profile.airspace.max_height,
+                    staging_pad_center=challenge_profile.airspace.staging_pad_center,
+                    staging_pad_radius_m=challenge_profile.airspace.staging_pad_radius_m,
+                    corridor_bounds_x=challenge_profile.airspace.corridor_bounds_x,
+                    corridor_bounds_y=challenge_profile.airspace.corridor_bounds_y,
+                )
+
         self.safety_assessor = SafetyAssessor(
             arena_bounds_x=self.scenario.arena_bounds_x,
             arena_bounds_y=self.scenario.arena_bounds_y,
             min_separation_m=self.scenario.min_separation_m,
             gcs_position=self.scenario.gcs_position,
+            airspace=airspace,
+            max_sortie_duration_s=max_sortie_s,
+            rth_safety_margin_s=rth_safety_margin_s,
+            enforce_sortie_limit=enforce_sortie,
+            enforce_single_sortie=enforce_single,
         )
         self.history: list[StepResult] = []
         self.all_events: list[DomainEvent] = []
@@ -204,7 +233,7 @@ class MissionRunner:
             idle_rate=self.scenario.battery_idle_rate,
             movement_rate=self.scenario.battery_movement_rate,
         )
-        self.safety_assessor.report = SafetyReport()
+        self.safety_assessor.reset()
         self.history.clear()
         self.all_events.clear()
         return self.state_store.snapshot()
@@ -231,6 +260,10 @@ class MissionRunner:
         # 2. Deterministic Safety Assessment & Preemptive RTH triggers
         self.safety_assessor.assess_snapshot(current_snap, net_analysis)
         if self.scenario.enable_auto_rth:
+            challenge_profile = getattr(self.scenario, "challenge_profile", None)
+            enable_sortie_rth = bool(
+                challenge_profile and challenge_profile.enabled and challenge_profile.enforce_sortie_limit
+            )
             rth_cmds = self.safety_assessor.evaluate_rth_triggers(
                 current_snap,
                 speed_limit=self.scenario.speed_limit,
@@ -239,6 +272,7 @@ class MissionRunner:
                 mission_duration=self.scenario.duration,
                 enable_battery_rth=True,
                 enable_time_rth=self.scenario.return_by_mission_end,
+                enable_sortie_rth=enable_sortie_rth,
             )
             if rth_cmds:
                 res_rth = self.state_store.apply(rth_cmds)

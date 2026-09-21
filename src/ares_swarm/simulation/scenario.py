@@ -4,12 +4,36 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 from types import MappingProxyType
-from typing import Any, Mapping, Sequence
+from typing import Any, Mapping, Sequence, Tuple
 import yaml
 
 from ..communication.config import CommunicationConfig
 from ..core.enums import FailureState, Role, RTHState, TaskStatus
 from ..core.models import StateSnapshot, TaskState, UAVState
+
+
+@dataclass(frozen=True)
+class ChallengeAirspaceConfig:
+    """Configuration for formal Challenge Airspace under Challenge Assumptions V1."""
+    enabled: bool = False
+    staging_pad_center: tuple[float, float] = (-75.0, 500.0)
+    staging_pad_radius_m: float = 15.0
+    corridor_bounds_x: tuple[float, float] = (-75.0, 0.0)
+    corridor_bounds_y: tuple[float, float] = (450.0, 550.0)
+    arena_bounds_x: tuple[float, float] = (0.0, 1000.0)
+    arena_bounds_y: tuple[float, float] = (0.0, 1000.0)
+    max_height: float = 100.0
+
+
+@dataclass(frozen=True)
+class ChallengeProfileConfig:
+    """Configuration for Challenge Compliance Layer V1 (explicitly opt-in)."""
+    enabled: bool = False
+    max_sortie_duration_s: float = 1200.0
+    rth_safety_margin_s: float = 15.0
+    enforce_sortie_limit: bool = True
+    enforce_single_sortie: bool = True
+    airspace: ChallengeAirspaceConfig = field(default_factory=ChallengeAirspaceConfig)
 
 
 @dataclass(frozen=True)
@@ -32,6 +56,7 @@ class ScenarioConfig:
     return_by_mission_end: bool = False
     uavs: tuple[dict[str, Any], ...] = ()
     tasks: tuple[dict[str, Any], ...] = ()
+    challenge_profile: ChallengeProfileConfig = field(default_factory=ChallengeProfileConfig)
 
 
 def load_scenario(source: str | Path | dict[str, Any]) -> ScenarioConfig:
@@ -92,6 +117,28 @@ def load_scenario(source: str | Path | dict[str, Any]) -> ScenarioConfig:
     uavs_raw = tuple(raw.get("uavs", []))
     tasks_raw = tuple(raw.get("tasks", []))
 
+    challenge_raw = raw.get("challenge_profile", {})
+    challenge_enabled = bool(challenge_raw.get("enabled", False))
+    airspace_raw = challenge_raw.get("airspace", {})
+    airspace_config = ChallengeAirspaceConfig(
+        enabled=bool(airspace_raw.get("enabled", challenge_enabled)),
+        staging_pad_center=tuple(float(x) for x in airspace_raw.get("staging_pad_center", (-75.0, 500.0))),
+        staging_pad_radius_m=float(airspace_raw.get("staging_pad_radius_m", 15.0)),
+        corridor_bounds_x=tuple(float(x) for x in airspace_raw.get("corridor_bounds_x", (-75.0, 0.0))),
+        corridor_bounds_y=tuple(float(y) for y in airspace_raw.get("corridor_bounds_y", (450.0, 550.0))),
+        arena_bounds_x=tuple(float(x) for x in airspace_raw.get("arena_bounds_x", arena_bounds_x)),
+        arena_bounds_y=tuple(float(y) for y in airspace_raw.get("arena_bounds_y", arena_bounds_y)),
+        max_height=float(airspace_raw.get("max_height", max_height)),
+    )
+    challenge_profile = ChallengeProfileConfig(
+        enabled=challenge_enabled,
+        max_sortie_duration_s=float(challenge_raw.get("max_sortie_duration_s", 1200.0)),
+        rth_safety_margin_s=float(challenge_raw.get("rth_safety_margin_s", 15.0)),
+        enforce_sortie_limit=bool(challenge_raw.get("enforce_sortie_limit", True)),
+        enforce_single_sortie=bool(challenge_raw.get("enforce_single_sortie", True)),
+        airspace=airspace_config,
+    )
+
     return ScenarioConfig(
         name=name,
         seed=seed,
@@ -111,6 +158,7 @@ def load_scenario(source: str | Path | dict[str, Any]) -> ScenarioConfig:
         return_by_mission_end=return_by_mission_end,
         uavs=uavs_raw,
         tasks=tasks_raw,
+        challenge_profile=challenge_profile,
     )
 
 
