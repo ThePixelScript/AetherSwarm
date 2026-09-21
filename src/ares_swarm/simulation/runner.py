@@ -29,6 +29,7 @@ from ..evaluation.metrics import MissionMetricsReport, compute_mission_metrics
 from ..interfaces.communication import NetworkAnalysis
 from ..safety.airspace import ChallengeAirspace
 from ..safety.safety_assessor import SafetyAssessor, SafetyReport
+from ..telemetry.manager import DetectionManager
 from .scenario import ScenarioConfig, create_initial_snapshot, load_scenario
 
 
@@ -55,6 +56,7 @@ class MissionResult:
     initial_snapshot: StateSnapshot | None = None
     safety_report: Any = None
     metrics_report: MissionMetricsReport | None = None
+    telemetry_manager: Any = None
 
     def to_dict(self) -> dict[str, Any]:
         snap = self.final_snapshot
@@ -115,6 +117,7 @@ class MissionResult:
                 final_snapshot=snap,
                 dt=1.0,
                 safety_report=self.safety_report,
+                telemetry_manager=self.telemetry_manager,
             ).to_dict()
 
         res_dict = {
@@ -139,6 +142,12 @@ class MissionResult:
         }
         if eval_report:
             res_dict["evaluation"] = eval_report
+        if self.telemetry_manager is not None:
+            res_dict["telemetry"] = self.telemetry_manager.get_metrics()
+            res_dict["telemetry_reports"] = {
+                tid: r.to_dict()
+                for tid, r in sorted(self.telemetry_manager.authoritative_reports.items())
+            }
         return res_dict
 
     def save_json(self, output_path: str | Path) -> Path:
@@ -181,6 +190,7 @@ class MissionRunner:
         enforce_single = False
         max_sortie_s = 1200.0
         rth_safety_margin_s = 15.0
+        self.detection_manager: DetectionManager | None = None
 
         if challenge_profile and challenge_profile.enabled:
             enforce_sortie = challenge_profile.enforce_sortie_limit
@@ -196,6 +206,11 @@ class MissionRunner:
                     staging_pad_radius_m=challenge_profile.airspace.staging_pad_radius_m,
                     corridor_bounds_x=challenge_profile.airspace.corridor_bounds_x,
                     corridor_bounds_y=challenge_profile.airspace.corridor_bounds_y,
+                )
+            if challenge_profile.detection_pipeline.enabled:
+                self.detection_manager = DetectionManager(
+                    config=challenge_profile.detection_pipeline,
+                    gcs_position=self.scenario.gcs_position,
                 )
 
         self.safety_assessor = SafetyAssessor(
@@ -234,6 +249,8 @@ class MissionRunner:
             movement_rate=self.scenario.battery_movement_rate,
         )
         self.safety_assessor.reset()
+        if self.detection_manager is not None:
+            self.detection_manager.reset()
         self.history.clear()
         self.all_events.clear()
         return self.state_store.snapshot()
@@ -393,21 +410,38 @@ class MissionRunner:
             rejected_commands.extend(res_complete.rejected_commands)
             tick_events.extend(res_complete.emitted_events)
 
-        # 8. Deterministic Safety Assessment After Physics Movement & Landing
+        # 8. Post-physics analysis, perception detection, and telemetry routing
         post_physics_snap = self.state_store.snapshot()
-        self.safety_assessor.assess_snapshot(post_physics_snap, net_analysis)
+        if self.detection_manager is not None:
+            post_physics_net = self.comm_analyzer.analyze(post_physics_snap)
+            detect_events = self.detection_manager.step_perception(
+                post_physics_snap,
+                self.safety_assessor.report.uav_flight_records,
+            )
+            telem_events = self.detection_manager.step_telemetry(
+                post_physics_snap,
+                post_physics_net,
+            )
+            tick_events.extend(detect_events)
+            tick_events.extend(telem_events)
+            active_net_analysis = post_physics_net
+        else:
+            active_net_analysis = net_analysis
 
-        # 9. Authoritative Clock Advance
+        # 9. Deterministic Safety Assessment After Physics Movement & Landing
+        self.safety_assessor.assess_snapshot(post_physics_snap, active_net_analysis)
+
+        # 10. Authoritative Clock Advance
         self.sim_engine.advance_tick()
 
-        # 10. Collect updated authoritative state
+        # 11. Collect updated authoritative state
         final_snap = self.state_store.snapshot()
         self.all_events.extend(tick_events)
 
         result = StepResult(
             tick=current_tick,
             simulation_time=current_snap.simulation_time,
-            network_analysis=net_analysis,
+            network_analysis=active_net_analysis,
             applied_commands=tuple(applied_commands),
             rejected_commands=tuple(rejected_commands),
             events=tuple(tick_events),
@@ -430,6 +464,7 @@ class MissionRunner:
             final_snapshot=final_snap,
             dt=self.scenario.dt,
             safety_report=self.safety_assessor.report,
+            telemetry_manager=self.detection_manager,
         )
         return MissionResult(
             scenario_name=self.scenario.name,
@@ -442,6 +477,7 @@ class MissionRunner:
             initial_snapshot=self.initial_snapshot,
             safety_report=self.safety_assessor.report,
             metrics_report=metrics_report,
+            telemetry_manager=self.detection_manager,
         )
 
 

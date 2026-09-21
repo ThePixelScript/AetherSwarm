@@ -5,7 +5,7 @@ from types import MappingProxyType
 from typing import Mapping, Optional, Tuple
 
 from .constants import EPSILON
-from .enums import FailureState, HandoverState, Role, RTHState, TaskStatus
+from .enums import FailureState, HandoverState, Role, RTHState, TaskStatus, TelemetryStatus
 
 
 @dataclass(frozen=True)
@@ -118,4 +118,31 @@ class StateSnapshot:
                 for task_id, task in self.tasks.items()
             },
             "gcs_position": self.gcs_position,
+        }
+
+
+@dataclass(frozen=True)
+class TelemetryReport:
+    """Immutable telemetry report recording detection and delivery of a POI."""
+    task_id: str
+    detecting_uav_id: str
+    t_detect: float
+    t_report_generated: float
+    t_gcs_received: Optional[float] = None
+    hop_count: Optional[int] = None
+    route: Optional[Tuple[str, ...]] = None
+    reporting_latency_s: Optional[float] = None
+    status: TelemetryStatus = TelemetryStatus.PENDING
+
+    def to_dict(self) -> dict:
+        return {
+            "task_id": self.task_id,
+            "detecting_uav_id": self.detecting_uav_id,
+            "t_detect": self.t_detect,
+            "t_report_generated": self.t_report_generated,
+            "t_gcs_received": self.t_gcs_received,
+            "hop_count": self.hop_count,
+            "route": list(self.route) if self.route else None,
+            "reporting_latency_s": self.reporting_latency_s,
+            "status": self.status.value if hasattr(self.status, "value") else str(self.status),
         }

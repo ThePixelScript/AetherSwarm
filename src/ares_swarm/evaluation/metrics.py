@@ -41,6 +41,16 @@ class MissionMetricsReport:
     battery_exhaustion_count: int = 0
     geofence_violation_count: int = 0
 
+    # Detection & Telemetry metrics
+    total_detections: int = 0
+    reports_delivered: int = 0
+    reports_deadline_exceeded: int = 0
+    reporting_compliance_ratio: float = 1.0
+    mean_reporting_latency_s: float | None = None
+    max_reporting_latency_s: float | None = None
+    per_uav_detection_counts: dict[str, int] = field(default_factory=dict)
+    per_uav_delivered_counts: dict[str, int] = field(default_factory=dict)
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "mission": {
@@ -78,6 +88,16 @@ class MissionMetricsReport:
                 "battery_exhaustion_count": self.battery_exhaustion_count,
                 "geofence_violation_count": self.geofence_violation_count,
             },
+            "telemetry": {
+                "total_detections": self.total_detections,
+                "reports_delivered": self.reports_delivered,
+                "reports_deadline_exceeded": self.reports_deadline_exceeded,
+                "reporting_compliance_ratio": round(self.reporting_compliance_ratio, 4),
+                "mean_reporting_latency_s": round(self.mean_reporting_latency_s, 3) if self.mean_reporting_latency_s is not None else None,
+                "max_reporting_latency_s": round(self.max_reporting_latency_s, 3) if self.max_reporting_latency_s is not None else None,
+                "per_uav_detection_counts": dict(self.per_uav_detection_counts),
+                "per_uav_delivered_counts": dict(self.per_uav_delivered_counts),
+            },
         }
 
 
@@ -87,6 +107,7 @@ def compute_mission_metrics(
     final_snapshot: StateSnapshot,
     dt: float = 1.0,
     safety_report: Any = None,
+    telemetry_manager: Any = None,
 ) -> MissionMetricsReport:
     """Compute official benchmark metrics from simulation step history and snapshots."""
     report = MissionMetricsReport()
@@ -193,5 +214,17 @@ def compute_mission_metrics(
         report.min_inter_uav_separation_m = safety_report.min_observed_separation_m
         report.battery_exhaustion_count = safety_report.battery_exhaustions_count
         report.geofence_violation_count = safety_report.geofence_violations_count
+
+    # 5. Detection & Telemetry Metrics
+    if telemetry_manager:
+        telem_metrics = telemetry_manager.get_metrics()
+        report.total_detections = telem_metrics.get("total_detections", 0)
+        report.reports_delivered = telem_metrics.get("reports_delivered", 0)
+        report.reports_deadline_exceeded = telem_metrics.get("reports_deadline_exceeded", 0)
+        report.reporting_compliance_ratio = telem_metrics.get("reporting_compliance_ratio", 1.0)
+        report.mean_reporting_latency_s = telem_metrics.get("mean_reporting_latency_s")
+        report.max_reporting_latency_s = telem_metrics.get("max_reporting_latency_s")
+        report.per_uav_detection_counts = telem_metrics.get("per_uav_detection_counts", {})
+        report.per_uav_delivered_counts = telem_metrics.get("per_uav_delivered_counts", {})
 
     return report

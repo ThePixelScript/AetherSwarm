@@ -26,6 +26,15 @@ class ChallengeAirspaceConfig:
 
 
 @dataclass(frozen=True)
+class DetectionPipelineConfig:
+    """Configuration for Challenge Detection -> GCS Reporting pipeline."""
+    enabled: bool = False
+    sensor_fov_radius_m: float = 40.0
+    reporting_deadline_s: float = 10.0
+    processing_delay_s: float = 0.0
+
+
+@dataclass(frozen=True)
 class ChallengeProfileConfig:
     """Configuration for Challenge Compliance Layer V1 (explicitly opt-in)."""
     enabled: bool = False
@@ -34,6 +43,8 @@ class ChallengeProfileConfig:
     enforce_sortie_limit: bool = True
     enforce_single_sortie: bool = True
     airspace: ChallengeAirspaceConfig = field(default_factory=ChallengeAirspaceConfig)
+    detection_pipeline: DetectionPipelineConfig = field(default_factory=DetectionPipelineConfig)
+
 
 
 @dataclass(frozen=True)
@@ -137,6 +148,12 @@ def load_scenario(source: str | Path | dict[str, Any]) -> ScenarioConfig:
         enforce_sortie_limit=bool(challenge_raw.get("enforce_sortie_limit", True)),
         enforce_single_sortie=bool(challenge_raw.get("enforce_single_sortie", True)),
         airspace=airspace_config,
+        detection_pipeline=DetectionPipelineConfig(
+            enabled=bool(challenge_raw.get("detection_pipeline", {}).get("enabled", False)),
+            sensor_fov_radius_m=float(challenge_raw.get("detection_pipeline", {}).get("sensor_fov_radius_m", 40.0)),
+            reporting_deadline_s=float(challenge_raw.get("detection_pipeline", {}).get("reporting_deadline_s", 10.0)),
+            processing_delay_s=float(challenge_raw.get("detection_pipeline", {}).get("processing_delay_s", 0.0)),
+        ),
     )
 
     return ScenarioConfig(
