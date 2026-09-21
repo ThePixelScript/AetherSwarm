@@ -2,14 +2,17 @@
 """Authoritative trace consumer and 3D spatial verification Supervisor for Webots R2025a.
 
 Consumes immutable AetherSwarm simulation traces, manifests the authoritative
-multi-UAV spatial execution, updates 3D mesh communication links, and performs
-independent runtime spatial constraint verification (minimum separation, geofence,
+multi-UAV spatial execution, updates 3D mesh communication links, renders dynamic
+altitude drop-lines, updates high-visibility status indicators, displays in-world HUD telemetry,
+and performs independent runtime spatial constraint verification (minimum separation, geofence,
 altitude compliance).
 
 Constraint:
   - Uses ONLY standard library modules and the Webots 'controller' API.
   - Zero imports from ares_swarm, numpy, networkx, scipy, or WSL virtualenv.
   - Purely observational spatial verification; never overrides authoritative state.
+  - Dual-mode: drives Webots 3D robotic simulation when inside Webots; provides
+    independent deterministic spatial verification CLI when executed standalone.
 """
 from __future__ import annotations
 
@@ -18,12 +21,13 @@ import math
 import os
 import sys
 from pathlib import Path
+from typing import Any
 
 # Webots Controller API
 try:
     from controller import Supervisor
 except ImportError:
-    # If running outside Webots for syntax checking / dry-run
+    # Running outside Webots for CLI verification / syntax checking / dry-run
     Supervisor = None
 
 
@@ -116,13 +120,16 @@ class WebotsAetherSwarmSupervisor:
     """Consumes authoritative trace and drives Webots 3D robotic simulation."""
 
     def __init__(self) -> None:
-        if Supervisor is None:
-            raise RuntimeError("Webots Supervisor API is not available.")
-
-        self.supervisor = Supervisor()
-        self.time_step = int(self.supervisor.getBasicTimeStep())
-        if self.time_step <= 0:
+        self.is_standalone = Supervisor is None
+        if not self.is_standalone:
+            self.supervisor = Supervisor()
+            self.time_step = int(self.supervisor.getBasicTimeStep())
+            if self.time_step <= 0:
+                self.time_step = 32
+        else:
+            self.supervisor = None
             self.time_step = 32
+            log_msg("[Webots Supervisor] Running in standalone spatial verification mode (controller API not imported)")
 
         self.trace_file = find_trace_file(self.supervisor)
         log_msg(f"[Webots Supervisor] Loading authoritative trace: {self.trace_file}")
@@ -140,54 +147,78 @@ class WebotsAetherSwarmSupervisor:
         log_msg(f"[Webots Supervisor] Total simulation ticks: {self.total_ticks}")
         log_msg(f"[Webots Supervisor] Official constraints: min_sep={self.min_separation_m}m, max_alt={self.max_altitude_m}m")
 
-        # Lookup drone nodes and material fields
+        # Lookup drone nodes and material fields if running inside Webots
         self.drone_nodes: dict[str, Any] = {}
         self.drone_trans_fields: dict[str, Any] = {}
         self.drone_rot_fields: dict[str, Any] = {}
         self.drone_materials: dict[str, Any] = {}
         self.drone_beacons: dict[str, Any] = {}
+        self.drone_halos: dict[str, Any] = {}
 
-        for uid in self.metadata.get("uav_ids", []):
-            def_name = f"UAV_{uid.split('_')[-1]}"  # e.g. uav_1 -> UAV_1
-            node = self.supervisor.getFromDef(def_name)
-            if node:
-                self.drone_nodes[uid] = node
-                self.drone_trans_fields[uid] = node.getField("translation")
-                self.drone_rot_fields[uid] = node.getField("rotation")
+        if self.supervisor:
+            for uid in self.metadata.get("uav_ids", []):
+                def_name = f"UAV_{uid.split('_')[-1]}"  # e.g. uav_1 -> UAV_1
+                node = self.supervisor.getFromDef(def_name)
+                if node:
+                    self.drone_nodes[uid] = node
+                    self.drone_trans_fields[uid] = node.getField("translation")
+                    self.drone_rot_fields[uid] = node.getField("rotation")
 
-                mat_node = self.supervisor.getFromDef(f"{def_name}_MAT")
-                if mat_node:
-                    self.drone_materials[uid] = mat_node
-                beacon_node = self.supervisor.getFromDef(f"{def_name}_BEACON")
-                if beacon_node:
-                    self.drone_beacons[uid] = beacon_node
+                    mat_node = self.supervisor.getFromDef(f"{def_name}_MAT")
+                    if mat_node:
+                        self.drone_materials[uid] = mat_node
+                    beacon_node = self.supervisor.getFromDef(f"{def_name}_BEACON")
+                    if beacon_node:
+                        self.drone_beacons[uid] = beacon_node
+                    halo_node = self.supervisor.getFromDef(f"{def_name}_HALO")
+                    if halo_node:
+                        self.drone_halos[uid] = halo_node
 
         # Lookup POI nodes and materials
         self.poi_nodes: dict[str, Any] = {}
         self.poi_materials: dict[str, Any] = {}
         self.poi_beacons: dict[str, Any] = {}
 
-        for tid in self.metadata.get("task_ids", []):
-            parts = tid.split("_")
-            def_name = f"POI_{parts[-1].upper()}" if len(parts) > 1 else f"POI_{tid.upper()}"
-            node = self.supervisor.getFromDef(def_name)
-            if node:
-                self.poi_nodes[tid] = node
-                mat_node = self.supervisor.getFromDef(f"{def_name}_MAT")
-                if mat_node:
-                    self.poi_materials[tid] = mat_node
-                beacon_node = self.supervisor.getFromDef(f"{def_name}_BEACON")
-                if beacon_node:
-                    self.poi_beacons[tid] = beacon_node
+        if self.supervisor:
+            for tid in self.metadata.get("task_ids", []):
+                parts = tid.split("_")
+                def_name = f"POI_{parts[-1].upper()}" if len(parts) > 1 else f"POI_{tid.upper()}"
+                node = self.supervisor.getFromDef(def_name)
+                if node:
+                    self.poi_nodes[tid] = node
+                    mat_node = self.supervisor.getFromDef(f"{def_name}_MAT")
+                    if mat_node:
+                        self.poi_materials[tid] = mat_node
+                    beacon_node = self.supervisor.getFromDef(f"{def_name}_BEACON")
+                    if beacon_node:
+                        self.poi_beacons[tid] = beacon_node
 
         # Communication mesh lines nodes
         self.comm_coord_field = None
         self.comm_index_field = None
-        coord_node = self.supervisor.getFromDef("COMM_COORD")
-        lines_node = self.supervisor.getFromDef("COMM_LINES")
-        if coord_node and lines_node:
-            self.comm_coord_field = coord_node.getField("point")
-            self.comm_index_field = lines_node.getField("coordIndex")
+        self.route_coord_field = None
+        self.route_index_field = None
+        self.dropline_coord_field = None
+        self.dropline_index_field = None
+
+        if self.supervisor:
+            coord_node = self.supervisor.getFromDef("COMM_COORD")
+            lines_node = self.supervisor.getFromDef("COMM_LINES")
+            if coord_node and lines_node:
+                self.comm_coord_field = coord_node.getField("point")
+                self.comm_index_field = lines_node.getField("coordIndex")
+
+            r_coord_node = self.supervisor.getFromDef("ROUTE_COORD")
+            r_lines_node = self.supervisor.getFromDef("ROUTE_LINES")
+            if r_coord_node and r_lines_node:
+                self.route_coord_field = r_coord_node.getField("point")
+                self.route_index_field = r_lines_node.getField("coordIndex")
+
+            d_coord_node = self.supervisor.getFromDef("DROPLINE_COORD")
+            d_lines_node = self.supervisor.getFromDef("DROPLINE_LINES")
+            if d_coord_node and d_lines_node:
+                self.dropline_coord_field = d_coord_node.getField("point")
+                self.dropline_index_field = d_lines_node.getField("coordIndex")
 
         # Independent spatial verification metrics
         self.min_observed_separation = float("inf")
@@ -195,13 +226,26 @@ class WebotsAetherSwarmSupervisor:
         self.geofence_violations = 0
         self.altitude_violations = 0
         self.verification_log: list[str] = []
+
         # State caches for minimizing synchronous IPC overhead
         self._drone_state_cache: dict[str, tuple[str, str, bool]] = {}
         self._poi_state_cache: dict[str, str] = {}
         self._comm_topology_cache: list[tuple[str, str]] = []
+        self._route_topology_cache: list[tuple[str, str]] = []
+        self._last_event_banner: str = ""
 
     def update_drone_appearance(self, uav_id: str, state_dict: dict[str, Any]) -> None:
-        """Update visible drone status colors strictly from authoritative state."""
+        """Update visible drone status colors strictly from authoritative state.
+
+        States:
+          - normal/active: clear nominal indicator (emerald beacon, tech cyan body)
+          - FAILED: obvious red/crimson indicator (warning crimson body & radiant red beacon)
+          - RTH: amber/yellow indicator (luminous amber/gold body & beacon)
+          - LANDED: subdued indicator (slate grey body & dim standby beacon)
+        """
+        if not self.supervisor:
+            return
+
         failure = state_dict.get("failure_state", "NORMAL")
         rth = state_dict.get("rth_state", "NONE")
         active = state_dict.get("active", True)
@@ -213,6 +257,7 @@ class WebotsAetherSwarmSupervisor:
 
         mat = self.drone_materials.get(uav_id)
         beacon = self.drone_beacons.get(uav_id)
+        halo = self.drone_halos.get(uav_id)
         if not mat:
             return
 
@@ -220,29 +265,58 @@ class WebotsAetherSwarmSupervisor:
         emis_field = mat.getField("emissiveColor")
 
         if failure == "FAILED" or not active:
-            # Visually mark failed: dark crimson body, glowing warning
-            diff_field.setSFColor([0.85, 0.05, 0.05])
-            emis_field.setSFColor([0.5, 0.0, 0.0])
+            # Obvious Red/Crimson Indicator for Hardware Failure (Preserves Authoritative Position)
+            diff_field.setSFColor([0.90, 0.08, 0.08])
+            emis_field.setSFColor([0.70, 0.02, 0.02])
             if beacon:
-                beacon.getField("diffuseColor").setSFColor([0.9, 0.0, 0.0])
-                beacon.getField("emissiveColor").setSFColor([0.8, 0.0, 0.0])
-        elif rth in ("ACTIVE", "COMPLETE"):
-            # RTH returning state: royal blue
-            diff_field.setSFColor([0.1, 0.4, 0.95])
-            emis_field.setSFColor([0.1, 0.2, 0.6])
+                beacon.getField("diffuseColor").setSFColor([1.0, 0.0, 0.0])
+                beacon.getField("emissiveColor").setSFColor([1.0, 0.1, 0.1])
+            if halo:
+                halo.getField("diffuseColor").setSFColor([1.0, 0.0, 0.0])
+                halo.getField("emissiveColor").setSFColor([0.8, 0.0, 0.0])
+        elif rth == "COMPLETE":
+            # Landed State: Subdued Indicator
+            diff_field.setSFColor([0.35, 0.38, 0.42])
+            emis_field.setSFColor([0.06, 0.07, 0.09])
             if beacon:
-                beacon.getField("diffuseColor").setSFColor([0.2, 0.6, 1.0])
-                beacon.getField("emissiveColor").setSFColor([0.3, 0.7, 1.0])
+                beacon.getField("diffuseColor").setSFColor([0.30, 0.30, 0.30])
+                beacon.getField("emissiveColor").setSFColor([0.08, 0.08, 0.08])
+            if halo:
+                halo.getField("diffuseColor").setSFColor([0.35, 0.38, 0.42])
+                halo.getField("emissiveColor").setSFColor([0.05, 0.05, 0.05])
+        elif rth == "ACTIVE":
+            # RTH Returning State: Amber / Yellow Indicator
+            diff_field.setSFColor([0.95, 0.70, 0.05])
+            emis_field.setSFColor([0.50, 0.32, 0.02])
+            if beacon:
+                beacon.getField("diffuseColor").setSFColor([1.0, 0.80, 0.10])
+                beacon.getField("emissiveColor").setSFColor([0.95, 0.70, 0.05])
+            if halo:
+                halo.getField("diffuseColor").setSFColor([1.0, 0.80, 0.10])
+                halo.getField("emissiveColor").setSFColor([0.80, 0.50, 0.05])
         else:
-            # Normal operational state
-            diff_field.setSFColor([0.1, 0.7, 0.25])
-            emis_field.setSFColor([0.05, 0.25, 0.1])
+            # Normal Operational State: Clear Nominal Indicator
+            diff_field.setSFColor([0.10, 0.65, 0.85])
+            emis_field.setSFColor([0.05, 0.25, 0.40])
             if beacon:
-                beacon.getField("diffuseColor").setSFColor([0.1, 0.8, 0.3])
-                beacon.getField("emissiveColor").setSFColor([0.1, 0.8, 0.3])
+                beacon.getField("diffuseColor").setSFColor([0.10, 0.85, 0.40])
+                beacon.getField("emissiveColor").setSFColor([0.20, 0.90, 0.50])
+            if halo:
+                halo.getField("diffuseColor").setSFColor([0.10, 0.65, 0.85])
+                halo.getField("emissiveColor").setSFColor([0.10, 0.65, 0.85])
 
     def update_poi_appearance(self, task_id: str, state_dict: dict[str, Any]) -> None:
-        """Update visible POI status beacons strictly from authoritative state."""
+        """Update visible POI status beacons strictly from authoritative state.
+
+        States:
+          - PENDING: Gold indicator
+          - IN_PROGRESS: Active cyan/energy blue indicator
+          - COMPLETE: Emerald green indicator
+          - DEFERRED: Hazard red/coral indicator
+        """
+        if not self.supervisor:
+            return
+
         status = state_dict.get("status", "PENDING")
         if self._poi_state_cache.get(task_id) == status:
             return
@@ -258,43 +332,49 @@ class WebotsAetherSwarmSupervisor:
 
         if status == "COMPLETE":
             # Completed: Emerald green
-            diff_field.setSFColor([0.15, 0.80, 0.25])
-            emis_field.setSFColor([0.2, 0.6, 0.2])
+            diff_field.setSFColor([0.15, 0.85, 0.25])
+            emis_field.setSFColor([0.25, 0.80, 0.30])
             if beacon:
-                beacon.getField("diffuseColor").setSFColor([0.15, 0.85, 0.25])
-                beacon.getField("emissiveColor").setSFColor([0.2, 0.7, 0.2])
+                beacon.getField("diffuseColor").setSFColor([0.15, 0.90, 0.30])
+                beacon.getField("emissiveColor").setSFColor([0.35, 0.95, 0.45])
         elif status == "IN_PROGRESS":
-            # Active service: Vibrant orange
-            diff_field.setSFColor([0.95, 0.55, 0.05])
-            emis_field.setSFColor([0.5, 0.25, 0.0])
+            # Active service: Vibrant energy cyan
+            diff_field.setSFColor([0.05, 0.75, 1.00])
+            emis_field.setSFColor([0.10, 0.65, 0.95])
             if beacon:
-                beacon.getField("diffuseColor").setSFColor([1.0, 0.6, 0.0])
-                beacon.getField("emissiveColor").setSFColor([0.8, 0.4, 0.0])
+                beacon.getField("diffuseColor").setSFColor([0.05, 0.80, 1.00])
+                beacon.getField("emissiveColor").setSFColor([0.30, 0.85, 1.00])
         elif status == "DEFERRED":
-            # Deferred: Warning amber/red
-            diff_field.setSFColor([0.85, 0.2, 0.1])
-            emis_field.setSFColor([0.6, 0.1, 0.0])
+            # Deferred: Hazard warning red
+            diff_field.setSFColor([0.90, 0.15, 0.15])
+            emis_field.setSFColor([0.70, 0.10, 0.10])
             if beacon:
-                beacon.getField("diffuseColor").setSFColor([0.9, 0.2, 0.1])
-                beacon.getField("emissiveColor").setSFColor([0.8, 0.1, 0.0])
+                beacon.getField("diffuseColor").setSFColor([0.95, 0.10, 0.10])
+                beacon.getField("emissiveColor").setSFColor([0.85, 0.10, 0.10])
         else:
             # Pending / Assigned: Gold
-            diff_field.setSFColor([0.85, 0.70, 0.10])
-            emis_field.setSFColor([0.2, 0.15, 0.0])
+            diff_field.setSFColor([0.90, 0.75, 0.10])
+            emis_field.setSFColor([0.25, 0.18, 0.00])
             if beacon:
-                beacon.getField("diffuseColor").setSFColor([0.85, 0.75, 0.1])
-                beacon.getField("emissiveColor").setSFColor([0.5, 0.4, 0.05])
+                beacon.getField("diffuseColor").setSFColor([0.90, 0.75, 0.10])
+                beacon.getField("emissiveColor").setSFColor([0.75, 0.60, 0.05])
 
-    def update_comm_mesh(self, active_links: list[dict[str, Any]], uav_positions: dict[str, list[float]]) -> None:
-        """Render active RF communication links via native Webots IndexedLineSet."""
+    def update_comm_mesh(
+        self,
+        active_links: list[dict[str, Any]],
+        routes_to_gcs: dict[str, Any],
+        uav_positions: dict[str, list[float]],
+    ) -> None:
+        """Render active RF communication links and active routes to GCS via native Webots IndexedLineSets."""
         if not self.comm_coord_field or not self.comm_index_field:
             return
 
+        gcs_coords = [self.gcs_pos[0], self.gcs_pos[1], 1.2]
+
+        # 1. Base Mesh Links (all authoritative RF links)
         points: list[list[float]] = []
         indices: list[int] = []
         topology: list[tuple[str, str]] = []
-
-        gcs_coords = [self.gcs_pos[0], self.gcs_pos[1], 1.0]
 
         for link in active_links:
             src = link["source"]
@@ -324,10 +404,155 @@ class WebotsAetherSwarmSupervisor:
             for idx in indices:
                 self.comm_index_field.insertMFInt32(-1, idx)
         else:
-            # Same topology: simply update vertex coordinates in place
+            # Same topology: update vertex coordinates in place
             for i, p in enumerate(points):
                 if i < self.comm_coord_field.getCount():
                     self.comm_coord_field.setMFVec3f(i, p)
+
+        # 2. Active Multihop Routes to GCS (Distinct route emphasis without inventing roles)
+        if self.route_coord_field and self.route_index_field and routes_to_gcs:
+            r_points: list[list[float]] = []
+            r_indices: list[int] = []
+            r_topology: list[tuple[str, str]] = []
+            seen_edges: set[tuple[str, str]] = set()
+
+            for _uid, route in routes_to_gcs.items():
+                if route and len(route) >= 2:
+                    for k in range(len(route) - 1):
+                        hop_a = route[k]
+                        hop_b = route[k + 1]
+                        edge = (min(hop_a, hop_b), max(hop_a, hop_b))
+                        if edge not in seen_edges:
+                            seen_edges.add(edge)
+                            r_topology.append(edge)
+                            pa = gcs_coords if hop_a == "gcs" else uav_positions.get(hop_a)
+                            pb = gcs_coords if hop_b == "gcs" else uav_positions.get(hop_b)
+                            if pa and pb:
+                                # Slight Z elevation for route line to avoid Z-fighting
+                                pa_elev = [pa[0], pa[1], pa[2] + 0.15]
+                                pb_elev = [pb[0], pb[1], pb[2] + 0.15]
+                                idx1 = len(r_points)
+                                idx2 = idx1 + 1
+                                r_points.append(pa_elev)
+                                r_points.append(pb_elev)
+                                r_indices.extend([idx1, idx2, -1])
+
+            if r_topology != self._route_topology_cache:
+                self._route_topology_cache = r_topology
+                while self.route_coord_field.getCount() > 0:
+                    self.route_coord_field.removeMF(-1)
+                while self.route_index_field.getCount() > 0:
+                    self.route_index_field.removeMF(-1)
+
+                for p in r_points:
+                    self.route_coord_field.insertMFVec3f(-1, p)
+                for idx in r_indices:
+                    self.route_index_field.insertMFInt32(-1, idx)
+            else:
+                for i, p in enumerate(r_points):
+                    if i < self.route_coord_field.getCount():
+                        self.route_coord_field.setMFVec3f(i, p)
+
+    def update_drop_lines(self, uav_positions: dict[str, list[float]]) -> None:
+        """Render vertical ground drop-lines and ground footprints for intuitive altitude readability."""
+        if not self.dropline_coord_field or not self.dropline_index_field:
+            return
+
+        d_points: list[list[float]] = []
+        d_indices: list[int] = []
+
+        for _uid, pos in sorted(uav_positions.items()):
+            x, y, z = pos
+            # Vertical altitude plumb-line from UAV to ground plane
+            idx_top = len(d_points)
+            idx_bot = idx_top + 1
+            d_points.append([x, y, z])
+            d_points.append([x, y, 0.06])
+            d_indices.extend([idx_top, idx_bot, -1])
+
+            # Ground crosshair footprint (4m span at ground level)
+            g_idx = len(d_points)
+            d_points.append([x - 1.8, y, 0.06])
+            d_points.append([x + 1.8, y, 0.06])
+            d_points.append([x, y - 1.8, 0.06])
+            d_points.append([x, y + 1.8, 0.06])
+            d_indices.extend([g_idx, g_idx + 1, -1, g_idx + 2, g_idx + 3, -1])
+
+        # Rebuild or update drop line points
+        if self.dropline_coord_field.getCount() != len(d_points):
+            while self.dropline_coord_field.getCount() > 0:
+                self.dropline_coord_field.removeMF(-1)
+            while self.dropline_index_field.getCount() > 0:
+                self.dropline_index_field.removeMF(-1)
+
+            for p in d_points:
+                self.dropline_coord_field.insertMFVec3f(-1, p)
+            for idx in d_indices:
+                self.dropline_index_field.insertMFInt32(-1, idx)
+        else:
+            for i, p in enumerate(d_points):
+                self.dropline_coord_field.setMFVec3f(i, p)
+
+    def update_hud(
+        self,
+        sim_tick: int,
+        sim_time: float,
+        uavs: dict[str, Any],
+        tasks: dict[str, Any],
+        events: list[dict[str, Any]],
+    ) -> None:
+        """Lightweight native in-world HUD telemetry display via Supervisor.setLabel.
+
+        Zero external dependencies or IPC; purely uses standard Webots overlay mechanism.
+        """
+        if not self.supervisor:
+            return
+
+        scenario = self.metadata.get("scenario_name", "AetherSwarm")
+        active_count = sum(1 for u in uavs.values() if u.get("active", True) and u.get("failure_state") != "FAILED" and u.get("rth_state") != "COMPLETE")
+        failed_count = sum(1 for u in uavs.values() if u.get("failure_state") == "FAILED")
+        rth_count = sum(1 for u in uavs.values() if u.get("rth_state") == "ACTIVE")
+        landed_count = sum(1 for u in uavs.values() if u.get("rth_state") == "COMPLETE")
+        completed_tasks = sum(1 for t in tasks.values() if t.get("status") == "COMPLETE")
+        in_prog_tasks = sum(1 for t in tasks.values() if t.get("status") == "IN_PROGRESS")
+        total_tasks = len(tasks)
+
+        # Check for important domain events to display on banner
+        for ev in events:
+            ev_type = ev.get("type", "")
+            if ev_type == "UAV_FAILED":
+                self._last_event_banner = f"ALERT: Hardware Failure on {ev.get('entity_id')} ({ev.get('payload', {}).get('reason', '')})"
+            elif ev_type == "TASK_ASSIGNED":
+                self._last_event_banner = f"ALLOC: Task {ev.get('payload', {}).get('task_id')} -> {ev.get('entity_id')}"
+            elif ev_type == "TASK_COMPLETED":
+                self._last_event_banner = f"TASK COMPLETE: {ev.get('entity_id')} by {ev.get('payload', {}).get('uav_id')}"
+            elif ev_type == "RTH_TRIGGERED":
+                self._last_event_banner = f"NAV: RTH Triggered for {ev.get('entity_id')}"
+
+        # 1. Header Banner
+        self.supervisor.setLabel(0, "AETHERSWARM UAV-X RESEARCH DEMONSTRATION", 0.015, 0.015, 0.045, 0xFFFFFF, 0.0, "Arial")
+
+        # 2. Playback & Time
+        time_text = f"Scenario: {scenario}  |  Tick: {sim_tick}/{self.total_ticks}  ({sim_time:.1f}s)"
+        self.supervisor.setLabel(1, time_text, 0.015, 0.050, 0.038, 0x00D0FF, 0.0, "Arial")
+
+        # 3. Swarm Status
+        swarm_color = 0xFF4444 if failed_count > 0 else 0x44FF88
+        swarm_text = f"Swarm: {active_count} Active  |  {failed_count} Failed  |  {rth_count} RTH  |  {landed_count} Landed"
+        self.supervisor.setLabel(2, swarm_text, 0.015, 0.080, 0.038, swarm_color, 0.0, "Arial")
+
+        # 4. POI Task Completion
+        task_text = f"Tasks: {completed_tasks}/{total_tasks} Completed  ({in_prog_tasks} In Progress)"
+        self.supervisor.setLabel(3, task_text, 0.015, 0.110, 0.038, 0xFFDD33, 0.0, "Arial")
+
+        # 5. Independent Spatial Verifier Metric
+        min_sep_text = f"Spatial Verifier: Min Separation: {self.min_observed_separation:.2f}m (Constraint: >= {self.min_separation_m}m)"
+        self.supervisor.setLabel(4, min_sep_text, 0.015, 0.140, 0.038, 0x55FFBB, 0.0, "Arial")
+
+        # 6. Top-Center Event Alert Banner
+        if self._last_event_banner:
+            banner_color = 0xFF3333 if "ALERT" in self._last_event_banner else 0x33DDFF
+            self.supervisor.setLabel(5, self._last_event_banner, 0.28, 0.015, 0.042, banner_color, 0.0, "Arial")
 
     def perform_spatial_verification(self, tick: int, sim_time: float, active_positions: dict[str, list[float]]) -> None:
         """Independent observational spatial constraint verification directly from 3D coordinates."""
@@ -378,17 +603,28 @@ class WebotsAetherSwarmSupervisor:
         """Execute playback loop driven by authoritative trace steps."""
         log_msg("[Webots Supervisor] Commencing simulation playback and spatial verification...")
 
-        # Switch to Fast simulation mode for high-throughput playback
-        try:
-            self.supervisor.simulationSetMode(Supervisor.SIMULATION_MODE_FAST)
-        except Exception:
-            pass
+        # Switch to Fast simulation mode for high-throughput playback if inside Webots
+        if self.supervisor:
+            try:
+                self.supervisor.simulationSetMode(Supervisor.SIMULATION_MODE_FAST)
+            except Exception:
+                pass
+
+        screenshot_dir = Path(__file__).resolve().parent / ".." / ".." / "data" / "screenshots"
+        if self.supervisor:
+            screenshot_dir.mkdir(parents=True, exist_ok=True)
 
         tick_idx = 0
-        screenshot_dir = Path(__file__).resolve().parent / ".." / ".." / "data" / "screenshots"
-        screenshot_dir.mkdir(parents=True, exist_ok=True)
 
-        while self.supervisor.step(self.time_step) != -1:
+        # Loop function supporting both Webots supervisor step and standalone step
+        def advance_step() -> bool:
+            nonlocal tick_idx
+            if self.supervisor:
+                return self.supervisor.step(self.time_step) != -1
+            else:
+                return tick_idx < self.total_ticks
+
+        while advance_step():
             if tick_idx >= self.total_ticks:
                 log_msg("[Webots Supervisor] Reached final trace tick.")
                 break
@@ -409,52 +645,71 @@ class WebotsAetherSwarmSupervisor:
 
             # 1. Update UAV spatial translations, yaw rotations, and appearances
             current_active_positions: dict[str, list[float]] = {}
+            all_drone_positions: dict[str, list[float]] = {}
+
             for uid, u_state in uavs.items():
                 pos = u_state["position"]
                 yaw = u_state.get("yaw", 0.0)
+                all_drone_positions[uid] = pos
 
-                # Set 3D position and orientation
-                trans_field = self.drone_trans_fields.get(uid)
-                if trans_field:
-                    trans_field.setSFVec3f(pos)
+                # Set 3D position and orientation if in Webots
+                if self.supervisor:
+                    trans_field = self.drone_trans_fields.get(uid)
+                    if trans_field:
+                        trans_field.setSFVec3f(pos)
 
-                rot_field = self.drone_rot_fields.get(uid)
-                if rot_field:
-                    rot_field.setSFRotation([0.0, 0.0, 1.0, yaw])
+                    rot_field = self.drone_rot_fields.get(uid)
+                    if rot_field:
+                        rot_field.setSFRotation([0.0, 0.0, 1.0, yaw])
 
-                self.update_drone_appearance(uid, u_state)
+                    self.update_drone_appearance(uid, u_state)
 
                 if u_state.get("active", True) and u_state.get("failure_state") != "FAILED":
                     current_active_positions[uid] = pos
 
             # 2. Update POI task appearances
-            for tid, t_state in tasks.items():
-                self.update_poi_appearance(tid, t_state)
+            if self.supervisor:
+                for tid, t_state in tasks.items():
+                    self.update_poi_appearance(tid, t_state)
 
-            # 3. Update communication mesh links
-            self.update_comm_mesh(network.get("active_links", []), current_active_positions)
+                # 3. Update communication mesh links and active multihop routes
+                self.update_comm_mesh(
+                    network.get("active_links", []),
+                    network.get("routes_to_gcs", {}),
+                    all_drone_positions,
+                )
 
-            # 4. Perform independent observational spatial verification
+                # 4. Update dynamic altitude drop-lines
+                self.update_drop_lines(all_drone_positions)
+
+                # 5. Update in-world HUD
+                self.update_hud(sim_tick, sim_time, uavs, tasks, events)
+
+            # 6. Perform independent observational spatial verification
             self.perform_spatial_verification(sim_tick, sim_time, current_active_positions)
 
             # Capture key demonstration screenshots
-            if sim_tick in (0, 8, 21, 300, 305):
+            if self.supervisor and sim_tick in (0, 8, 21, 300, 305):
                 shot_path = screenshot_dir / f"webots_tick_{sim_tick}.png"
                 try:
                     self.supervisor.exportImage(str(shot_path), 95)
                 except Exception:
                     pass
 
-            if sim_tick % 50 == 0 or sim_tick == self.total_ticks - 1:
-                log_msg(f"  [Webots Playback] Progress: tick {sim_tick}/{self.total_ticks} ({sim_time}s)")
+            if sim_tick % 100 == 0 or sim_tick == self.total_ticks - 1:
+                log_msg(f"  [Webots Playback] Progress: tick {sim_tick}/{self.total_ticks} ({sim_time:.1f}s)")
 
             tick_idx += 1
 
         # Final Spatial Verification Report
         self.output_verification_report()
 
-        # Gracefully quit simulation when finished
-        self.supervisor.simulationQuit(0)
+        # Gracefully quit simulation when finished if running inside Webots
+        if self.supervisor:
+            try:
+                self.supervisor.simulationQuit(0)
+            except Exception:
+                pass
 
     def output_verification_report(self) -> None:
         """Output summary of independent spatial verification."""

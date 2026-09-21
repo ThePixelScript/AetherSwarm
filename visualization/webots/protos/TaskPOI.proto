@@ -1,18 +1,20 @@
 #VRML_SIM R2025a utf8
 # Visual beacon representing a Point-of-Interest (POI) task in AetherSwarm.
+# Polished visual model with dual-ring ground target, crosshair scale markings,
+# telemetry pylon, and high-visibility status beacon and halo ring.
 
 PROTO TaskPOI [
   field SFVec3f  translation   0 0 0
   field SFString name          "poi"
   field SFColor  color         0.85 0.70 0.10
-  field SFFloat  radius        2.0
+  field SFFloat  radius        2.2
 ]
 {
   Solid {
     translation IS translation
     name IS name
     children [
-      # Ground Target Ring
+      # Outer Ground Target Ring (Semi-transparent perimeter zone)
       Transform {
         translation 0 0 0.05
         children [
@@ -20,53 +22,108 @@ PROTO TaskPOI [
             appearance Appearance {
               material DEF RING_MAT Material {
                 diffuseColor IS color
-                transparency 0.3
+                transparency 0.4
               }
             }
             geometry Cylinder {
-              height 0.05
+              height 0.04
               radius IS radius
             }
           }
         ]
       }
-      # Inner Target Marker
+      # Inner Target Platform (Dark tactical apron)
       Transform {
-        translation 0 0 0.1
+        translation 0 0 0.08
         children [
           Shape {
             appearance Appearance {
               material Material {
-                diffuseColor 0.1 0.1 0.1
+                diffuseColor 0.14 0.16 0.18
               }
             }
             geometry Cylinder {
-              height 0.08
-              radius 0.6
+              height 0.06
+              radius 1.2
             }
           }
         ]
       }
-      # Vertical Signal Pylon
+      # Target Bullseye (Reflective center core)
       Transform {
-        translation 0 0 1.2
+        translation 0 0 0.12
+        children [
+          Shape {
+            appearance Appearance {
+              material DEF CORE_MAT Material {
+                diffuseColor IS color
+                emissiveColor IS color
+              }
+            }
+            geometry Cylinder {
+              height 0.06
+              radius 0.45
+            }
+          }
+        ]
+      }
+      # Ground Crosshair Alignment Marks (X-axis)
+      Transform {
+        translation 0 0 0.09
+        children [
+          Shape {
+            appearance Appearance {
+              material Material { diffuseColor 0.9 0.9 0.9 }
+            }
+            geometry Box { size 5.0 0.12 0.02 }
+          }
+        ]
+      }
+      # Ground Crosshair Alignment Marks (Y-axis)
+      Transform {
+        translation 0 0 0.09
+        children [
+          Shape {
+            appearance Appearance {
+              material Material { diffuseColor 0.9 0.9 0.9 }
+            }
+            geometry Box { size 0.12 5.0 0.02 }
+          }
+        ]
+      }
+      # Vertical Signal Pylon (Telemetry mast)
+      Transform {
+        translation 0 0 1.5
         children [
           Shape {
             appearance Appearance {
               material Material {
-                diffuseColor 0.3 0.3 0.3
+                diffuseColor 0.25 0.28 0.32
+                roughness 0.5
               }
             }
             geometry Cylinder {
-              height 2.2
-              radius 0.12
+              height 2.8
+              radius 0.14
             }
           }
         ]
       }
-      # Status Beacon Sphere
+      # Mid-level Antenna Crossbar
       Transform {
-        translation 0 0 2.4
+        translation 0 0 2.2
+        children [
+          Shape {
+            appearance Appearance {
+              material Material { diffuseColor 0.35 0.38 0.42 }
+            }
+            geometry Box { size 1.2 0.08 0.08 }
+          }
+        ]
+      }
+      # Primary Status Beacon Sphere
+      Transform {
+        translation 0 0 3.0
         children [
           Shape {
             appearance Appearance {
@@ -76,7 +133,26 @@ PROTO TaskPOI [
               }
             }
             geometry Sphere {
-              radius 0.45
+              radius 0.65
+            }
+          }
+        ]
+      }
+      # Luminous Halo Ring (Maximizes visibility from overview camera)
+      Transform {
+        translation 0 0 3.0
+        children [
+          Shape {
+            appearance Appearance {
+              material Material {
+                diffuseColor IS color
+                emissiveColor IS color
+                transparency 0.5
+              }
+            }
+            geometry Cylinder {
+              height 0.06
+              radius 1.3
             }
           }
         ]

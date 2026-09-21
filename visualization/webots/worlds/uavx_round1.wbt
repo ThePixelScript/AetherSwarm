@@ -2,8 +2,9 @@
 
 WorldInfo {
   info [
-    "AetherSwarm 3D Robotics PoC - Autonomous Swarm Mission Simulation",
-    "Authoritative multi-UAV spatial execution and verification environment."
+    "AetherSwarm 3D Robotics Layer - Autonomous Swarm Mission Simulation",
+    "Authoritative multi-UAV spatial execution and verification environment.",
+    "UAV-X Research Demonstration Scene - Polished Presentation Edition"
   ]
   title "AetherSwarm Swarm Mission PoC"
   basicTimeStep 32
@@ -11,22 +12,35 @@ WorldInfo {
 }
 
 Viewpoint {
-  orientation 0.22 0.32 -0.92 1.85
-  position 95 440 160
+  orientation 0.655 0.354 -0.668 1.482
+  position 360 -380 480
   near 0.5
-  far 5000
+  far 8000
 }
 
-# Ambient and Directional Lighting
+# Atmospheric Background
+Background {
+  skyColor [
+    0.84 0.88 0.94,
+    0.93 0.95 0.97
+  ]
+}
+
+# Ambient and Directional Lighting (Sun Key Light + Balanced Fill Light)
 DirectionalLight {
-  direction 0.4 0.2 -0.9
-  intensity 1.2
+  direction 0.45 0.25 -0.85
+  intensity 1.3
   castShadows TRUE
 }
 
 DirectionalLight {
-  direction -0.5 -0.3 -0.8
-  intensity 0.6
+  direction -0.5 -0.3 -0.6
+  intensity 0.65
+}
+
+DirectionalLight {
+  direction 0 0 -1
+  intensity 0.25
 }
 
 # Ground Plane (covers entire operational area plus GCS launch staging)
@@ -37,142 +51,425 @@ Solid {
     Shape {
       appearance Appearance {
         material Material {
-          diffuseColor 0.88 0.90 0.92
+          diffuseColor 0.90 0.92 0.94
+          roughness 0.8
         }
       }
       geometry Box {
-        size 1300 1300 0.2
+        size 1400 1400 0.2
       }
     }
   ]
 }
 
-# 1000m x 1000m Operational Boundary Perimeter Line (z=0.2m)
-Solid {
-  translation 0 0 0
-  name "operational_boundary"
+# 100m Metric Reference Grid across 1000m x 1000m Operational Arena
+DEF METRIC_GRID Solid {
+  translation 0 0 0.04
+  name "metric_grid"
   children [
     Shape {
       appearance Appearance {
         material Material {
-          diffuseColor 0.8 0.2 0.2
-          emissiveColor 0.6 0.1 0.1
+          diffuseColor 0.76 0.80 0.84
+          emissiveColor 0.28 0.30 0.34
         }
       }
       geometry IndexedLineSet {
         coord Coordinate {
           point [
-            0 0 0.2,
-            1000 0 0.2,
-            1000 1000 0.2,
-            0 1000 0.2,
-            0 0 0.2,
-            0 0 100,
-            1000 0 100,
-            1000 1000 100,
-            0 1000 100,
-            0 0 100
+            # Constant X grid lines (x = 100 .. 900, y from 0 to 1000)
+            100 0 0, 100 1000 0,
+            200 0 0, 200 1000 0,
+            300 0 0, 300 1000 0,
+            400 0 0, 400 1000 0,
+            500 0 0, 500 1000 0,
+            600 0 0, 600 1000 0,
+            700 0 0, 700 1000 0,
+            800 0 0, 800 1000 0,
+            900 0 0, 900 1000 0,
+            # Constant Y grid lines (y = 100 .. 900, x from 0 to 1000)
+            0 100 0, 1000 100 0,
+            0 200 0, 1000 200 0,
+            0 300 0, 1000 300 0,
+            0 400 0, 1000 400 0,
+            0 500 0, 1000 500 0,
+            0 600 0, 1000 600 0,
+            0 700 0, 1000 700 0,
+            0 800 0, 1000 800 0,
+            0 900 0, 1000 900 0
           ]
         }
         coordIndex [
-          0, 1, 2, 3, 4, -1,
-          5, 6, 7, 8, 9, -1,
-          0, 5, -1,
-          1, 6, -1,
-          2, 7, -1,
-          3, 8, -1
+          0, 1, -1,
+          2, 3, -1,
+          4, 5, -1,
+          6, 7, -1,
+          8, 9, -1,
+          10, 11, -1,
+          12, 13, -1,
+          14, 15, -1,
+          16, 17, -1,
+          18, 19, -1,
+          20, 21, -1,
+          22, 23, -1,
+          24, 25, -1,
+          26, 27, -1,
+          28, 29, -1,
+          30, 31, -1,
+          32, 33, -1,
+          34, 35, -1
         ]
       }
     }
   ]
 }
 
-# Ground Control Station (GCS) at [-50.0, 500.0, 0.0]
+# 1000m x 1000m Operational Boundary (Ground perimeter, ceiling boundary, corner pylons & beacons)
+DEF OPERATIONAL_BOUNDARY Solid {
+  translation 0 0 0
+  name "operational_boundary"
+  children [
+    # Ground & Ceiling Perimeter Wireframe
+    Shape {
+      appearance Appearance {
+        material Material {
+          diffuseColor 0.92 0.20 0.20
+          emissiveColor 0.70 0.12 0.12
+        }
+      }
+      geometry IndexedLineSet {
+        coord Coordinate {
+          point [
+            # Ground perimeter (z = 0.12)
+            0 0 0.12,
+            1000 0 0.12,
+            1000 1000 0.12,
+            0 1000 0.12,
+            0 0 0.12,
+            # Ceiling perimeter (z = 100.0)
+            0 0 100,
+            1000 0 100,
+            1000 1000 100,
+            0 1000 100,
+            0 0 100,
+            # Boundary Scale Ticks (10m inward perpendicular ticks every 100m)
+            # South edge (y = 0)
+            100 0 0.12, 100 10 0.12,
+            200 0 0.12, 200 10 0.12,
+            300 0 0.12, 300 10 0.12,
+            400 0 0.12, 400 10 0.12,
+            500 0 0.12, 500 15 0.12,
+            600 0 0.12, 600 10 0.12,
+            700 0 0.12, 700 10 0.12,
+            800 0 0.12, 800 10 0.12,
+            900 0 0.12, 900 10 0.12,
+            # West edge (x = 0)
+            0 100 0.12, 10 100 0.12,
+            0 200 0.12, 10 200 0.12,
+            0 300 0.12, 10 300 0.12,
+            0 400 0.12, 10 400 0.12,
+            0 500 0.12, 15 500 0.12,
+            0 600 0.12, 10 600 0.12,
+            0 700 0.12, 10 700 0.12,
+            0 800 0.12, 10 800 0.12,
+            0 900 0.12, 10 900 0.12
+          ]
+        }
+        coordIndex [
+          # Ground perimeter
+          0, 1, 2, 3, 4, -1,
+          # Ceiling perimeter
+          5, 6, 7, 8, 9, -1,
+          # Vertical corner lines
+          0, 5, -1,
+          1, 6, -1,
+          2, 7, -1,
+          3, 8, -1,
+          # Scale ticks
+          10, 11, -1, 12, 13, -1, 14, 15, -1, 16, 17, -1, 18, 19, -1,
+          20, 21, -1, 22, 23, -1, 24, 25, -1, 26, 27, -1,
+          28, 29, -1, 30, 31, -1, 32, 33, -1, 34, 35, -1, 36, 37, -1,
+          38, 39, -1, 40, 41, -1, 42, 43, -1, 44, 45, -1
+        ]
+      }
+    }
+    # 4 High-Visibility Vertical Corner Pylons
+    Transform {
+      translation 0 0 50
+      children [
+        Shape {
+          appearance Appearance { material Material { diffuseColor 0.85 0.15 0.15 emissiveColor 0.35 0.05 0.05 } }
+          geometry Cylinder { height 100 radius 0.6 }
+        }
+        Transform { translation 0 0 50 children [ Shape { appearance Appearance { material Material { diffuseColor 1.0 0.1 0.1 emissiveColor 0.9 0.1 0.1 } } geometry Sphere { radius 2.2 } } ] }
+      ]
+    }
+    Transform {
+      translation 1000 0 50
+      children [
+        Shape {
+          appearance Appearance { material Material { diffuseColor 0.85 0.15 0.15 emissiveColor 0.35 0.05 0.05 } }
+          geometry Cylinder { height 100 radius 0.6 }
+        }
+        Transform { translation 0 0 50 children [ Shape { appearance Appearance { material Material { diffuseColor 1.0 0.1 0.1 emissiveColor 0.9 0.1 0.1 } } geometry Sphere { radius 2.2 } } ] }
+      ]
+    }
+    Transform {
+      translation 1000 1000 50
+      children [
+        Shape {
+          appearance Appearance { material Material { diffuseColor 0.85 0.15 0.15 emissiveColor 0.35 0.05 0.05 } }
+          geometry Cylinder { height 100 radius 0.6 }
+        }
+        Transform { translation 0 0 50 children [ Shape { appearance Appearance { material Material { diffuseColor 1.0 0.1 0.1 emissiveColor 0.9 0.1 0.1 } } geometry Sphere { radius 2.2 } } ] }
+      ]
+    }
+    Transform {
+      translation 0 1000 50
+      children [
+        Shape {
+          appearance Appearance { material Material { diffuseColor 0.85 0.15 0.15 emissiveColor 0.35 0.05 0.05 } }
+          geometry Cylinder { height 100 radius 0.6 }
+        }
+        Transform { translation 0 0 50 children [ Shape { appearance Appearance { material Material { diffuseColor 1.0 0.1 0.1 emissiveColor 0.9 0.1 0.1 } } geometry Sphere { radius 2.2 } } ] }
+      ]
+    }
+  ]
+}
+
+# Ground Control Station (GCS) at authoritative coordinate [-50.0, 500.0, 0.0]
 DEF GCS Solid {
   translation -50 500 0
   name "gcs_base"
   children [
-    # Main Helipad / Landing Staging Base
+    # Main Operations Apron (38m x 38m heavy foundation)
     Transform {
-      translation 0 0 0.1
+      translation 0 0 0.08
       children [
         Shape {
           appearance Appearance {
             material Material {
               diffuseColor 0.15 0.18 0.22
+              roughness 0.5
             }
           }
           geometry Box {
-            size 24 24 0.2
+            size 38 38 0.16
           }
         }
       ]
     }
-    # Landing Target Circle
+    # Apron Safety Perimeter Warning Border
     Transform {
-      translation 0 0 0.22
+      translation 0 0 0.17
       children [
         Shape {
           appearance Appearance {
             material Material {
-              diffuseColor 0.9 0.7 0.1
+              diffuseColor 0.95 0.75 0.10
+              emissiveColor 0.35 0.25 0.02
+            }
+          }
+          geometry IndexedLineSet {
+            coord Coordinate {
+              point [
+                -18.5 -18.5 0,
+                18.5 -18.5 0,
+                18.5 18.5 0,
+                -18.5 18.5 0,
+                -18.5 -18.5 0
+              ]
+            }
+            coordIndex [ 0, 1, 2, 3, 4, -1 ]
+          }
+        }
+      ]
+    }
+    # Staging Runway Transition Corridor into Arena (x = -32 to 0, y = 485 to 515)
+    Transform {
+      translation 25 0 0.05
+      children [
+        Shape {
+          appearance Appearance {
+            material Material {
+              diffuseColor 0.18 0.22 0.26
+            }
+          }
+          geometry Box {
+            size 50 24 0.08
+          }
+        }
+        # Ingress/Egress Guide Lines
+        Shape {
+          appearance Appearance {
+            material Material {
+              diffuseColor 0.95 0.75 0.10
+              emissiveColor 0.3 0.2 0.0
+            }
+          }
+          geometry IndexedLineSet {
+            coord Coordinate {
+              point [
+                -25 -10 0.06, 25 -10 0.06,
+                -25 10 0.06, 25 10 0.06,
+                -25 0 0.06, 25 0 0.06
+              ]
+            }
+            coordIndex [ 0, 1, -1, 2, 3, -1, 4, 5, -1 ]
+          }
+        }
+      ]
+    }
+    # Primary Helipad Outer Caution Ring (Radius 12m)
+    Transform {
+      translation 0 0 0.18
+      children [
+        Shape {
+          appearance Appearance {
+            material Material {
+              diffuseColor 0.95 0.75 0.10
+              emissiveColor 0.25 0.18 0.02
             }
           }
           geometry Cylinder {
             height 0.04
-            radius 9
+            radius 12
           }
         }
       ]
     }
-    # Inner Landing Mark
+    # Helipad Inner Touchdown Ring (Radius 8m, Dark Slate)
     Transform {
-      translation 0 0 0.26
+      translation 0 0 0.21
       children [
         Shape {
           appearance Appearance {
             material Material {
-              diffuseColor 0.15 0.18 0.22
+              diffuseColor 0.12 0.14 0.18
             }
           }
           geometry Cylinder {
             height 0.05
-            radius 5
+            radius 8.5
           }
         }
       ]
     }
-    # GCS Command Communications Tower
+    # Prominent Helipad "H" Touchdown Marking (White)
     Transform {
-      translation -8 -8 4
+      translation 0 0 0.25
+      children [
+        # Left bar
+        Transform { translation -2.4 0 0 children [ Shape { appearance Appearance { material Material { diffuseColor 0.95 0.95 0.95 emissiveColor 0.4 0.4 0.4 } } geometry Box { size 0.9 6.0 0.04 } } ] }
+        # Right bar
+        Transform { translation 2.4 0 0 children [ Shape { appearance Appearance { material Material { diffuseColor 0.95 0.95 0.95 emissiveColor 0.4 0.4 0.4 } } geometry Box { size 0.9 6.0 0.04 } } ] }
+        # Center crossbar
+        Transform { translation 0 0 0 children [ Shape { appearance Appearance { material Material { diffuseColor 0.95 0.95 0.95 emissiveColor 0.4 0.4 0.4 } } geometry Box { size 4.0 0.9 0.04 } } ] }
+      ]
+    }
+    # GCS Tactical Operations Shelter (Mobile Command Container)
+    Transform {
+      translation -12 11 1.6
       children [
         Shape {
           appearance Appearance {
             material Material {
-              diffuseColor 0.3 0.35 0.4
+              diffuseColor 0.82 0.85 0.88
+              roughness 0.3
             }
           }
           geometry Box {
-            size 3 3 8
+            size 8.0 5.5 3.0
           }
+        }
+        # Shelter Telemetry Satellite Radome (Roof)
+        Transform {
+          translation 0 0 2.2
+          children [
+            Shape {
+              appearance Appearance {
+                material Material {
+                  diffuseColor 0.95 0.95 0.95
+                  emissiveColor 0.15 0.15 0.15
+                }
+              }
+              geometry Sphere {
+                radius 1.2
+              }
+            }
+          ]
         }
       ]
     }
-    # Tower Antenna Mast
+    # GCS High-Gain Communications Mast Structure
     Transform {
-      translation -8 -8 11
+      translation -12 -11 8
       children [
+        # Main Tower Column
         Shape {
           appearance Appearance {
             material Material {
-              diffuseColor 0.8 0.1 0.1
-              emissiveColor 0.4 0.0 0.0
+              diffuseColor 0.30 0.34 0.38
+              roughness 0.4
             }
           }
           geometry Cylinder {
-            height 6
-            radius 0.25
+            height 16
+            radius 0.45
           }
+        }
+        # Microwave Parabolic Dish Antenna (Pointing Azimuth +X into the Swarm Arena)
+        Transform {
+          translation 0.8 0 4.0
+          rotation 0 1 0 1.5708
+          children [
+            Shape {
+              appearance Appearance {
+                material Material {
+                  diffuseColor 0.92 0.94 0.96
+                  emissiveColor 0.2 0.2 0.2
+                }
+              }
+              geometry Cylinder {
+                height 0.35
+                radius 1.8
+              }
+            }
+          ]
+        }
+        # Antenna Mast Extension
+        Transform {
+          translation 0 0 10.5
+          children [
+            Shape {
+              appearance Appearance {
+                material Material {
+                  diffuseColor 0.8 0.8 0.8
+                }
+              }
+              geometry Cylinder {
+                height 5.0
+                radius 0.15
+              }
+            }
+            # High-Intensity Omnidirectional Aviation Warning Beacon
+            Transform {
+              translation 0 0 2.6
+              children [
+                Shape {
+                  appearance Appearance {
+                    material Material {
+                      diffuseColor 1.0 0.1 0.1
+                      emissiveColor 1.0 0.2 0.1
+                    }
+                  }
+                  geometry Sphere {
+                    radius 0.85
+                  }
+                }
+              ]
+            }
+          ]
         }
       ]
     }
@@ -183,8 +480,8 @@ DEF GCS Solid {
 DEF COMM_LINKS Shape {
   appearance Appearance {
     material DEF COMM_MAT Material {
-      diffuseColor 0.15 0.55 1.0
-      emissiveColor 0.25 0.65 1.0
+      diffuseColor 0.15 0.65 1.0
+      emissiveColor 0.30 0.75 1.0
     }
   }
   geometry DEF COMM_LINES IndexedLineSet {
@@ -200,6 +497,55 @@ DEF COMM_LINKS Shape {
   }
 }
 
+# Dynamic Active Multihop Route Links to GCS (Highlighted Route Overlay)
+DEF ROUTE_LINKS Shape {
+  appearance Appearance {
+    material DEF ROUTE_MAT Material {
+      diffuseColor 0.05 0.95 0.80
+      emissiveColor 0.20 1.0 0.85
+    }
+  }
+  geometry DEF ROUTE_LINES IndexedLineSet {
+    coord DEF ROUTE_COORD Coordinate {
+      point [
+        -50 500 0.6,
+        50 500 15.0
+      ]
+    }
+    coordIndex [
+      0, 1, -1
+    ]
+  }
+}
+
+# Dynamic Ground Drop-Lines for Altitude Readability (Supervised via IndexedLineSet)
+DEF DROPLINES Shape {
+  appearance Appearance {
+    material DEF DROPLINE_MAT Material {
+      diffuseColor 0.35 0.75 0.90
+      emissiveColor 0.20 0.60 0.80
+    }
+  }
+  geometry DEF DROPLINE_LINES IndexedLineSet {
+    coord DEF DROPLINE_COORD Coordinate {
+      point [
+        50 420 15.0, 50 420 0.05,
+        50 460 15.0, 50 460 0.05,
+        50 500 15.0, 50 500 0.05,
+        50 540 15.0, 50 540 0.05,
+        50 580 15.0, 50 580 0.05
+      ]
+    }
+    coordIndex [
+      0, 1, -1,
+      2, 3, -1,
+      4, 5, -1,
+      6, 7, -1,
+      8, 9, -1
+    ]
+  }
+}
+
 # 5 Swarm Drone Instances (DEFs: UAV_1 .. UAV_5)
 DEF UAV_1 Solid {
   translation 50 420 15
@@ -209,22 +555,29 @@ DEF UAV_1 Solid {
     Transform {
       scale 2.2 2.2 2.2
       children [
+        # Main Fuselage
         Shape {
           appearance Appearance {
             material DEF UAV_1_MAT Material {
-              diffuseColor 0.1 0.5 0.9
-              emissiveColor 0.05 0.2 0.4
+              diffuseColor 0.1 0.65 0.85
+              emissiveColor 0.05 0.25 0.40
             }
           }
-          geometry Box { size 0.9 0.9 0.25 }
+          geometry Box { size 0.9 0.9 0.24 }
         }
-        # Rotor Hubs
-        Transform { translation 0.75 0 0.05 children [ Shape { appearance Appearance { material Material { diffuseColor 0.2 0.2 0.2 } } geometry Cylinder { height 0.06 radius 0.4 } } ] }
-        Transform { translation -0.75 0 0.05 children [ Shape { appearance Appearance { material Material { diffuseColor 0.2 0.2 0.2 } } geometry Cylinder { height 0.06 radius 0.4 } } ] }
-        Transform { translation 0 0.75 0.05 children [ Shape { appearance Appearance { material Material { diffuseColor 0.2 0.2 0.2 } } geometry Cylinder { height 0.06 radius 0.4 } } ] }
-        Transform { translation 0 -0.75 0.05 children [ Shape { appearance Appearance { material Material { diffuseColor 0.2 0.2 0.2 } } geometry Cylinder { height 0.06 radius 0.4 } } ] }
-        # Status Beacon
-        Transform { translation 0 0 0.25 children [ Shape { appearance Appearance { material DEF UAV_1_BEACON Material { diffuseColor 0.1 0.6 0.9 emissiveColor 0.1 0.6 0.9 } } geometry Sphere { radius 0.25 } } ] }
+        # Avionics Cover
+        Transform { translation 0 0 0.13 children [ Shape { appearance Appearance { material Material { diffuseColor 0.12 0.14 0.16 } } geometry Box { size 0.65 0.65 0.04 } } ] }
+        # Forward Heading Nose
+        Transform { translation 0.58 0 0 rotation 0 1 0 1.5708 children [ Shape { appearance Appearance { material Material { diffuseColor 0.95 0.75 0.08 emissiveColor 0.4 0.3 0.02 } } geometry Cone { bottomRadius 0.22 height 0.35 } } ] }
+        # Rotor Hubs & Arms
+        Transform { translation 0.75 0 0 children [ Shape { appearance Appearance { material Material { diffuseColor 0.18 0.2 0.22 } } geometry Box { size 0.7 0.08 0.07 } } Transform { translation 0.35 0 0.06 children [ Shape { appearance Appearance { material Material { diffuseColor 0.12 0.12 0.12 } } geometry Cylinder { height 0.06 radius 0.42 } } ] } ] }
+        Transform { translation -0.75 0 0 children [ Shape { appearance Appearance { material Material { diffuseColor 0.18 0.2 0.22 } } geometry Box { size 0.7 0.08 0.07 } } Transform { translation -0.35 0 0.06 children [ Shape { appearance Appearance { material Material { diffuseColor 0.12 0.12 0.12 } } geometry Cylinder { height 0.06 radius 0.42 } } ] } ] }
+        Transform { translation 0 0.75 0 children [ Shape { appearance Appearance { material Material { diffuseColor 0.18 0.2 0.22 } } geometry Box { size 0.08 0.7 0.07 } } Transform { translation 0 0.35 0.06 children [ Shape { appearance Appearance { material Material { diffuseColor 0.12 0.12 0.12 } } geometry Cylinder { height 0.06 radius 0.42 } } ] } ] }
+        Transform { translation 0 -0.75 0 children [ Shape { appearance Appearance { material Material { diffuseColor 0.18 0.2 0.22 } } geometry Box { size 0.08 0.7 0.07 } } Transform { translation 0 -0.35 0.06 children [ Shape { appearance Appearance { material Material { diffuseColor 0.12 0.12 0.12 } } geometry Cylinder { height 0.06 radius 0.42 } } ] } ] }
+        # Primary Status Beacon (Top)
+        Transform { translation 0 0 0.26 children [ Shape { appearance Appearance { material DEF UAV_1_BEACON Material { diffuseColor 0.1 0.85 0.4 emissiveColor 0.2 0.9 0.5 } } geometry Sphere { radius 0.26 } } ] }
+        # Status Halo Ring
+        Transform { translation 0 0 0.26 children [ Shape { appearance Appearance { material DEF UAV_1_HALO Material { diffuseColor 0.1 0.65 0.85 emissiveColor 0.1 0.65 0.85 transparency 0.4 } } geometry Cylinder { height 0.03 radius 0.48 } } ] }
       ]
     }
   ]
@@ -241,17 +594,20 @@ DEF UAV_2 Solid {
         Shape {
           appearance Appearance {
             material DEF UAV_2_MAT Material {
-              diffuseColor 0.8 0.15 0.15
-              emissiveColor 0.3 0.05 0.05
+              diffuseColor 0.1 0.65 0.85
+              emissiveColor 0.05 0.25 0.40
             }
           }
-          geometry Box { size 0.9 0.9 0.25 }
+          geometry Box { size 0.9 0.9 0.24 }
         }
-        Transform { translation 0.75 0 0.05 children [ Shape { appearance Appearance { material Material { diffuseColor 0.2 0.2 0.2 } } geometry Cylinder { height 0.06 radius 0.4 } } ] }
-        Transform { translation -0.75 0 0.05 children [ Shape { appearance Appearance { material Material { diffuseColor 0.2 0.2 0.2 } } geometry Cylinder { height 0.06 radius 0.4 } } ] }
-        Transform { translation 0 0.75 0.05 children [ Shape { appearance Appearance { material Material { diffuseColor 0.2 0.2 0.2 } } geometry Cylinder { height 0.06 radius 0.4 } } ] }
-        Transform { translation 0 -0.75 0.05 children [ Shape { appearance Appearance { material Material { diffuseColor 0.2 0.2 0.2 } } geometry Cylinder { height 0.06 radius 0.4 } } ] }
-        Transform { translation 0 0 0.25 children [ Shape { appearance Appearance { material DEF UAV_2_BEACON Material { diffuseColor 0.8 0.15 0.15 emissiveColor 0.5 0.1 0.1 } } geometry Sphere { radius 0.25 } } ] }
+        Transform { translation 0 0 0.13 children [ Shape { appearance Appearance { material Material { diffuseColor 0.12 0.14 0.16 } } geometry Box { size 0.65 0.65 0.04 } } ] }
+        Transform { translation 0.58 0 0 rotation 0 1 0 1.5708 children [ Shape { appearance Appearance { material Material { diffuseColor 0.95 0.75 0.08 emissiveColor 0.4 0.3 0.02 } } geometry Cone { bottomRadius 0.22 height 0.35 } } ] }
+        Transform { translation 0.75 0 0 children [ Shape { appearance Appearance { material Material { diffuseColor 0.18 0.2 0.22 } } geometry Box { size 0.7 0.08 0.07 } } Transform { translation 0.35 0 0.06 children [ Shape { appearance Appearance { material Material { diffuseColor 0.12 0.12 0.12 } } geometry Cylinder { height 0.06 radius 0.42 } } ] } ] }
+        Transform { translation -0.75 0 0 children [ Shape { appearance Appearance { material Material { diffuseColor 0.18 0.2 0.22 } } geometry Box { size 0.7 0.08 0.07 } } Transform { translation -0.35 0 0.06 children [ Shape { appearance Appearance { material Material { diffuseColor 0.12 0.12 0.12 } } geometry Cylinder { height 0.06 radius 0.42 } } ] } ] }
+        Transform { translation 0 0.75 0 children [ Shape { appearance Appearance { material Material { diffuseColor 0.18 0.2 0.22 } } geometry Box { size 0.08 0.7 0.07 } } Transform { translation 0 0.35 0.06 children [ Shape { appearance Appearance { material Material { diffuseColor 0.12 0.12 0.12 } } geometry Cylinder { height 0.06 radius 0.42 } } ] } ] }
+        Transform { translation 0 -0.75 0 children [ Shape { appearance Appearance { material Material { diffuseColor 0.18 0.2 0.22 } } geometry Box { size 0.08 0.7 0.07 } } Transform { translation 0 -0.35 0.06 children [ Shape { appearance Appearance { material Material { diffuseColor 0.12 0.12 0.12 } } geometry Cylinder { height 0.06 radius 0.42 } } ] } ] }
+        Transform { translation 0 0 0.26 children [ Shape { appearance Appearance { material DEF UAV_2_BEACON Material { diffuseColor 0.1 0.85 0.4 emissiveColor 0.2 0.9 0.5 } } geometry Sphere { radius 0.26 } } ] }
+        Transform { translation 0 0 0.26 children [ Shape { appearance Appearance { material DEF UAV_2_HALO Material { diffuseColor 0.1 0.65 0.85 emissiveColor 0.1 0.65 0.85 transparency 0.4 } } geometry Cylinder { height 0.03 radius 0.48 } } ] }
       ]
     }
   ]
@@ -268,17 +624,20 @@ DEF UAV_3 Solid {
         Shape {
           appearance Appearance {
             material DEF UAV_3_MAT Material {
-              diffuseColor 0.15 0.75 0.25
-              emissiveColor 0.05 0.3 0.1
+              diffuseColor 0.1 0.65 0.85
+              emissiveColor 0.05 0.25 0.40
             }
           }
-          geometry Box { size 0.9 0.9 0.25 }
+          geometry Box { size 0.9 0.9 0.24 }
         }
-        Transform { translation 0.75 0 0.05 children [ Shape { appearance Appearance { material Material { diffuseColor 0.2 0.2 0.2 } } geometry Cylinder { height 0.06 radius 0.4 } } ] }
-        Transform { translation -0.75 0 0.05 children [ Shape { appearance Appearance { material Material { diffuseColor 0.2 0.2 0.2 } } geometry Cylinder { height 0.06 radius 0.4 } } ] }
-        Transform { translation 0 0.75 0.05 children [ Shape { appearance Appearance { material Material { diffuseColor 0.2 0.2 0.2 } } geometry Cylinder { height 0.06 radius 0.4 } } ] }
-        Transform { translation 0 -0.75 0.05 children [ Shape { appearance Appearance { material Material { diffuseColor 0.2 0.2 0.2 } } geometry Cylinder { height 0.06 radius 0.4 } } ] }
-        Transform { translation 0 0 0.25 children [ Shape { appearance Appearance { material DEF UAV_3_BEACON Material { diffuseColor 0.15 0.75 0.25 emissiveColor 0.15 0.75 0.25 } } geometry Sphere { radius 0.25 } } ] }
+        Transform { translation 0 0 0.13 children [ Shape { appearance Appearance { material Material { diffuseColor 0.12 0.14 0.16 } } geometry Box { size 0.65 0.65 0.04 } } ] }
+        Transform { translation 0.58 0 0 rotation 0 1 0 1.5708 children [ Shape { appearance Appearance { material Material { diffuseColor 0.95 0.75 0.08 emissiveColor 0.4 0.3 0.02 } } geometry Cone { bottomRadius 0.22 height 0.35 } } ] }
+        Transform { translation 0.75 0 0 children [ Shape { appearance Appearance { material Material { diffuseColor 0.18 0.2 0.22 } } geometry Box { size 0.7 0.08 0.07 } } Transform { translation 0.35 0 0.06 children [ Shape { appearance Appearance { material Material { diffuseColor 0.12 0.12 0.12 } } geometry Cylinder { height 0.06 radius 0.42 } } ] } ] }
+        Transform { translation -0.75 0 0 children [ Shape { appearance Appearance { material Material { diffuseColor 0.18 0.2 0.22 } } geometry Box { size 0.7 0.08 0.07 } } Transform { translation -0.35 0 0.06 children [ Shape { appearance Appearance { material Material { diffuseColor 0.12 0.12 0.12 } } geometry Cylinder { height 0.06 radius 0.42 } } ] } ] }
+        Transform { translation 0 0.75 0 children [ Shape { appearance Appearance { material Material { diffuseColor 0.18 0.2 0.22 } } geometry Box { size 0.08 0.7 0.07 } } Transform { translation 0 0.35 0.06 children [ Shape { appearance Appearance { material Material { diffuseColor 0.12 0.12 0.12 } } geometry Cylinder { height 0.06 radius 0.42 } } ] } ] }
+        Transform { translation 0 -0.75 0 children [ Shape { appearance Appearance { material Material { diffuseColor 0.18 0.2 0.22 } } geometry Box { size 0.08 0.7 0.07 } } Transform { translation 0 -0.35 0.06 children [ Shape { appearance Appearance { material Material { diffuseColor 0.12 0.12 0.12 } } geometry Cylinder { height 0.06 radius 0.42 } } ] } ] }
+        Transform { translation 0 0 0.26 children [ Shape { appearance Appearance { material DEF UAV_3_BEACON Material { diffuseColor 0.1 0.85 0.4 emissiveColor 0.2 0.9 0.5 } } geometry Sphere { radius 0.26 } } ] }
+        Transform { translation 0 0 0.26 children [ Shape { appearance Appearance { material DEF UAV_3_HALO Material { diffuseColor 0.1 0.65 0.85 emissiveColor 0.1 0.65 0.85 transparency 0.4 } } geometry Cylinder { height 0.03 radius 0.48 } } ] }
       ]
     }
   ]
@@ -295,17 +654,20 @@ DEF UAV_4 Solid {
         Shape {
           appearance Appearance {
             material DEF UAV_4_MAT Material {
-              diffuseColor 0.6 0.25 0.85
-              emissiveColor 0.2 0.05 0.3
+              diffuseColor 0.1 0.65 0.85
+              emissiveColor 0.05 0.25 0.40
             }
           }
-          geometry Box { size 0.9 0.9 0.25 }
+          geometry Box { size 0.9 0.9 0.24 }
         }
-        Transform { translation 0.75 0 0.05 children [ Shape { appearance Appearance { material Material { diffuseColor 0.2 0.2 0.2 } } geometry Cylinder { height 0.06 radius 0.4 } } ] }
-        Transform { translation -0.75 0 0.05 children [ Shape { appearance Appearance { material Material { diffuseColor 0.2 0.2 0.2 } } geometry Cylinder { height 0.06 radius 0.4 } } ] }
-        Transform { translation 0 0.75 0.05 children [ Shape { appearance Appearance { material Material { diffuseColor 0.2 0.2 0.2 } } geometry Cylinder { height 0.06 radius 0.4 } } ] }
-        Transform { translation 0 -0.75 0.05 children [ Shape { appearance Appearance { material Material { diffuseColor 0.2 0.2 0.2 } } geometry Cylinder { height 0.06 radius 0.4 } } ] }
-        Transform { translation 0 0 0.25 children [ Shape { appearance Appearance { material DEF UAV_4_BEACON Material { diffuseColor 0.6 0.25 0.85 emissiveColor 0.4 0.15 0.6 } } geometry Sphere { radius 0.25 } } ] }
+        Transform { translation 0 0 0.13 children [ Shape { appearance Appearance { material Material { diffuseColor 0.12 0.14 0.16 } } geometry Box { size 0.65 0.65 0.04 } } ] }
+        Transform { translation 0.58 0 0 rotation 0 1 0 1.5708 children [ Shape { appearance Appearance { material Material { diffuseColor 0.95 0.75 0.08 emissiveColor 0.4 0.3 0.02 } } geometry Cone { bottomRadius 0.22 height 0.35 } } ] }
+        Transform { translation 0.75 0 0 children [ Shape { appearance Appearance { material Material { diffuseColor 0.18 0.2 0.22 } } geometry Box { size 0.7 0.08 0.07 } } Transform { translation 0.35 0 0.06 children [ Shape { appearance Appearance { material Material { diffuseColor 0.12 0.12 0.12 } } geometry Cylinder { height 0.06 radius 0.42 } } ] } ] }
+        Transform { translation -0.75 0 0 children [ Shape { appearance Appearance { material Material { diffuseColor 0.18 0.2 0.22 } } geometry Box { size 0.7 0.08 0.07 } } Transform { translation -0.35 0 0.06 children [ Shape { appearance Appearance { material Material { diffuseColor 0.12 0.12 0.12 } } geometry Cylinder { height 0.06 radius 0.42 } } ] } ] }
+        Transform { translation 0 0.75 0 children [ Shape { appearance Appearance { material Material { diffuseColor 0.18 0.2 0.22 } } geometry Box { size 0.08 0.7 0.07 } } Transform { translation 0 0.35 0.06 children [ Shape { appearance Appearance { material Material { diffuseColor 0.12 0.12 0.12 } } geometry Cylinder { height 0.06 radius 0.42 } } ] } ] }
+        Transform { translation 0 -0.75 0 children [ Shape { appearance Appearance { material Material { diffuseColor 0.18 0.2 0.22 } } geometry Box { size 0.08 0.7 0.07 } } Transform { translation 0 -0.35 0.06 children [ Shape { appearance Appearance { material Material { diffuseColor 0.12 0.12 0.12 } } geometry Cylinder { height 0.06 radius 0.42 } } ] } ] }
+        Transform { translation 0 0 0.26 children [ Shape { appearance Appearance { material DEF UAV_4_BEACON Material { diffuseColor 0.1 0.85 0.4 emissiveColor 0.2 0.9 0.5 } } geometry Sphere { radius 0.26 } } ] }
+        Transform { translation 0 0 0.26 children [ Shape { appearance Appearance { material DEF UAV_4_HALO Material { diffuseColor 0.1 0.65 0.85 emissiveColor 0.1 0.65 0.85 transparency 0.4 } } geometry Cylinder { height 0.03 radius 0.48 } } ] }
       ]
     }
   ]
@@ -322,88 +684,113 @@ DEF UAV_5 Solid {
         Shape {
           appearance Appearance {
             material DEF UAV_5_MAT Material {
-              diffuseColor 0.85 0.65 0.1
-              emissiveColor 0.3 0.2 0.02
+              diffuseColor 0.1 0.65 0.85
+              emissiveColor 0.05 0.25 0.40
             }
           }
-          geometry Box { size 0.9 0.9 0.25 }
+          geometry Box { size 0.9 0.9 0.24 }
         }
-        Transform { translation 0.75 0 0.05 children [ Shape { appearance Appearance { material Material { diffuseColor 0.2 0.2 0.2 } } geometry Cylinder { height 0.06 radius 0.4 } } ] }
-        Transform { translation -0.75 0 0.05 children [ Shape { appearance Appearance { material Material { diffuseColor 0.2 0.2 0.2 } } geometry Cylinder { height 0.06 radius 0.4 } } ] }
-        Transform { translation 0 0.75 0.05 children [ Shape { appearance Appearance { material Material { diffuseColor 0.2 0.2 0.2 } } geometry Cylinder { height 0.06 radius 0.4 } } ] }
-        Transform { translation 0 -0.75 0.05 children [ Shape { appearance Appearance { material Material { diffuseColor 0.2 0.2 0.2 } } geometry Cylinder { height 0.06 radius 0.4 } } ] }
-        Transform { translation 0 0 0.25 children [ Shape { appearance Appearance { material DEF UAV_5_BEACON Material { diffuseColor 0.85 0.65 0.1 emissiveColor 0.5 0.35 0.05 } } geometry Sphere { radius 0.25 } } ] }
+        Transform { translation 0 0 0.13 children [ Shape { appearance Appearance { material Material { diffuseColor 0.12 0.14 0.16 } } geometry Box { size 0.65 0.65 0.04 } } ] }
+        Transform { translation 0.58 0 0 rotation 0 1 0 1.5708 children [ Shape { appearance Appearance { material Material { diffuseColor 0.95 0.75 0.08 emissiveColor 0.4 0.3 0.02 } } geometry Cone { bottomRadius 0.22 height 0.35 } } ] }
+        Transform { translation 0.75 0 0 children [ Shape { appearance Appearance { material Material { diffuseColor 0.18 0.2 0.22 } } geometry Box { size 0.7 0.08 0.07 } } Transform { translation 0.35 0 0.06 children [ Shape { appearance Appearance { material Material { diffuseColor 0.12 0.12 0.12 } } geometry Cylinder { height 0.06 radius 0.42 } } ] } ] }
+        Transform { translation -0.75 0 0 children [ Shape { appearance Appearance { material Material { diffuseColor 0.18 0.2 0.22 } } geometry Box { size 0.7 0.08 0.07 } } Transform { translation -0.35 0 0.06 children [ Shape { appearance Appearance { material Material { diffuseColor 0.12 0.12 0.12 } } geometry Cylinder { height 0.06 radius 0.42 } } ] } ] }
+        Transform { translation 0 0.75 0 children [ Shape { appearance Appearance { material Material { diffuseColor 0.18 0.2 0.22 } } geometry Box { size 0.08 0.7 0.07 } } Transform { translation 0 0.35 0.06 children [ Shape { appearance Appearance { material Material { diffuseColor 0.12 0.12 0.12 } } geometry Cylinder { height 0.06 radius 0.42 } } ] } ] }
+        Transform { translation 0 -0.75 0 children [ Shape { appearance Appearance { material Material { diffuseColor 0.18 0.2 0.22 } } geometry Box { size 0.08 0.7 0.07 } } Transform { translation 0 -0.35 0.06 children [ Shape { appearance Appearance { material Material { diffuseColor 0.12 0.12 0.12 } } geometry Cylinder { height 0.06 radius 0.42 } } ] } ] }
+        Transform { translation 0 0 0.26 children [ Shape { appearance Appearance { material DEF UAV_5_BEACON Material { diffuseColor 0.1 0.85 0.4 emissiveColor 0.2 0.9 0.5 } } geometry Sphere { radius 0.26 } } ] }
+        Transform { translation 0 0 0.26 children [ Shape { appearance Appearance { material DEF UAV_5_HALO Material { diffuseColor 0.1 0.65 0.85 emissiveColor 0.1 0.65 0.85 transparency 0.4 } } geometry Cylinder { height 0.03 radius 0.48 } } ] }
       ]
     }
   ]
 }
 
-# 10 Point-of-Interest (POI) Sites (DEFs: POI_01 .. POI_10)
+# 10 Point-of-Interest (POI) Sites (DEFs: POI_01 .. POI_10) at exact authoritative positions
 DEF POI_01 Solid { translation 80 420 0 name "poi_01" children [
-  Transform { translation 0 0 0.05 children [ Shape { appearance Appearance { material DEF POI_01_MAT Material { diffuseColor 0.85 0.7 0.1 emissiveColor 0.2 0.15 0.0 } } geometry Cylinder { height 0.08 radius 2.2 } } ] }
-  Transform { translation 0 0 1.2 children [ Shape { appearance Appearance { material Material { diffuseColor 0.3 0.3 0.3 } } geometry Cylinder { height 2.2 radius 0.12 } } ] }
-  Transform { translation 0 0 2.4 children [ Shape { appearance Appearance { material DEF POI_01_BEACON Material { diffuseColor 0.85 0.7 0.1 emissiveColor 0.6 0.5 0.05 } } geometry Sphere { radius 0.5 } } ] }
+  Transform { translation 0 0 0.05 children [ Shape { appearance Appearance { material DEF POI_01_MAT Material { diffuseColor 0.90 0.75 0.10 emissiveColor 0.25 0.18 0.0 transparency 0.4 } } geometry Cylinder { height 0.05 radius 2.5 } } ] }
+  Transform { translation 0 0 0.09 children [ Shape { appearance Appearance { material Material { diffuseColor 0.14 0.16 0.18 } } geometry Cylinder { height 0.06 radius 1.2 } } ] }
+  Transform { translation 0 0 1.5 children [ Shape { appearance Appearance { material Material { diffuseColor 0.25 0.28 0.32 } } geometry Cylinder { height 2.8 radius 0.14 } } ] }
+  Transform { translation 0 0 3.0 children [ Shape { appearance Appearance { material DEF POI_01_BEACON Material { diffuseColor 0.90 0.75 0.10 emissiveColor 0.75 0.60 0.05 } } geometry Sphere { radius 0.65 } } ] }
+  Transform { translation 0 0 3.0 children [ Shape { appearance Appearance { material Material { diffuseColor 0.90 0.75 0.10 emissiveColor 0.5 0.4 0.0 transparency 0.5 } } geometry Cylinder { height 0.05 radius 1.3 } } ] }
 ] }
 
 DEF POI_02 Solid { translation 80 460 0 name "poi_02" children [
-  Transform { translation 0 0 0.05 children [ Shape { appearance Appearance { material DEF POI_02_MAT Material { diffuseColor 0.85 0.7 0.1 emissiveColor 0.2 0.15 0.0 } } geometry Cylinder { height 0.08 radius 2.2 } } ] }
-  Transform { translation 0 0 1.2 children [ Shape { appearance Appearance { material Material { diffuseColor 0.3 0.3 0.3 } } geometry Cylinder { height 2.2 radius 0.12 } } ] }
-  Transform { translation 0 0 2.4 children [ Shape { appearance Appearance { material DEF POI_02_BEACON Material { diffuseColor 0.85 0.7 0.1 emissiveColor 0.6 0.5 0.05 } } geometry Sphere { radius 0.5 } } ] }
+  Transform { translation 0 0 0.05 children [ Shape { appearance Appearance { material DEF POI_02_MAT Material { diffuseColor 0.90 0.75 0.10 emissiveColor 0.25 0.18 0.0 transparency 0.4 } } geometry Cylinder { height 0.05 radius 2.5 } } ] }
+  Transform { translation 0 0 0.09 children [ Shape { appearance Appearance { material Material { diffuseColor 0.14 0.16 0.18 } } geometry Cylinder { height 0.06 radius 1.2 } } ] }
+  Transform { translation 0 0 1.5 children [ Shape { appearance Appearance { material Material { diffuseColor 0.25 0.28 0.32 } } geometry Cylinder { height 2.8 radius 0.14 } } ] }
+  Transform { translation 0 0 3.0 children [ Shape { appearance Appearance { material DEF POI_02_BEACON Material { diffuseColor 0.90 0.75 0.10 emissiveColor 0.75 0.60 0.05 } } geometry Sphere { radius 0.65 } } ] }
+  Transform { translation 0 0 3.0 children [ Shape { appearance Appearance { material Material { diffuseColor 0.90 0.75 0.10 emissiveColor 0.5 0.4 0.0 transparency 0.5 } } geometry Cylinder { height 0.05 radius 1.3 } } ] }
 ] }
 
 DEF POI_03 Solid { translation 80 500 0 name "poi_03" children [
-  Transform { translation 0 0 0.05 children [ Shape { appearance Appearance { material DEF POI_03_MAT Material { diffuseColor 0.85 0.7 0.1 emissiveColor 0.2 0.15 0.0 } } geometry Cylinder { height 0.08 radius 2.2 } } ] }
-  Transform { translation 0 0 1.2 children [ Shape { appearance Appearance { material Material { diffuseColor 0.3 0.3 0.3 } } geometry Cylinder { height 2.2 radius 0.12 } } ] }
-  Transform { translation 0 0 2.4 children [ Shape { appearance Appearance { material DEF POI_03_BEACON Material { diffuseColor 0.85 0.7 0.1 emissiveColor 0.6 0.5 0.05 } } geometry Sphere { radius 0.5 } } ] }
+  Transform { translation 0 0 0.05 children [ Shape { appearance Appearance { material DEF POI_03_MAT Material { diffuseColor 0.90 0.75 0.10 emissiveColor 0.25 0.18 0.0 transparency 0.4 } } geometry Cylinder { height 0.05 radius 2.5 } } ] }
+  Transform { translation 0 0 0.09 children [ Shape { appearance Appearance { material Material { diffuseColor 0.14 0.16 0.18 } } geometry Cylinder { height 0.06 radius 1.2 } } ] }
+  Transform { translation 0 0 1.5 children [ Shape { appearance Appearance { material Material { diffuseColor 0.25 0.28 0.32 } } geometry Cylinder { height 2.8 radius 0.14 } } ] }
+  Transform { translation 0 0 3.0 children [ Shape { appearance Appearance { material DEF POI_03_BEACON Material { diffuseColor 0.90 0.75 0.10 emissiveColor 0.75 0.60 0.05 } } geometry Sphere { radius 0.65 } } ] }
+  Transform { translation 0 0 3.0 children [ Shape { appearance Appearance { material Material { diffuseColor 0.90 0.75 0.10 emissiveColor 0.5 0.4 0.0 transparency 0.5 } } geometry Cylinder { height 0.05 radius 1.3 } } ] }
 ] }
 
 DEF POI_04 Solid { translation 80 540 0 name "poi_04" children [
-  Transform { translation 0 0 0.05 children [ Shape { appearance Appearance { material DEF POI_04_MAT Material { diffuseColor 0.85 0.7 0.1 emissiveColor 0.2 0.15 0.0 } } geometry Cylinder { height 0.08 radius 2.2 } } ] }
-  Transform { translation 0 0 1.2 children [ Shape { appearance Appearance { material Material { diffuseColor 0.3 0.3 0.3 } } geometry Cylinder { height 2.2 radius 0.12 } } ] }
-  Transform { translation 0 0 2.4 children [ Shape { appearance Appearance { material DEF POI_04_BEACON Material { diffuseColor 0.85 0.7 0.1 emissiveColor 0.6 0.5 0.05 } } geometry Sphere { radius 0.5 } } ] }
+  Transform { translation 0 0 0.05 children [ Shape { appearance Appearance { material DEF POI_04_MAT Material { diffuseColor 0.90 0.75 0.10 emissiveColor 0.25 0.18 0.0 transparency 0.4 } } geometry Cylinder { height 0.05 radius 2.5 } } ] }
+  Transform { translation 0 0 0.09 children [ Shape { appearance Appearance { material Material { diffuseColor 0.14 0.16 0.18 } } geometry Cylinder { height 0.06 radius 1.2 } } ] }
+  Transform { translation 0 0 1.5 children [ Shape { appearance Appearance { material Material { diffuseColor 0.25 0.28 0.32 } } geometry Cylinder { height 2.8 radius 0.14 } } ] }
+  Transform { translation 0 0 3.0 children [ Shape { appearance Appearance { material DEF POI_04_BEACON Material { diffuseColor 0.90 0.75 0.10 emissiveColor 0.75 0.60 0.05 } } geometry Sphere { radius 0.65 } } ] }
+  Transform { translation 0 0 3.0 children [ Shape { appearance Appearance { material Material { diffuseColor 0.90 0.75 0.10 emissiveColor 0.5 0.4 0.0 transparency 0.5 } } geometry Cylinder { height 0.05 radius 1.3 } } ] }
 ] }
 
 DEF POI_05 Solid { translation 80 580 0 name "poi_05" children [
-  Transform { translation 0 0 0.05 children [ Shape { appearance Appearance { material DEF POI_05_MAT Material { diffuseColor 0.85 0.7 0.1 emissiveColor 0.2 0.15 0.0 } } geometry Cylinder { height 0.08 radius 2.2 } } ] }
-  Transform { translation 0 0 1.2 children [ Shape { appearance Appearance { material Material { diffuseColor 0.3 0.3 0.3 } } geometry Cylinder { height 2.2 radius 0.12 } } ] }
-  Transform { translation 0 0 2.4 children [ Shape { appearance Appearance { material DEF POI_05_BEACON Material { diffuseColor 0.85 0.7 0.1 emissiveColor 0.6 0.5 0.05 } } geometry Sphere { radius 0.5 } } ] }
+  Transform { translation 0 0 0.05 children [ Shape { appearance Appearance { material DEF POI_05_MAT Material { diffuseColor 0.90 0.75 0.10 emissiveColor 0.25 0.18 0.0 transparency 0.4 } } geometry Cylinder { height 0.05 radius 2.5 } } ] }
+  Transform { translation 0 0 0.09 children [ Shape { appearance Appearance { material Material { diffuseColor 0.14 0.16 0.18 } } geometry Cylinder { height 0.06 radius 1.2 } } ] }
+  Transform { translation 0 0 1.5 children [ Shape { appearance Appearance { material Material { diffuseColor 0.25 0.28 0.32 } } geometry Cylinder { height 2.8 radius 0.14 } } ] }
+  Transform { translation 0 0 3.0 children [ Shape { appearance Appearance { material DEF POI_05_BEACON Material { diffuseColor 0.90 0.75 0.10 emissiveColor 0.75 0.60 0.05 } } geometry Sphere { radius 0.65 } } ] }
+  Transform { translation 0 0 3.0 children [ Shape { appearance Appearance { material Material { diffuseColor 0.90 0.75 0.10 emissiveColor 0.5 0.4 0.0 transparency 0.5 } } geometry Cylinder { height 0.05 radius 1.3 } } ] }
 ] }
 
 DEF POI_06 Solid { translation 120 420 0 name "poi_06" children [
-  Transform { translation 0 0 0.05 children [ Shape { appearance Appearance { material DEF POI_06_MAT Material { diffuseColor 0.85 0.7 0.1 emissiveColor 0.2 0.15 0.0 } } geometry Cylinder { height 0.08 radius 2.2 } } ] }
-  Transform { translation 0 0 1.2 children [ Shape { appearance Appearance { material Material { diffuseColor 0.3 0.3 0.3 } } geometry Cylinder { height 2.2 radius 0.12 } } ] }
-  Transform { translation 0 0 2.4 children [ Shape { appearance Appearance { material DEF POI_06_BEACON Material { diffuseColor 0.85 0.7 0.1 emissiveColor 0.6 0.5 0.05 } } geometry Sphere { radius 0.5 } } ] }
+  Transform { translation 0 0 0.05 children [ Shape { appearance Appearance { material DEF POI_06_MAT Material { diffuseColor 0.90 0.75 0.10 emissiveColor 0.25 0.18 0.0 transparency 0.4 } } geometry Cylinder { height 0.05 radius 2.5 } } ] }
+  Transform { translation 0 0 0.09 children [ Shape { appearance Appearance { material Material { diffuseColor 0.14 0.16 0.18 } } geometry Cylinder { height 0.06 radius 1.2 } } ] }
+  Transform { translation 0 0 1.5 children [ Shape { appearance Appearance { material Material { diffuseColor 0.25 0.28 0.32 } } geometry Cylinder { height 2.8 radius 0.14 } } ] }
+  Transform { translation 0 0 3.0 children [ Shape { appearance Appearance { material DEF POI_06_BEACON Material { diffuseColor 0.90 0.75 0.10 emissiveColor 0.75 0.60 0.05 } } geometry Sphere { radius 0.65 } } ] }
+  Transform { translation 0 0 3.0 children [ Shape { appearance Appearance { material Material { diffuseColor 0.90 0.75 0.10 emissiveColor 0.5 0.4 0.0 transparency 0.5 } } geometry Cylinder { height 0.05 radius 1.3 } } ] }
 ] }
 
 DEF POI_07 Solid { translation 120 460 0 name "poi_07" children [
-  Transform { translation 0 0 0.05 children [ Shape { appearance Appearance { material DEF POI_07_MAT Material { diffuseColor 0.85 0.7 0.1 emissiveColor 0.2 0.15 0.0 } } geometry Cylinder { height 0.08 radius 2.2 } } ] }
-  Transform { translation 0 0 1.2 children [ Shape { appearance Appearance { material Material { diffuseColor 0.3 0.3 0.3 } } geometry Cylinder { height 2.2 radius 0.12 } } ] }
-  Transform { translation 0 0 2.4 children [ Shape { appearance Appearance { material DEF POI_07_BEACON Material { diffuseColor 0.85 0.7 0.1 emissiveColor 0.6 0.5 0.05 } } geometry Sphere { radius 0.5 } } ] }
+  Transform { translation 0 0 0.05 children [ Shape { appearance Appearance { material DEF POI_07_MAT Material { diffuseColor 0.90 0.75 0.10 emissiveColor 0.25 0.18 0.0 transparency 0.4 } } geometry Cylinder { height 0.05 radius 2.5 } } ] }
+  Transform { translation 0 0 0.09 children [ Shape { appearance Appearance { material Material { diffuseColor 0.14 0.16 0.18 } } geometry Cylinder { height 0.06 radius 1.2 } } ] }
+  Transform { translation 0 0 1.5 children [ Shape { appearance Appearance { material Material { diffuseColor 0.25 0.28 0.32 } } geometry Cylinder { height 2.8 radius 0.14 } } ] }
+  Transform { translation 0 0 3.0 children [ Shape { appearance Appearance { material DEF POI_07_BEACON Material { diffuseColor 0.90 0.75 0.10 emissiveColor 0.75 0.60 0.05 } } geometry Sphere { radius 0.65 } } ] }
+  Transform { translation 0 0 3.0 children [ Shape { appearance Appearance { material Material { diffuseColor 0.90 0.75 0.10 emissiveColor 0.5 0.4 0.0 transparency 0.5 } } geometry Cylinder { height 0.05 radius 1.3 } } ] }
 ] }
 
 DEF POI_08 Solid { translation 120 500 0 name "poi_08" children [
-  Transform { translation 0 0 0.05 children [ Shape { appearance Appearance { material DEF POI_08_MAT Material { diffuseColor 0.85 0.7 0.1 emissiveColor 0.2 0.15 0.0 } } geometry Cylinder { height 0.08 radius 2.2 } } ] }
-  Transform { translation 0 0 1.2 children [ Shape { appearance Appearance { material Material { diffuseColor 0.3 0.3 0.3 } } geometry Cylinder { height 2.2 radius 0.12 } } ] }
-  Transform { translation 0 0 2.4 children [ Shape { appearance Appearance { material DEF POI_08_BEACON Material { diffuseColor 0.85 0.7 0.1 emissiveColor 0.6 0.5 0.05 } } geometry Sphere { radius 0.5 } } ] }
+  Transform { translation 0 0 0.05 children [ Shape { appearance Appearance { material DEF POI_08_MAT Material { diffuseColor 0.90 0.75 0.10 emissiveColor 0.25 0.18 0.0 transparency 0.4 } } geometry Cylinder { height 0.05 radius 2.5 } } ] }
+  Transform { translation 0 0 0.09 children [ Shape { appearance Appearance { material Material { diffuseColor 0.14 0.16 0.18 } } geometry Cylinder { height 0.06 radius 1.2 } } ] }
+  Transform { translation 0 0 1.5 children [ Shape { appearance Appearance { material Material { diffuseColor 0.25 0.28 0.32 } } geometry Cylinder { height 2.8 radius 0.14 } } ] }
+  Transform { translation 0 0 3.0 children [ Shape { appearance Appearance { material DEF POI_08_BEACON Material { diffuseColor 0.90 0.75 0.10 emissiveColor 0.75 0.60 0.05 } } geometry Sphere { radius 0.65 } } ] }
+  Transform { translation 0 0 3.0 children [ Shape { appearance Appearance { material Material { diffuseColor 0.90 0.75 0.10 emissiveColor 0.5 0.4 0.0 transparency 0.5 } } geometry Cylinder { height 0.05 radius 1.3 } } ] }
 ] }
 
 DEF POI_09 Solid { translation 120 540 0 name "poi_09" children [
-  Transform { translation 0 0 0.05 children [ Shape { appearance Appearance { material DEF POI_09_MAT Material { diffuseColor 0.85 0.7 0.1 emissiveColor 0.2 0.15 0.0 } } geometry Cylinder { height 0.08 radius 2.2 } } ] }
-  Transform { translation 0 0 1.2 children [ Shape { appearance Appearance { material Material { diffuseColor 0.3 0.3 0.3 } } geometry Cylinder { height 2.2 radius 0.12 } } ] }
-  Transform { translation 0 0 2.4 children [ Shape { appearance Appearance { material DEF POI_09_BEACON Material { diffuseColor 0.85 0.7 0.1 emissiveColor 0.6 0.5 0.05 } } geometry Sphere { radius 0.5 } } ] }
+  Transform { translation 0 0 0.05 children [ Shape { appearance Appearance { material DEF POI_09_MAT Material { diffuseColor 0.90 0.75 0.10 emissiveColor 0.25 0.18 0.0 transparency 0.4 } } geometry Cylinder { height 0.05 radius 2.5 } } ] }
+  Transform { translation 0 0 0.09 children [ Shape { appearance Appearance { material Material { diffuseColor 0.14 0.16 0.18 } } geometry Cylinder { height 0.06 radius 1.2 } } ] }
+  Transform { translation 0 0 1.5 children [ Shape { appearance Appearance { material Material { diffuseColor 0.25 0.28 0.32 } } geometry Cylinder { height 2.8 radius 0.14 } } ] }
+  Transform { translation 0 0 3.0 children [ Shape { appearance Appearance { material DEF POI_09_BEACON Material { diffuseColor 0.90 0.75 0.10 emissiveColor 0.75 0.60 0.05 } } geometry Sphere { radius 0.65 } } ] }
+  Transform { translation 0 0 3.0 children [ Shape { appearance Appearance { material Material { diffuseColor 0.90 0.75 0.10 emissiveColor 0.5 0.4 0.0 transparency 0.5 } } geometry Cylinder { height 0.05 radius 1.3 } } ] }
 ] }
 
 DEF POI_10 Solid { translation 120 580 0 name "poi_10" children [
-  Transform { translation 0 0 0.05 children [ Shape { appearance Appearance { material DEF POI_10_MAT Material { diffuseColor 0.85 0.7 0.1 emissiveColor 0.2 0.15 0.0 } } geometry Cylinder { height 0.08 radius 2.2 } } ] }
-  Transform { translation 0 0 1.2 children [ Shape { appearance Appearance { material Material { diffuseColor 0.3 0.3 0.3 } } geometry Cylinder { height 2.2 radius 0.12 } } ] }
-  Transform { translation 0 0 2.4 children [ Shape { appearance Appearance { material DEF POI_10_BEACON Material { diffuseColor 0.85 0.7 0.1 emissiveColor 0.6 0.5 0.05 } } geometry Sphere { radius 0.5 } } ] }
+  Transform { translation 0 0 0.05 children [ Shape { appearance Appearance { material DEF POI_10_MAT Material { diffuseColor 0.90 0.75 0.10 emissiveColor 0.25 0.18 0.0 transparency 0.4 } } geometry Cylinder { height 0.05 radius 2.5 } } ] }
+  Transform { translation 0 0 0.09 children [ Shape { appearance Appearance { material Material { diffuseColor 0.14 0.16 0.18 } } geometry Cylinder { height 0.06 radius 1.2 } } ] }
+  Transform { translation 0 0 1.5 children [ Shape { appearance Appearance { material Material { diffuseColor 0.25 0.28 0.32 } } geometry Cylinder { height 2.8 radius 0.14 } } ] }
+  Transform { translation 0 0 3.0 children [ Shape { appearance Appearance { material DEF POI_10_BEACON Material { diffuseColor 0.90 0.75 0.10 emissiveColor 0.75 0.60 0.05 } } geometry Sphere { radius 0.65 } } ] }
+  Transform { translation 0 0 3.0 children [ Shape { appearance Appearance { material Material { diffuseColor 0.90 0.75 0.10 emissiveColor 0.5 0.4 0.0 transparency 0.5 } } geometry Cylinder { height 0.05 radius 1.3 } } ] }
 ] }
 
-# Dedicated PoC Task for In-Flight Recovery Demo (poi_recovery)
+# Dedicated PoC Task for In-Flight Recovery Demo (poi_recovery) at exact authoritative position
 DEF POI_RECOVERY Solid { translation 80 420 0 name "poi_recovery" children [
-  Transform { translation 0 0 0.06 children [ Shape { appearance Appearance { material DEF POI_REC_MAT Material { diffuseColor 0.85 0.7 0.1 emissiveColor 0.2 0.15 0.0 } } geometry Cylinder { height 0.09 radius 2.5 } } ] }
-  Transform { translation 0 0 1.2 children [ Shape { appearance Appearance { material Material { diffuseColor 0.3 0.3 0.3 } } geometry Cylinder { height 2.2 radius 0.14 } } ] }
-  Transform { translation 0 0 2.4 children [ Shape { appearance Appearance { material DEF POI_REC_BEACON Material { diffuseColor 0.85 0.7 0.1 emissiveColor 0.6 0.5 0.05 } } geometry Sphere { radius 0.6 } } ] }
+  Transform { translation 0 0 0.06 children [ Shape { appearance Appearance { material DEF POI_REC_MAT Material { diffuseColor 0.90 0.75 0.10 emissiveColor 0.25 0.18 0.0 transparency 0.4 } } geometry Cylinder { height 0.06 radius 2.8 } } ] }
+  Transform { translation 0 0 0.10 children [ Shape { appearance Appearance { material Material { diffuseColor 0.14 0.16 0.18 } } geometry Cylinder { height 0.08 radius 1.4 } } ] }
+  Transform { translation 0 0 1.5 children [ Shape { appearance Appearance { material Material { diffuseColor 0.25 0.28 0.32 } } geometry Cylinder { height 2.8 radius 0.16 } } ] }
+  Transform { translation 0 0 3.0 children [ Shape { appearance Appearance { material DEF POI_REC_BEACON Material { diffuseColor 0.90 0.75 0.10 emissiveColor 0.75 0.60 0.05 } } geometry Sphere { radius 0.75 } } ] }
+  Transform { translation 0 0 3.0 children [ Shape { appearance Appearance { material Material { diffuseColor 0.90 0.75 0.10 emissiveColor 0.5 0.4 0.0 transparency 0.5 } } geometry Cylinder { height 0.06 radius 1.5 } } ] }
 ] }
 
 # Supervisor Robot Node executing the authoritative trace consumer controller
@@ -413,23 +800,59 @@ DEF SUPERVISOR Robot {
   supervisor TRUE
   controller "aetherswarm_supervisor"
   children [
-    # Mission Overview Recording Camera (1080p compatible)
+    # 1. 1000m Mission Overview Recording Camera (Comprehensive View)
+    Camera {
+      translation 500 -250 650
+      rotation 0.68 0.42 -0.60 1.42
+      name "overview_cam"
+      width 1920
+      height 1080
+      fieldOfView 1.15
+    }
+    # 2. Focused E1 Relay Failure Viewpoint (Tick 300 Central Cluster)
+    Camera {
+      translation 180 410 75
+      rotation 0.30 0.45 -0.84 1.72
+      name "e1_failure_cam"
+      width 1920
+      height 1080
+      fieldOfView 0.90
+    }
+    # 3. Focused Recovery Demo Viewpoint (Tick 8 Failure & Reassignment at poi_recovery)
+    Camera {
+      translation 35 365 42
+      rotation 0.32 0.40 -0.86 1.70
+      name "recovery_cam"
+      width 1920
+      height 1080
+      fieldOfView 0.95
+    }
+    # 4. GCS Arrival, RTH Descent, and Landing Pad Camera
+    Camera {
+      translation -95 460 30
+      rotation 0.35 0.45 -0.82 1.68
+      name "gcs_landing_cam"
+      width 1920
+      height 1080
+      fieldOfView 0.95
+    }
+    # 5. Operational Cluster Overhead Nadir Camera
+    Camera {
+      translation 80 500 180
+      rotation 0 1 0 1.5708
+      name "overhead_cam"
+      width 1920
+      height 1080
+      fieldOfView 0.90
+    }
+    # 6. Legacy Compatible Overview Camera
     Camera {
       translation 120 380 90
       rotation 0.25 0.35 -0.90 1.80
       name "mission_camera"
       width 1920
       height 1080
-      fieldOfView 1.1
-    }
-    # Operational Cluster Overhead Camera
-    Camera {
-      translation 60 500 120
-      rotation 0 1 0 1.5708
-      name "overhead_camera"
-      width 1920
-      height 1080
-      fieldOfView 0.95
+      fieldOfView 1.10
     }
   ]
 }

@@ -1,13 +1,15 @@
 #VRML_SIM R2025a utf8
 # Parameterized 3D drone representation for AetherSwarm multi-UAV mission simulation.
+# Polished visual model with aviation navigation lighting, high-visibility status beacon,
+# and clear heading indicators for research demonstrations.
 
 PROTO SwarmDrone [
   field SFVec3f    translation   0 0 0
   field SFRotation rotation      0 0 1 0
   field SFString   name          "uav"
-  field SFColor    color         0.1 0.5 0.9
-  field SFColor    emissiveColor 0 0 0
-  field SFVec3f    scale         2.0 2.0 2.0
+  field SFColor    color         0.1 0.65 0.85
+  field SFColor    emissiveColor 0.05 0.25 0.40
+  field SFVec3f    scale         2.2 2.2 2.2
 ]
 {
   Solid {
@@ -18,143 +20,214 @@ PROTO SwarmDrone [
       Transform {
         scale IS scale
         children [
-          # Central Fuselage
+          # Central Fuselage (aerodynamic chamfered body)
           DEF FUSELAGE Shape {
             appearance Appearance {
               material DEF DRONE_MAT Material {
                 diffuseColor IS color
                 emissiveColor IS emissiveColor
+                roughness 0.4
               }
             }
             geometry Box {
-              size 0.8 0.8 0.25
+              size 0.9 0.9 0.24
             }
           }
-          # Forward Direction Indicator (Nose Cone)
+          # Avionics Top Shield (dark composite plate)
           Transform {
-            translation 0.55 0 0
+            translation 0 0 0.13
+            children [
+              Shape {
+                appearance Appearance {
+                  material Material {
+                    diffuseColor 0.12 0.14 0.16
+                    emissiveColor 0.02 0.03 0.04
+                  }
+                }
+                geometry Box {
+                  size 0.65 0.65 0.04
+                }
+              }
+            ]
+          }
+          # Forward Heading Indicator (High-visibility tactical chevron nose)
+          Transform {
+            translation 0.58 0 0
             rotation 0 1 0 1.5708
             children [
               Shape {
                 appearance Appearance {
                   material Material {
-                    diffuseColor 0.9 0.8 0.1
-                    emissiveColor 0.3 0.2 0.0
+                    diffuseColor 0.95 0.75 0.08
+                    emissiveColor 0.45 0.30 0.02
                   }
                 }
-                geometry Cylinder {
-                  height 0.3
-                  radius 0.18
+                geometry Cone {
+                  bottomRadius 0.22
+                  height 0.35
                 }
               }
             ]
           }
-          # Rotor Arms (+ Configuration)
-          # Arm X+
+          # Rotor Arms (+ Configuration in Sleek Carbon Graphite)
+          # Arm X+ (Forward)
           Transform {
-            translation 0.8 0 0
+            translation 0.75 0 0
             children [
               Shape {
                 appearance Appearance {
-                  material Material { diffuseColor 0.2 0.2 0.2 }
+                  material Material { diffuseColor 0.18 0.20 0.22 }
                 }
-                geometry Box { size 0.8 0.08 0.08 }
+                geometry Box { size 0.7 0.08 0.07 }
               }
               Transform {
-                translation 0.4 0 0.08
+                translation 0.35 0 0.06
                 children [
                   Shape {
                     appearance Appearance {
-                      material Material { diffuseColor 0.1 0.1 0.1 }
+                      material Material { diffuseColor 0.12 0.12 0.12 }
                     }
-                    geometry Cylinder { height 0.04 radius 0.45 }
+                    geometry Cylinder { height 0.06 radius 0.42 }
                   }
                 ]
               }
             ]
           }
-          # Arm X-
+          # Arm X- (Aft)
           Transform {
-            translation -0.8 0 0
+            translation -0.75 0 0
             children [
               Shape {
                 appearance Appearance {
-                  material Material { diffuseColor 0.2 0.2 0.2 }
+                  material Material { diffuseColor 0.18 0.20 0.22 }
                 }
-                geometry Box { size 0.8 0.08 0.08 }
+                geometry Box { size 0.7 0.08 0.07 }
               }
               Transform {
-                translation -0.4 0 0.08
+                translation -0.35 0 0.06
                 children [
                   Shape {
                     appearance Appearance {
-                      material Material { diffuseColor 0.1 0.1 0.1 }
+                      material Material { diffuseColor 0.12 0.12 0.12 }
                     }
-                    geometry Cylinder { height 0.04 radius 0.45 }
+                    geometry Cylinder { height 0.06 radius 0.42 }
+                  }
+                ]
+              }
+              # Stern White Navigation Strobe
+              Transform {
+                translation -0.72 0 0.02
+                children [
+                  Shape {
+                    appearance Appearance {
+                      material Material { diffuseColor 0.95 0.95 0.95 emissiveColor 0.8 0.8 0.8 }
+                    }
+                    geometry Sphere { radius 0.06 }
                   }
                 ]
               }
             ]
           }
-          # Arm Y+
+          # Arm Y+ (Port / Left: Standard Aviation Red Nav Light)
           Transform {
-            translation 0 0.8 0
+            translation 0 0.75 0
             children [
               Shape {
                 appearance Appearance {
-                  material Material { diffuseColor 0.2 0.2 0.2 }
+                  material Material { diffuseColor 0.18 0.20 0.22 }
                 }
-                geometry Box { size 0.08 0.8 0.08 }
+                geometry Box { size 0.08 0.7 0.07 }
               }
               Transform {
-                translation 0 0.4 0.08
+                translation 0 0.35 0.06
                 children [
                   Shape {
                     appearance Appearance {
-                      material Material { diffuseColor 0.1 0.1 0.1 }
+                      material Material { diffuseColor 0.12 0.12 0.12 }
                     }
-                    geometry Cylinder { height 0.04 radius 0.45 }
+                    geometry Cylinder { height 0.06 radius 0.42 }
+                  }
+                ]
+              }
+              Transform {
+                translation 0 0.72 0.02
+                children [
+                  Shape {
+                    appearance Appearance {
+                      material Material { diffuseColor 0.9 0.1 0.1 emissiveColor 0.8 0.05 0.05 }
+                    }
+                    geometry Sphere { radius 0.06 }
                   }
                 ]
               }
             ]
           }
-          # Arm Y-
+          # Arm Y- (Starboard / Right: Standard Aviation Green Nav Light)
           Transform {
-            translation 0 -0.8 0
+            translation 0 -0.75 0
             children [
               Shape {
                 appearance Appearance {
-                  material Material { diffuseColor 0.2 0.2 0.2 }
+                  material Material { diffuseColor 0.18 0.20 0.22 }
                 }
-                geometry Box { size 0.08 0.8 0.08 }
+                geometry Box { size 0.08 0.7 0.07 }
               }
               Transform {
-                translation 0 -0.4 0.08
+                translation 0 -0.35 0.06
                 children [
                   Shape {
                     appearance Appearance {
-                      material Material { diffuseColor 0.1 0.1 0.1 }
+                      material Material { diffuseColor 0.12 0.12 0.12 }
                     }
-                    geometry Cylinder { height 0.04 radius 0.45 }
+                    geometry Cylinder { height 0.06 radius 0.42 }
+                  }
+                ]
+              }
+              Transform {
+                translation 0 -0.72 0.02
+                children [
+                  Shape {
+                    appearance Appearance {
+                      material Material { diffuseColor 0.1 0.85 0.2 emissiveColor 0.1 0.8 0.15 }
+                    }
+                    geometry Sphere { radius 0.06 }
                   }
                 ]
               }
             ]
           }
-          # Status Beacon Top
+          # High-Luminance Primary Status Beacon (Top)
           Transform {
-            translation 0 0 0.22
+            translation 0 0 0.26
             children [
               Shape {
                 appearance Appearance {
                   material DEF BEACON_MAT Material {
                     diffuseColor IS color
-                    emissiveColor IS color
+                    emissiveColor IS emissiveColor
                   }
                 }
                 geometry Sphere {
-                  radius 0.22
+                  radius 0.26
+                }
+              }
+            ]
+          }
+          # Beacon Halo Ring (ensures visibility at overview scale)
+          Transform {
+            translation 0 0 0.26
+            children [
+              Shape {
+                appearance Appearance {
+                  material Material {
+                    diffuseColor IS color
+                    emissiveColor IS emissiveColor
+                    transparency 0.4
+                  }
+                }
+                geometry Cylinder {
+                  height 0.03
+                  radius 0.48
                 }
               }
             ]
