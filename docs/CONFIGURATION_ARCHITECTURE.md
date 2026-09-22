@@ -70,7 +70,7 @@ Configures experimental and demo scenario generation:
 | Parameter | Type | Default Value | Description |
 |---|---|---|---|
 | `seed` | `int` | `42` | PRNG seed for deterministic scenario generation |
-| `scenario_type` | `str` | `"random_demo"` | Scenario archetype (`canonical`, `random_demo`, `recovery`) |
+| `scenario_type` | `str` | `"random"` | Scenario archetype (`canonical`, `random`, `recovery`) |
 | `num_pois` | `int` | `10` | Total number of POIs to place |
 | `x_range` | `tuple[float, float]` | `(5.0, 995.0)` | Independent uniform sampling bounds for X axis (m) |
 | `y_range` | `tuple[float, float]` | `(5.0, 995.0)` | Independent uniform sampling bounds for Y axis (m) |

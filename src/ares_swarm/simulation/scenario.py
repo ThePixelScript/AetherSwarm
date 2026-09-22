@@ -199,7 +199,7 @@ def load_scenario(source: str | Path | dict[str, Any]) -> ScenarioConfig:
     )
     scenario_gen_cfg = ScenarioGenConfig.from_dict({
         "seed": seed,
-        "scenario_type": "canonical" if "poc" in name else "random_demo",
+        "scenario_type": "canonical" if "poc" in name else "random",
         **raw.get("config", {}).get("scenario", {}),
     })
     pres_cfg = WebotsPresentationConfig.from_dict(raw.get("config", {}).get("presentation", {}))

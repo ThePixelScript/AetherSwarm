@@ -1,4 +1,4 @@
-"""Tests for DEMO-ONLY Randomized POI Scenario Generator.
+"""Tests for Randomized POI Scenario Generator.
 
 Validates:
 1. Default POI count: exactly 10 POIs generated.
@@ -25,11 +25,11 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 sys.path.insert(0, str(REPO_ROOT / "scripts"))
 
-from scripts.generate_random_demo import (
+from scripts.generate_scenario import (
     sample_random_pois,
-    generate_demo_scenario_dict,
+    generate_scenario_dict,
     compute_poi_metrics,
-    generate_and_export_demo,
+    generate_and_export_scenario,
 )
 from ares_swarm.simulation.scenario import load_scenario
 
@@ -124,10 +124,10 @@ def test_deterministic_spawn_time_ordering():
 
 def test_authoritative_consistency_scenario_and_trace(tmp_path):
     """Generated scenario YAML and simulation trace must agree exactly on task coordinates."""
-    scen_path = tmp_path / "test_demo_scenario.yaml"
-    trace_path = tmp_path / "test_demo_trace.json"
+    scen_path = tmp_path / "test_random_scenario.yaml"
+    trace_path = tmp_path / "test_random_trace.json"
 
-    res = generate_and_export_demo(
+    res = generate_and_export_scenario(
         seed=555,
         num_pois=10,
         min_spacing=0.0,
@@ -177,3 +177,14 @@ def test_frozen_e1_isolation():
     assert e1_data["tasks"][3]["position"] == [80.0, 540.0]
     assert e1_data["tasks"][4]["position"] == [80.0, 580.0]
     assert e1_data["tasks"][5]["position"] == [120.0, 420.0]
+
+
+def test_backward_compatibility_wrapper():
+    """scripts/generate_random_demo.py must remain functional as a thin wrapper."""
+    from scripts import generate_random_demo
+
+    assert hasattr(generate_random_demo, "sample_random_pois")
+    assert hasattr(generate_random_demo, "generate_demo_scenario_dict")
+    assert hasattr(generate_random_demo, "generate_and_export_demo")
+    tasks = generate_random_demo.sample_random_pois(seed=42)
+    assert len(tasks) == 10

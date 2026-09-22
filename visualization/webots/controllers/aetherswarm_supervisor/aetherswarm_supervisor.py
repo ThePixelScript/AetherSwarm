@@ -96,10 +96,14 @@ def find_trace_file(supervisor: Any = None) -> Path:
 
     # 2. Map selector to known authoritative trace files
     if "random" in selector or "demo" in selector:
-        target = data_dir / "random_demo_trace.json"
-        if target.is_file():
-            log_msg(f"[Webots Supervisor] Selected randomized demo trace (selector='{selector}'): {target}")
-            return target
+        target_scenario = data_dir / "random_scenario_trace.json"
+        if target_scenario.is_file():
+            log_msg(f"[Webots Supervisor] Selected randomized scenario trace (selector='{selector}'): {target_scenario}")
+            return target_scenario
+        target_compat = data_dir / "random_demo_trace.json"
+        if target_compat.is_file():
+            log_msg(f"[Webots Supervisor] Selected randomized scenario trace (selector='{selector}'): {target_compat}")
+            return target_compat
 
     if "recovery" in selector:
         target = data_dir / "recovery_authoritative_trace.json"
@@ -627,7 +631,7 @@ class WebotsAetherSwarmSupervisor:
                 self._last_event_banner = f"NAV: RTH Triggered for {ev.get('entity_id')}"
 
         # 1. Header Banner
-        self.supervisor.setLabel(0, "AETHERSWARM UAV-X RESEARCH DEMONSTRATION", 0.015, 0.015, 0.045, 0xFFFFFF, 0.0, "Arial")
+        self.supervisor.setLabel(0, "AETHERSWARM UAV-X AUTONOMOUS WORKING MODEL", 0.015, 0.015, 0.045, 0xFFFFFF, 0.0, "Arial")
 
         # 2. Playback, Time & Replay State
         mode_str = "⏸ PAUSED" if self.is_paused else "▶ PLAYING"

@@ -26,7 +26,7 @@ class ScenarioGenConfig:
     """
 
     seed: int = 42
-    scenario_type: str = "random_demo"
+    scenario_type: str = "random"
     num_pois: int = 10
     x_range: tuple[float, float] = (5.0, 995.0)
     y_range: tuple[float, float] = (5.0, 995.0)
@@ -54,7 +54,7 @@ class ScenarioGenConfig:
     def from_dict(cls, data: dict[str, Any]) -> ScenarioGenConfig:
         return cls(
             seed=int(data.get("seed", 42)),
-            scenario_type=str(data.get("scenario_type", "random_demo")),
+            scenario_type=str(data.get("scenario_type", "random")),
             num_pois=int(data.get("num_pois", 10)),
             x_range=tuple(float(v) for v in data.get("x_range", (5.0, 995.0))),
             y_range=tuple(float(v) for v in data.get("y_range", (5.0, 995.0))),

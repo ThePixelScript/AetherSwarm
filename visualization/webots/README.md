@@ -1,10 +1,10 @@
 # AetherSwarm Webots R2025a 3D Robotics Layer
 
 ## Overview
-This directory contains the downstream 3D robotics simulation, visual research demonstration, and independent spatial verification layer for **AetherSwarm** using Cyberbotics Webots R2025a.
+This directory contains the downstream 3D robotics simulation, visual working model, and independent spatial verification layer for **AetherSwarm** using Cyberbotics Webots R2025a.
 
 > [!IMPORTANT]
-> **Authoritative Architecture**: Headless AetherSwarm (`ares_swarm`) running in Linux/WSL remains the single authoritative source of truth for all mission state, A1 task allocation, Gamma RF communications analysis, battery/energy dynamics, hardware failure/recovery logic, and official benchmark metrics. Webots acts purely as an observational downstream consumer and independent spatial verifier; it does not simulate autonomy, communication protocols, or physics overrides.
+> **Authoritative Architecture**: Headless AetherSwarm (`ares_swarm`) running in Linux/WSL remains the single authoritative source of truth for all mission state, A1 task allocation, Gamma RF communications analysis, battery/energy dynamics, hardware failure/recovery logic, and official benchmark metrics. Webots visualizes the authoritative AetherSwarm working model from an immutable simulation trace; it acts purely as an observational downstream consumer and independent spatial verifier and does not simulate autonomy, communication protocols, or physics overrides.
 
 ---
 
@@ -23,14 +23,15 @@ visualization/webots/
 └── data/
     ├── .gitkeep
     ├── e1_authoritative_trace.json             # Official E1 benchmark trace (2,700 ticks)
-    ├── recovery_authoritative_trace.json       # In-flight failure & recovery demo trace (100 ticks)
+    ├── random_scenario_trace.json              # Randomized working scenario trace (2,700 ticks)
+    ├── recovery_authoritative_trace.json       # In-flight failure & recovery scenario trace (100 ticks)
     ├── webots_spatial_verification.txt         # Independent spatial verification report output
-    └── screenshots/                            # Demo milestone high-resolution captures
+    └── screenshots/                            # Milestone high-resolution captures
 ```
 
 ---
 
-## Visual Demonstration Features (Phase 7C Polish)
+## Visual Working Model & Spatial Verification Features
 
 1. **Metric Ground Grid & Arena Boundary**:
    - Subtle 100m grid lines across the 1000m x 1000m operational arena for clear spatial scale reference.
@@ -134,8 +135,8 @@ Start-Process -FilePath "C:\Program Files\Webots\msys64\mingw64\bin\webots.exe" 
   -WorkingDirectory "C:\Program Files\Webots"
 ```
 
-### 3. Randomized POI Demonstration
-Executes the randomized POI presentation scenario showing 10 non-grid, spatially distributed POIs across the operational arena:
+### 3. Randomized POI Working Scenario
+Executes the randomized POI working scenario showing 10 non-grid, spatially distributed POIs across the operational arena:
 ```powershell
 $env:AETHERSWARM_SCENARIO = "random"
 Start-Process -FilePath "C:\Program Files\Webots\msys64\mingw64\bin\webots.exe" `
