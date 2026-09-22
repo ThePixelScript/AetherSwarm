@@ -1,8 +1,9 @@
 # Challenge Simulation Assumptions: V1 Specification
 
-> **Status**: FROZEN PROJECT ASSUMPTIONS (V1)
+> **Status**: FROZEN PROJECT ASSUMPTIONS (V1) — *Historical Baseline*
 > **Authority Level**: INTERNAL PROJECT CONVENTION (NOT ORGANIZER-CONFIRMED)
 > **Parent Contract**: [`docs/CHALLENGE_MISSION_CONTRACT.md`](file:///home/dell/swarm_ws/AetherSwarm/docs/CHALLENGE_MISSION_CONTRACT.md)
+> **Superseding Implementation**: Multi-wave sortie rotation and battery replenishment were implemented in Phase 2; see [`docs/SORTIE_ROTATION.md`](file:///home/dell/swarm_ws/AetherSwarm/docs/SORTIE_ROTATION.md) and [`docs/SAFETY_ENDURANCE_AND_RTH.md`](file:///home/dell/swarm_ws/AetherSwarm/docs/SAFETY_ENDURANCE_AND_RTH.md).
 > **Protected Baseline**: `8446fed` / Benchmark E1 (`scenarios/poc_round1.yaml`)
 > **Scope**: Challenge Scenario Generation, Simulation Auditing, and Stage 1 / M2 Compliance Profiling
 
@@ -35,7 +36,7 @@ The purpose of this specification is to:
 >    $$\text{remaining\_sortie\_s} = 1200.0 - (t_{\text{sim}} - t_{\text{takeoff}})$$
 >    $$t_{\text{rth\_required}} = \frac{\|\mathbf{p}_{\text{uav}} - \mathbf{p}_{\text{gcs}}\|}{v_{\text{speed}}} + \text{margin}_{\text{safety}} \quad (\text{margin}_{\text{safety}} = 15.0\,\text{s})$$
 >    If $\text{remaining\_sortie\_s} \le t_{\text{rth\_required}}$, the UAV aborts its active task and initiates return to GCS.
-> 4. **Single-Sortie Policy / Multi-Wave Rotation Distinction in V1**: Multi-wave fleet rotation is **NOT IMPLEMENTED**. Single-sortie relaunch is **PROHIBITED and ENFORCED in V1**: once an airborne UAV lands at the operational center, its flight duty for the mission is complete. Any subsequent motion or secondary sortie attempt generates a `RELAUNCH_PROHIBITED` safety violation.
+> 4. **Single-Sortie Policy vs. Multi-Wave Rotation Evolution**: In the initial V1 freeze, multi-wave rotation was not yet implemented and relaunch was prohibited. In Phase 2, multi-wave sortie rotation, ground battery recharging, and redeployment were formally implemented in `StateStore` and `MissionRunner` (see [`docs/SORTIE_ROTATION.md`](file:///home/dell/swarm_ws/AetherSwarm/docs/SORTIE_ROTATION.md)). When `allow_relaunch` is disabled, single-sortie enforcement remains active.
 
 ---
 

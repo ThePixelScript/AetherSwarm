@@ -9,7 +9,7 @@ The **A0 Baseline Task Allocator** serves as the initial, non-predictive autonom
 Key design principles of A0:
 - **Zero Direct State Mutation**: Operates strictly on read-only snapshots (`StateSnapshot`) or collections of UAV/Task views, emitting typed proposals (`TaskActionProposal` / `AllocationResult`) for validation and execution by the simulation engine and `StateStore`.
 - **Absolute Determinism**: Guaranteed identical matching regardless of candidate input iteration order, dictionary hashing, or CPU architecture differences. All ties are broken via unambiguous lexicographical ordering.
-- **Strict Decoupling**: Interfaces use structural subtyping (`typing.Protocol` / duck-typing) to avoid introducing competing domain models while awaiting Sarath's authoritative `core.models` and `state_store`.
+- **Strict Decoupling**: Interfaces use structural subtyping (`typing.Protocol` / duck-typing) to cleanly decouple allocation logic from internal simulation storage.
 - **Planned Utility Concept**: Formulates assignment scoring based on the swarm-wide utility objective, using only ground-truth terms available in Stage-1.
 
 ---
@@ -182,17 +182,17 @@ flowchart TD
 
 ---
 
-## 9. Required Shared Contracts (Sarath / Core Workstream)
+## 9. Authoritative Shared Core Contracts
 
-To fully integrate A0 into the end-to-end pipeline, the following shared types are required from the Core workstream:
+A0 integrates into the end-to-end simulation pipeline using the authoritative types from `ares_swarm`:
 
 1. `ares_swarm.core.models`:
    - `Vector2D(x: float, y: float)`
    - `UAVState(id: str, position: Vector2D, active: bool, failure_status: FailureStatus, ...)`
    - `TaskState(id: str, position: Vector2D, priority: float, status: TaskStatus, ...)`
    - `SwarmState(gcs: GCSState, uavs: tuple[UAVState, ...], tasks: tuple[TaskState, ...], ...)`
-2. `ares_swarm.core.snapshot`:
+2. `ares_swarm.core.state_store`:
    - `StateSnapshot(state: SwarmState, revision: int)`
-3. `ares_swarm.interfaces.autonomy`:
-   - `ActionProposal(id: str, snapshot_revision: int, intent: str, target: str, reason: str, source: str, parameters: Mapping[str, Any])`
-   - `AutonomyPlanner(Protocol)`: `plan(snapshot: StateSnapshot, network_analysis: NetworkAnalysis) -> list[ActionProposal]`
+3. `ares_swarm.autonomy`:
+   - `TaskActionProposal(intent: str, target_id: str, uav_id: str, parameters: dict)`
+   - `A0TaskAllocator`: `allocate(snapshot: StateSnapshot) -> AllocationResult`

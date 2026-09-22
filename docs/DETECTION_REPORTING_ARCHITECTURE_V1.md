@@ -1,7 +1,7 @@
 # Architecture Specification: Detection → GCS Reporting Pipeline (V1)
 
 > **Document Type**: ARCHITECTURAL SPECIFICATION & DESIGN DECISION
-> **Status**: SPECIFICATION ONLY (PRE-IMPLEMENTATION REVIEW)
+> **Status**: IMPLEMENTED & VALIDATED (Commits `c66ac26`, `8343401`)
 > **Target Subsystem**: Perception FOV Detection & Telemetry Dissemination
 > **Applicable Profiles**: `challenge_profile.detection_pipeline` (Opt-In; disabled by default)
 > **Authoritative Baseline**: Commit `9604830` (`feat(challenge): add UAV-X compliance layer v1`)

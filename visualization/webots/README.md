@@ -39,7 +39,7 @@ visualization/webots/
    - 100m operational ceiling boundary wireframe and vertical corner warning beacons.
 
 2. **Ground Control Station (GCS)**:
-   - Located at authoritative coordinate `[-50.0, 500.0, 0.0]`.
+   - Located at authoritative coordinate `[-75.0, 500.0, 0.0]`.
    - Distinctive 38m x 38m heavy operations apron with safety perimeter and runway transition corridor.
    - Dual-ring helipad with high-contrast "H" touchdown marking.
    - Mobile tactical command module with telemetry radome.
@@ -67,7 +67,7 @@ visualization/webots/
    - Highlighted active route overlays showing multi-hop paths to GCS without synthetic role inventions.
 
 7. **Dedicated Camera Viewpoints**:
-   - `demo_presentation_cam`: Dedicated presentation perspective framed tightly around the active corridor and mission zone ($X \in [-50, 450], Y \in [200, 750]$).
+   - `demo_presentation_cam`: Dedicated presentation perspective framed tightly around the active corridor and mission zone ($X \in [-75, 450], Y \in [200, 750]$).
    - `overview_cam`: 1000m comprehensive mission overview perspective.
    - `e1_failure_cam`: Close-up view of central cluster for tick-300 relay failure demonstration.
    - `recovery_cam`: Focused view on `poi_recovery` for tick-8 failure and dynamic A1 reassignment.

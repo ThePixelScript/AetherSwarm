@@ -17,7 +17,7 @@ All challenge-specific behaviors are strictly opt-in via the `challenge_profile`
 > **Strict Compliance Grounding**:
 > 1. All parameters implemented herein are **Project Simulation Assumptions (V1)**, not organizer-confirmed requirements.
 > 2. **Altitude**: The core Python simulation (`src/ares_swarm/`) is **2D planar**. The parameter `max_height: 100.0m` is configuration metadata only and is **NOT evaluated or enforced in the core simulation**. (Altitude is verified downstream in the 3D Webots supervisor only).
-> 3. **Single Sortie**: Ground battery swapping and re-launch are prohibited in V1. Relaunch attempts generate `RELAUNCH_PROHIBITED` violations.
+> 3. **Sortie Policy**: By default in V1, single-sortie was enforced. Phase 2 formally introduced opt-in multi-wave sortie rotation with battery recharging (see [`docs/SORTIE_ROTATION.md`](file:///home/dell/swarm_ws/AetherSwarm/docs/SORTIE_ROTATION.md)). When `fleet_lifecycle.allow_relaunch = false`, single-sortie enforcement remains active and relaunch attempts generate `RELAUNCH_PROHIBITED` violations.
 
 ---
 

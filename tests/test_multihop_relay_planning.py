@@ -360,7 +360,38 @@ def test_multihop_intermediate_link_handoff():
 
     cmds = relay_mgr.step(snapshot=snap, dt=1.0)
 
-    # Localized handoff occurred
+    # 1. Dispatch tick: uav_rep dispatched toward station_1, uav_r1 remains active at station_1 (make-before-break)
+    assert relay_mgr.relay_chain_handoffs == 0
+    assert chain.status == ChainStatus.HANDOFF
+    assert chain.relay_ids == ["uav_r1", "uav_r2"]
+    assert "uav_r1" in relay_mgr.relay_to_chain
+    assert 0 in chain.pending_handoffs
+
+    assign_cmds = [c for c in cmds if isinstance(c, AssignRelayRoleCommand)]
+    assert len(assign_cmds) == 1
+    assert assign_cmds[0].uav_id == "uav_rep"
+    assert assign_cmds[0].target_position == station_1
+
+    target_cmds = [c for c in cmds if isinstance(c, SetTargetPositionCommand)]
+    assert any(c.uav_id == "uav_rep" and c.target_position == station_1 for c in target_cmds)
+
+    # No release or RTH commands for incumbent uav_r1 yet
+    assert not any(isinstance(c, ReleaseRelayRoleCommand) and c.uav_id == "uav_r1" for c in cmds)
+    assert not any(isinstance(c, StartRTHCommand) and c.uav_id == "uav_r1" for c in cmds)
+
+    # 2. Simulate arrival at station_1 on tick 11
+    from dataclasses import replace
+    uav_rep_at_station = replace(uav_rep, position_xy=station_1, role=Role.RELAY)
+    snap2 = replace(
+        snap,
+        simulation_tick=11,
+        simulation_time=11.0,
+        uavs={"uav_s": uav_s, "uav_r1": uav_r1, "uav_r2": uav_r2, "uav_rep": uav_rep_at_station},
+    )
+
+    cmds2 = relay_mgr.step(snapshot=snap2, dt=1.0)
+
+    # Localized handoff completed atomically upon arrival and verification
     assert relay_mgr.relay_chain_handoffs == 1
     assert chain.status == ChainStatus.ACTIVE
     # R1 was replaced by uav_rep; R2 remains in place
@@ -368,11 +399,20 @@ def test_multihop_intermediate_link_handoff():
     assert relay_mgr.relay_to_chain.get("uav_rep") == "chain_test"
     assert "uav_r1" not in relay_mgr.relay_to_chain
 
-    # Commands emitted for replacement and release
-    handoff_cmds = [c for c in cmds if isinstance(c, HandoffRelayCommand)]
+    # Commands emitted for replacement swap, release, and RTH
+    handoff_cmds = [c for c in cmds2 if isinstance(c, HandoffRelayCommand)]
     assert len(handoff_cmds) == 1
     assert handoff_cmds[0].replacement_uav_id == "uav_rep"
     assert handoff_cmds[0].target_position == station_1
+
+    release_cmds = [c for c in cmds2 if isinstance(c, ReleaseRelayRoleCommand)]
+    assert len(release_cmds) == 1
+    assert release_cmds[0].uav_id == "uav_r1"
+
+    rth_cmds = [c for c in cmds2 if isinstance(c, StartRTHCommand)]
+    assert len(rth_cmds) == 1
+    assert rth_cmds[0].uav_id == "uav_r1"
+
 
 
 def test_multihop_link_failure_recovery():
