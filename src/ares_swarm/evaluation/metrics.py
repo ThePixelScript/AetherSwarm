@@ -41,6 +41,9 @@ class MissionMetricsReport:
     geofence_violation_count: int = 0
     separation_interventions: int = 0
     per_uav_intervention_counts: dict[str, int] = field(default_factory=dict)
+    geofence_interventions: int = 0
+    per_uav_geofence_intervention_counts: dict[str, int] = field(default_factory=dict)
+    min_boundary_clearance_m: float = float("inf")
 
     # Detection & Telemetry metrics
     total_detections: int = 0
@@ -88,8 +91,15 @@ class MissionMetricsReport:
                 ),
                 "battery_exhaustion_count": self.battery_exhaustion_count,
                 "geofence_violation_count": self.geofence_violation_count,
+                "min_boundary_clearance_m": (
+                    round(self.min_boundary_clearance_m, 2)
+                    if self.min_boundary_clearance_m != float("inf") and self.min_boundary_clearance_m is not None
+                    else None
+                ),
                 "separation_interventions": self.separation_interventions,
                 "per_uav_intervention_counts": dict(self.per_uav_intervention_counts),
+                "geofence_interventions": self.geofence_interventions,
+                "per_uav_geofence_intervention_counts": dict(self.per_uav_geofence_intervention_counts),
             },
             "telemetry": {
                 "total_detections": self.total_detections,
@@ -112,6 +122,7 @@ def compute_mission_metrics(
     safety_report: Any = None,
     telemetry_manager: Any = None,
     separation_enforcer: Any = None,
+    geofence_enforcer: Any = None,
 ) -> MissionMetricsReport:
     """Compute official benchmark metrics from simulation step history and snapshots."""
     report = MissionMetricsReport()
@@ -221,6 +232,10 @@ def compute_mission_metrics(
     if separation_enforcer:
         report.separation_interventions = separation_enforcer.total_interventions
         report.per_uav_intervention_counts = dict(separation_enforcer.per_uav_interventions)
+    if geofence_enforcer:
+        report.geofence_interventions = geofence_enforcer.total_interventions
+        report.per_uav_geofence_intervention_counts = dict(geofence_enforcer.per_uav_interventions)
+        report.min_boundary_clearance_m = geofence_enforcer.min_observed_clearance_m
 
     # 5. Detection & Telemetry Metrics
     if telemetry_manager:

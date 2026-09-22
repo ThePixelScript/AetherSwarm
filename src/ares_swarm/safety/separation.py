@@ -129,6 +129,7 @@ class SeparationEnforcer:
         movement_rate: float,
         airspace: Optional[ChallengeAirspace] = None,
         flight_phases: Optional[Mapping[str, FlightPhase]] = None,
+        geofence_enforcer: Optional[Any] = None,
     ) -> Tuple[List[StepPhysicsCommand], List[DomainEvent]]:
         """Compute safe, continuous-timestep StepPhysicsCommands guaranteeing separation >= min_separation_m."""
         commands: List[StepPhysicsCommand] = []
@@ -203,12 +204,23 @@ class SeparationEnforcer:
         safe_dist_threshold = self.min_separation_m + self.numerical_safety_buffer_m
 
         for idx, uav in enumerate(moving_uavs):
-            nominal_pos, nominal_vel = move_towards(
-                current=uav.position_xy,
-                target=uav.target_position,
-                speed=configured_speed,
-                dt=dt,
-            )
+            if geofence_enforcer is not None:
+                nominal_pos, nominal_vel, geo_event = geofence_enforcer.compute_effective_movement(
+                    uav=uav,
+                    configured_speed=configured_speed,
+                    dt=dt,
+                    tick=snapshot.simulation_tick,
+                    sim_time=snapshot.simulation_time,
+                )
+                if geo_event is not None:
+                    events.append(geo_event)
+            else:
+                nominal_pos, nominal_vel = move_towards(
+                    current=uav.position_xy,
+                    target=uav.target_position,
+                    speed=configured_speed,
+                    dt=dt,
+                )
             nom_v = (
                 (nominal_pos[0] - uav.position_xy[0]) / dt,
                 (nominal_pos[1] - uav.position_xy[1]) / dt,

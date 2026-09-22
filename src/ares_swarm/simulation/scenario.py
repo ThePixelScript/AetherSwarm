@@ -43,6 +43,7 @@ class ChallengeProfileConfig:
     enforce_sortie_limit: bool = True
     enforce_single_sortie: bool = True
     enforce_separation: bool = False
+    enforce_geofence: bool = False
     airspace: ChallengeAirspaceConfig = field(default_factory=ChallengeAirspaceConfig)
     detection_pipeline: DetectionPipelineConfig = field(default_factory=DetectionPipelineConfig)
 
@@ -149,6 +150,7 @@ def load_scenario(source: str | Path | dict[str, Any]) -> ScenarioConfig:
         enforce_sortie_limit=bool(challenge_raw.get("enforce_sortie_limit", True)),
         enforce_single_sortie=bool(challenge_raw.get("enforce_single_sortie", True)),
         enforce_separation=bool(challenge_raw.get("enforce_separation", False)),
+        enforce_geofence=bool(challenge_raw.get("enforce_geofence", False)),
         airspace=airspace_config,
         detection_pipeline=DetectionPipelineConfig(
             enabled=bool(challenge_raw.get("detection_pipeline", {}).get("enabled", False)),

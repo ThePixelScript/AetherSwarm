@@ -28,6 +28,7 @@ from ..core.state_store import StateStore
 from ..evaluation.metrics import MissionMetricsReport, compute_mission_metrics
 from ..interfaces.communication import NetworkAnalysis
 from ..safety.airspace import ChallengeAirspace
+from ..safety.geofence import GeofenceEnforcer
 from ..safety.safety_assessor import SafetyAssessor, SafetyReport
 from ..safety.separation import SeparationEnforcer
 from ..telemetry.manager import DetectionManager
@@ -59,6 +60,7 @@ class MissionResult:
     metrics_report: MissionMetricsReport | None = None
     telemetry_manager: Any = None
     separation_enforcer: Any = None
+    geofence_enforcer: Any = None
 
     def to_dict(self) -> dict[str, Any]:
         snap = self.final_snapshot
@@ -120,6 +122,8 @@ class MissionResult:
                 dt=1.0,
                 safety_report=self.safety_report,
                 telemetry_manager=self.telemetry_manager,
+                separation_enforcer=self.separation_enforcer,
+                geofence_enforcer=self.geofence_enforcer,
             ).to_dict()
 
         res_dict = {
@@ -154,6 +158,16 @@ class MissionResult:
             res_dict["safety_interventions"] = {
                 "total_interventions": self.separation_enforcer.total_interventions,
                 "per_uav_interventions": dict(self.separation_enforcer.per_uav_interventions),
+            }
+        if self.geofence_enforcer is not None:
+            res_dict["geofence_interventions"] = {
+                "total_interventions": self.geofence_enforcer.total_interventions,
+                "per_uav_interventions": dict(self.geofence_enforcer.per_uav_interventions),
+                "min_observed_clearance_m": (
+                    round(self.geofence_enforcer.min_observed_clearance_m, 2)
+                    if self.geofence_enforcer.min_observed_clearance_m != float("inf")
+                    else None
+                ),
             }
         return res_dict
 
@@ -199,6 +213,7 @@ class MissionRunner:
         rth_safety_margin_s = 15.0
         self.detection_manager: DetectionManager | None = None
         self.separation_enforcer: SeparationEnforcer | None = None
+        self.geofence_enforcer: GeofenceEnforcer | None = None
 
         if challenge_profile and challenge_profile.enabled:
             enforce_sortie = challenge_profile.enforce_sortie_limit
@@ -225,6 +240,10 @@ class MissionRunner:
                     min_separation_m=self.scenario.min_separation_m,
                     gcs_position=self.scenario.gcs_position,
                     staging_pad_radius_m=airspace.staging_pad_radius_m if airspace else 15.0,
+                )
+            if getattr(challenge_profile, "enforce_geofence", False) and airspace is not None:
+                self.geofence_enforcer = GeofenceEnforcer(
+                    airspace=airspace,
                 )
 
         self.safety_assessor = SafetyAssessor(
@@ -267,6 +286,8 @@ class MissionRunner:
             self.detection_manager.reset()
         if self.separation_enforcer is not None:
             self.separation_enforcer.reset()
+        if self.geofence_enforcer is not None:
+            self.geofence_enforcer.reset()
         self.history.clear()
         self.all_events.clear()
         return self.state_store.snapshot()
@@ -402,6 +423,7 @@ class MissionRunner:
         step_res = self.sim_engine.step_swarm(
             speed=self.scenario.speed_limit,
             separation_enforcer=self.separation_enforcer,
+            geofence_enforcer=self.geofence_enforcer,
         )
         applied_commands.extend(step_res.applied_commands)
         rejected_commands.extend(step_res.rejected_commands)
@@ -485,6 +507,7 @@ class MissionRunner:
             safety_report=self.safety_assessor.report,
             telemetry_manager=self.detection_manager,
             separation_enforcer=self.separation_enforcer,
+            geofence_enforcer=self.geofence_enforcer,
         )
         return MissionResult(
             scenario_name=self.scenario.name,
@@ -499,6 +522,7 @@ class MissionRunner:
             metrics_report=metrics_report,
             telemetry_manager=self.detection_manager,
             separation_enforcer=self.separation_enforcer,
+            geofence_enforcer=self.geofence_enforcer,
         )
 
 

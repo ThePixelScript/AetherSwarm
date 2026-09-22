@@ -136,6 +136,7 @@ class SimulationEngine:
         self,
         speed: float | None = None,
         separation_enforcer: Any = None,
+        geofence_enforcer: Any = None,
         airspace: Any = None,
         flight_phases: Any = None,
     ):
@@ -161,6 +162,21 @@ class SimulationEngine:
                 movement_rate=self.movement_rate,
                 airspace=airspace,
                 flight_phases=flight_phases,
+                geofence_enforcer=geofence_enforcer,
+            )
+            res = self.state_store.apply(commands)
+            if events:
+                return replace(res, emitted_events=res.emitted_events + tuple(events))
+            return res
+
+        if geofence_enforcer is not None:
+            from dataclasses import replace
+            commands, events = geofence_enforcer.enforce_step(
+                snapshot=snapshot,
+                configured_speed=configured_speed,
+                dt=self.dt,
+                idle_rate=self.idle_rate,
+                movement_rate=self.movement_rate,
             )
             res = self.state_store.apply(commands)
             if events:
