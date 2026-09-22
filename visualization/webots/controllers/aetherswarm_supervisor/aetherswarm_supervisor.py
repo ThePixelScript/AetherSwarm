@@ -68,7 +68,14 @@ def find_trace_file(supervisor: Any = None) -> Path:
             log_msg(f"[Webots Supervisor] Selected trace from environment path: {p}")
             return p
 
-    # Determine explicit scenario selector (e1 vs recovery)
+    # Direct path from argv
+    if len(sys.argv) > 1:
+        arg_p = Path(sys.argv[1])
+        if arg_p.is_file():
+            log_msg(f"[Webots Supervisor] Selected trace from argv path: {arg_p.resolve()}")
+            return arg_p.resolve()
+
+    # Determine explicit scenario selector (e1 vs recovery vs random/demo)
     selector = ""
     env_scen = os.environ.get("AETHERSWARM_SCENARIO")
     if env_scen:
@@ -86,6 +93,12 @@ def find_trace_file(supervisor: Any = None) -> Path:
             pass
 
     # 2. Map selector to known authoritative trace files
+    if "random" in selector or "demo" in selector:
+        target = data_dir / "random_demo_trace.json"
+        if target.is_file():
+            log_msg(f"[Webots Supervisor] Selected randomized demo trace (selector='{selector}'): {target}")
+            return target
+
     if "recovery" in selector:
         target = data_dir / "recovery_authoritative_trace.json"
         if target.is_file():
@@ -176,6 +189,7 @@ class WebotsAetherSwarmSupervisor:
 
         # Lookup POI nodes and materials
         self.poi_nodes: dict[str, Any] = {}
+        self.poi_trans_fields: dict[str, Any] = {}
         self.poi_materials: dict[str, Any] = {}
         self.poi_beacons: dict[str, Any] = {}
 
@@ -186,12 +200,20 @@ class WebotsAetherSwarmSupervisor:
                 node = self.supervisor.getFromDef(def_name)
                 if node:
                     self.poi_nodes[tid] = node
+                    self.poi_trans_fields[tid] = node.getField("translation")
                     mat_node = self.supervisor.getFromDef(f"{def_name}_MAT")
                     if mat_node:
                         self.poi_materials[tid] = mat_node
                     beacon_node = self.supervisor.getFromDef(f"{def_name}_BEACON")
                     if beacon_node:
                         self.poi_beacons[tid] = beacon_node
+
+            # Set 3D POI world positions from trace to match authoritative task coordinates
+            initial_tasks = self.ticks[0].get("tasks", {}) if self.ticks else {}
+            for tid, trans_field in self.poi_trans_fields.items():
+                if tid in initial_tasks and "position" in initial_tasks[tid] and trans_field:
+                    t_pos = initial_tasks[tid]["position"]
+                    trans_field.setSFVec3f([float(t_pos[0]), float(t_pos[1]), 0.0])
 
         # Communication mesh lines nodes
         self.comm_coord_field = None
@@ -359,6 +381,74 @@ class WebotsAetherSwarmSupervisor:
                 beacon.getField("diffuseColor").setSFColor([0.90, 0.75, 0.10])
                 beacon.getField("emissiveColor").setSFColor([0.75, 0.60, 0.05])
 
+    @staticmethod
+    def _set_indexed_line_set(
+        coord_field: Any,
+        index_field: Any,
+        points: list[list[float]],
+        indices: list[int],
+    ) -> None:
+        """Safely update Webots IndexedLineSet geometry without out-of-range or empty-node warnings.
+
+        Guarantees:
+        1. Zero links / empty state: generates valid Webots geometry (2 coincident underground coordinates,
+           paired index [0, 1, -1]) with no invalid indices and zero visible lines.
+        2. One coordinate: cannot form a line segment, treated as empty valid geometry.
+        3. N coordinates: exactly valid paired indices [0, 1, -1, 2, 3, -1, ...] referencing strictly existing coordinates.
+        4. Field update ordering:
+           - When expanding points: add/set coordinates first, then set indices.
+           - When shrinking points: shrink/set indices first, then remove excess coordinates.
+           This strictly prevents out-of-range index evaluations at all times.
+        """
+        if not coord_field or not index_field:
+            return
+
+        # Webots IndexedLineSet requires at least 2 coordinates and at least 2 index items.
+        # For empty or single-point states, provide a valid zero-length segment underground.
+        if len(points) < 2 or len(indices) < 3:
+            points = [[0.0, 0.0, -100.0], [0.0, 0.0, -100.0]]
+            indices = [0, 1, -1]
+
+        n_new = len(points)
+        n_old = coord_field.getCount()
+        m_new = len(indices)
+        m_old = index_field.getCount()
+
+        if n_new >= n_old:
+            # 1. Update existing coordinates in-place
+            for i in range(n_old):
+                coord_field.setMFVec3f(i, points[i])
+            # 2. Append additional coordinates
+            for i in range(n_old, n_new):
+                coord_field.insertMFVec3f(-1, points[i])
+
+            # 3. Update indices (coord_field now has n_new >= max(indices)+1)
+            for i in range(min(m_old, m_new)):
+                index_field.setMFInt32(i, indices[i])
+            if m_new > m_old:
+                for i in range(m_old, m_new):
+                    index_field.insertMFInt32(-1, indices[i])
+            elif m_new < m_old:
+                for _ in range(m_old - m_new):
+                    index_field.removeMF(-1)
+        else:
+            # 1. Shrink indices first so no index >= n_new remains
+            for i in range(min(m_old, m_new)):
+                index_field.setMFInt32(i, indices[i])
+            if m_new > m_old:
+                for i in range(m_old, m_new):
+                    index_field.insertMFInt32(-1, indices[i])
+            elif m_new < m_old:
+                for _ in range(m_old - m_new):
+                    index_field.removeMF(-1)
+
+            # 2. Update existing coordinates in-place
+            for i in range(n_new):
+                coord_field.setMFVec3f(i, points[i])
+            # 3. Remove excess coordinates (safe since index_field only references < n_new)
+            for _ in range(n_old - n_new):
+                coord_field.removeMF(-1)
+
     def update_comm_mesh(
         self,
         active_links: list[dict[str, Any]],
@@ -391,67 +481,50 @@ class WebotsAetherSwarmSupervisor:
                 points.append(tgt_pos)
                 indices.extend([p1_idx, p2_idx, -1])
 
-        # If topology changed or initial, rebuild line set structure
-        if topology != self._comm_topology_cache:
+        # If topology or vertex count changed, update structure safely
+        if topology != self._comm_topology_cache or self.comm_coord_field.getCount() != len(points):
             self._comm_topology_cache = topology
-            while self.comm_coord_field.getCount() > 0:
-                self.comm_coord_field.removeMF(-1)
-            while self.comm_index_field.getCount() > 0:
-                self.comm_index_field.removeMF(-1)
-
-            for p in points:
-                self.comm_coord_field.insertMFVec3f(-1, p)
-            for idx in indices:
-                self.comm_index_field.insertMFInt32(-1, idx)
+            self._set_indexed_line_set(self.comm_coord_field, self.comm_index_field, points, indices)
         else:
             # Same topology: update vertex coordinates in place
             for i, p in enumerate(points):
-                if i < self.comm_coord_field.getCount():
-                    self.comm_coord_field.setMFVec3f(i, p)
+                self.comm_coord_field.setMFVec3f(i, p)
 
         # 2. Active Multihop Routes to GCS (Distinct route emphasis without inventing roles)
-        if self.route_coord_field and self.route_index_field and routes_to_gcs:
+        if self.route_coord_field and self.route_index_field:
             r_points: list[list[float]] = []
             r_indices: list[int] = []
             r_topology: list[tuple[str, str]] = []
             seen_edges: set[tuple[str, str]] = set()
 
-            for _uid, route in routes_to_gcs.items():
-                if route and len(route) >= 2:
-                    for k in range(len(route) - 1):
-                        hop_a = route[k]
-                        hop_b = route[k + 1]
-                        edge = (min(hop_a, hop_b), max(hop_a, hop_b))
-                        if edge not in seen_edges:
-                            seen_edges.add(edge)
-                            r_topology.append(edge)
-                            pa = gcs_coords if hop_a == "gcs" else uav_positions.get(hop_a)
-                            pb = gcs_coords if hop_b == "gcs" else uav_positions.get(hop_b)
-                            if pa and pb:
-                                # Slight Z elevation for route line to avoid Z-fighting
-                                pa_elev = [pa[0], pa[1], pa[2] + 0.15]
-                                pb_elev = [pb[0], pb[1], pb[2] + 0.15]
-                                idx1 = len(r_points)
-                                idx2 = idx1 + 1
-                                r_points.append(pa_elev)
-                                r_points.append(pb_elev)
-                                r_indices.extend([idx1, idx2, -1])
+            if routes_to_gcs:
+                for _uid, route in routes_to_gcs.items():
+                    if route and len(route) >= 2:
+                        for k in range(len(route) - 1):
+                            hop_a = route[k]
+                            hop_b = route[k + 1]
+                            edge = (min(hop_a, hop_b), max(hop_a, hop_b))
+                            if edge not in seen_edges:
+                                seen_edges.add(edge)
+                                r_topology.append(edge)
+                                pa = gcs_coords if hop_a == "gcs" else uav_positions.get(hop_a)
+                                pb = gcs_coords if hop_b == "gcs" else uav_positions.get(hop_b)
+                                if pa and pb:
+                                    # Slight Z elevation for route line to avoid Z-fighting
+                                    pa_elev = [pa[0], pa[1], pa[2] + 0.15]
+                                    pb_elev = [pb[0], pb[1], pb[2] + 0.15]
+                                    idx1 = len(r_points)
+                                    idx2 = idx1 + 1
+                                    r_points.append(pa_elev)
+                                    r_points.append(pb_elev)
+                                    r_indices.extend([idx1, idx2, -1])
 
-            if r_topology != self._route_topology_cache:
+            if r_topology != self._route_topology_cache or self.route_coord_field.getCount() != len(r_points):
                 self._route_topology_cache = r_topology
-                while self.route_coord_field.getCount() > 0:
-                    self.route_coord_field.removeMF(-1)
-                while self.route_index_field.getCount() > 0:
-                    self.route_index_field.removeMF(-1)
-
-                for p in r_points:
-                    self.route_coord_field.insertMFVec3f(-1, p)
-                for idx in r_indices:
-                    self.route_index_field.insertMFInt32(-1, idx)
+                self._set_indexed_line_set(self.route_coord_field, self.route_index_field, r_points, r_indices)
             else:
                 for i, p in enumerate(r_points):
-                    if i < self.route_coord_field.getCount():
-                        self.route_coord_field.setMFVec3f(i, p)
+                    self.route_coord_field.setMFVec3f(i, p)
 
     def update_drop_lines(self, uav_positions: dict[str, list[float]]) -> None:
         """Render vertical ground drop-lines and ground footprints for intuitive altitude readability."""
@@ -478,17 +551,9 @@ class WebotsAetherSwarmSupervisor:
             d_points.append([x, y + 1.8, 0.06])
             d_indices.extend([g_idx, g_idx + 1, -1, g_idx + 2, g_idx + 3, -1])
 
-        # Rebuild or update drop line points
+        # Rebuild or update drop line points safely
         if self.dropline_coord_field.getCount() != len(d_points):
-            while self.dropline_coord_field.getCount() > 0:
-                self.dropline_coord_field.removeMF(-1)
-            while self.dropline_index_field.getCount() > 0:
-                self.dropline_index_field.removeMF(-1)
-
-            for p in d_points:
-                self.dropline_coord_field.insertMFVec3f(-1, p)
-            for idx in d_indices:
-                self.dropline_index_field.insertMFInt32(-1, idx)
+            self._set_indexed_line_set(self.dropline_coord_field, self.dropline_index_field, d_points, d_indices)
         else:
             for i, p in enumerate(d_points):
                 self.dropline_coord_field.setMFVec3f(i, p)

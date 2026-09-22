@@ -99,7 +99,6 @@ PROTO TaskPOI [
             appearance Appearance {
               material Material {
                 diffuseColor 0.25 0.28 0.32
-                roughness 0.5
               }
             }
             geometry Cylinder {

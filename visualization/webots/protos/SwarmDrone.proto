@@ -26,7 +26,6 @@ PROTO SwarmDrone [
               material DEF DRONE_MAT Material {
                 diffuseColor IS color
                 emissiveColor IS emissiveColor
-                roughness 0.4
               }
             }
             geometry Box {
