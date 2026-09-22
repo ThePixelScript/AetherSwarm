@@ -4,7 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Mapping, Sequence
 
-from ..core.enums import EventType, RTHState, SortieState, TaskStatus
+from ..core.enums import EventType, RTHState, SortieState, TaskStatus, TelemetryStatus
 from ..core.models import StateSnapshot
 
 
@@ -88,6 +88,16 @@ class MissionMetricsReport:
     reporting_deadline_success: int = 0
     reporting_deadline_failure: int = 0
     communication_induced_replans: int = 0
+
+    # Phase 5: Multi-Hop Relay Planning metrics
+    max_hop_count: int = 0
+    mean_hop_count: float = 0.0
+    relay_chains_created: int = 0
+    relay_chain_handoffs: int = 0
+    relay_chain_failures: int = 0
+    relay_chain_recoveries: int = 0
+    tasks_deferred_insufficient_relays: int = 0
+    chain_maintenance_duration_s: float = 0.0
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -181,6 +191,14 @@ class MissionMetricsReport:
                 "reporting_deadline_success": self.reporting_deadline_success,
                 "reporting_deadline_failure": self.reporting_deadline_failure,
                 "communication_induced_replans": self.communication_induced_replans,
+                "max_hop_count": self.max_hop_count,
+                "mean_hop_count": round(self.mean_hop_count, 2),
+                "relay_chains_created": self.relay_chains_created,
+                "relay_chain_handoffs": self.relay_chain_handoffs,
+                "relay_chain_failures": self.relay_chain_failures,
+                "relay_chain_recoveries": self.relay_chain_recoveries,
+                "tasks_deferred_insufficient_relays": self.tasks_deferred_insufficient_relays,
+                "chain_maintenance_duration_s": round(self.chain_maintenance_duration_s, 2),
             },
         }
 
@@ -372,6 +390,11 @@ def compute_mission_metrics(
         report.connected_time_before_handoff = relay_manager.connected_time_before_handoff
         report.connected_time_after_handoff = relay_manager.connected_time_after_handoff
         report.network_reconfiguration_time_s = relay_manager.network_reconfiguration_time_s
+        report.relay_chains_created = getattr(relay_manager, "relay_chains_created", 0)
+        report.relay_chain_handoffs = getattr(relay_manager, "relay_chain_handoffs", 0)
+        report.relay_chain_failures = getattr(relay_manager, "relay_chain_failures", 0)
+        report.relay_chain_recoveries = getattr(relay_manager, "relay_chain_recoveries", 0)
+        report.chain_maintenance_duration_s = getattr(relay_manager, "chain_maintenance_duration_s", 0.0)
     else:
         report.relay_assignments = sum(1 for e in all_events if getattr(e, "event_type", None) == EventType.RELAY_ASSIGNED)
         report.relay_releases = sum(1 for e in all_events if getattr(e, "event_type", None) == EventType.RELAY_RELEASED)
@@ -383,7 +406,7 @@ def compute_mission_metrics(
         report.relay_reallocations = report.relay_handoffs + report.relay_assignments
         report.resilience_status = "ACTIVE_M1"
 
-    # 8. Connectivity-Aware Mission Planning Metrics (Phase 4)
+    # 8. Connectivity-Aware Mission Planning Metrics (Phase 4 & Phase 5)
     if connectivity_planner is not None:
         report.connectivity_feasibility_checks = connectivity_planner.connectivity_feasibility_checks
         report.connectivity_feasible_assignments = connectivity_planner.connectivity_feasible_assignments
@@ -392,9 +415,30 @@ def compute_mission_metrics(
         report.relay_required_for_assignment = connectivity_planner.relay_required_for_assignment
         report.connectivity_preserved_during_task = connectivity_planner.connectivity_preserved_during_task
         report.communication_induced_replans = connectivity_planner.communication_induced_replans
+        report.tasks_deferred_insufficient_relays = getattr(connectivity_planner, "tasks_deferred_insufficient_relays", 0)
     else:
         report.communication_induced_replans = sum(1 for e in all_events if getattr(e, "event_type", None) == EventType.COMMUNICATION_REPLAN)
         report.connectivity_deferred_tasks = sum(1 for e in all_events if getattr(e, "event_type", None) == EventType.TASK_CONNECTIVITY_DEFERRED)
+
+    # Multi-hop metrics
+    delivered_hops: list[int] = []
+    if telemetry_manager is not None:
+        for rep in getattr(telemetry_manager, "authoritative_reports", {}).values():
+            if getattr(rep, "hop_count", None) is not None and getattr(rep, "status", None) == TelemetryStatus.DELIVERED:
+                delivered_hops.append(rep.hop_count)
+    if not delivered_hops:
+        for e in all_events:
+            if getattr(e, "event_type", None) == EventType.TELEMETRY_DELIVERED:
+                hc = getattr(e, "payload", {}).get("hop_count")
+                if hc is not None:
+                    delivered_hops.append(hc)
+
+    if delivered_hops:
+        report.max_hop_count = max(delivered_hops)
+        report.mean_hop_count = round(sum(delivered_hops) / len(delivered_hops), 2)
+    elif connectivity_planner is not None and getattr(connectivity_planner, "max_hop_count", 0) > 0:
+        report.max_hop_count = connectivity_planner.max_hop_count
+        report.mean_hop_count = float(connectivity_planner.max_hop_count)
 
     report.reporting_deadline_success = report.reports_delivered
     report.reporting_deadline_failure = report.reports_deadline_exceeded
