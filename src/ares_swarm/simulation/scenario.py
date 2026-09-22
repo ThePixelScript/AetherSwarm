@@ -55,6 +55,7 @@ class ChallengeProfileConfig:
     airspace: ChallengeAirspaceConfig = field(default_factory=ChallengeAirspaceConfig)
     detection_pipeline: DetectionPipelineConfig = field(default_factory=DetectionPipelineConfig)
     enable_relay_manager: bool = False
+    enable_connectivity_aware_planning: bool = False
 
 
 @dataclass(frozen=True)
@@ -76,6 +77,7 @@ class ScenarioConfig:
     enable_auto_rth: bool = True
     return_by_mission_end: bool = False
     enable_relay_manager: bool = False
+    enable_connectivity_aware_planning: bool = False
     uavs: tuple[dict[str, Any], ...] = ()
     tasks: tuple[dict[str, Any], ...] = ()
     challenge_profile: ChallengeProfileConfig = field(default_factory=ChallengeProfileConfig)

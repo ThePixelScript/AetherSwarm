@@ -174,6 +174,15 @@ class StateStore:
                         payload={"uav_id": uav.id, "reason": cmd.reason},
                         sequence=len(events) + len(staged_events),
                     ))
+                    if "COMMUNICATION" in str(cmd.reason).upper() or "REPLAN" in str(cmd.reason).upper():
+                        staged_events.append(DomainEvent.create(
+                            simulation_tick=self._simulation_tick,
+                            simulation_time=self._simulation_time,
+                            event_type=EventType.COMMUNICATION_REPLAN,
+                            entity_id=uav.id,
+                            payload={"task_id": task.id, "reason": cmd.reason},
+                            sequence=len(events) + len(staged_events),
+                        ))
 
             elif isinstance(cmd, AssignRelayRoleCommand):
                 if uav.assigned_task_id and uav.assigned_task_id in self._tasks:

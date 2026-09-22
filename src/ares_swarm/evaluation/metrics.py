@@ -78,6 +78,17 @@ class MissionMetricsReport:
     connected_time_after_handoff: float = 0.0
     network_reconfiguration_time_s: float | None = None
 
+    # Phase 4: Connectivity-Aware Planning metrics
+    connectivity_feasibility_checks: int = 0
+    connectivity_feasible_assignments: int = 0
+    connectivity_rejected_assignments: int = 0
+    connectivity_deferred_tasks: int = 0
+    relay_required_for_assignment: int = 0
+    connectivity_preserved_during_task: float = 0.0
+    reporting_deadline_success: int = 0
+    reporting_deadline_failure: int = 0
+    communication_induced_replans: int = 0
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "mission": {
@@ -160,6 +171,17 @@ class MissionMetricsReport:
                     if self.network_reconfiguration_time_s is not None else None
                 ),
             },
+            "connectivity_planning": {
+                "connectivity_feasibility_checks": self.connectivity_feasibility_checks,
+                "connectivity_feasible_assignments": self.connectivity_feasible_assignments,
+                "connectivity_rejected_assignments": self.connectivity_rejected_assignments,
+                "connectivity_deferred_tasks": self.connectivity_deferred_tasks,
+                "relay_required_for_assignment": self.relay_required_for_assignment,
+                "connectivity_preserved_during_task": round(self.connectivity_preserved_during_task, 2),
+                "reporting_deadline_success": self.reporting_deadline_success,
+                "reporting_deadline_failure": self.reporting_deadline_failure,
+                "communication_induced_replans": self.communication_induced_replans,
+            },
         }
 
 
@@ -173,6 +195,7 @@ def compute_mission_metrics(
     separation_enforcer: Any = None,
     geofence_enforcer: Any = None,
     relay_manager: Any = None,
+    connectivity_planner: Any = None,
 ) -> MissionMetricsReport:
     """Compute official benchmark metrics from simulation step history and snapshots."""
     report = MissionMetricsReport()
@@ -359,5 +382,21 @@ def compute_mission_metrics(
     if report.relay_handoffs > 0 or report.relay_assignments > 0 or report.relay_losses > 0:
         report.relay_reallocations = report.relay_handoffs + report.relay_assignments
         report.resilience_status = "ACTIVE_M1"
+
+    # 8. Connectivity-Aware Mission Planning Metrics (Phase 4)
+    if connectivity_planner is not None:
+        report.connectivity_feasibility_checks = connectivity_planner.connectivity_feasibility_checks
+        report.connectivity_feasible_assignments = connectivity_planner.connectivity_feasible_assignments
+        report.connectivity_rejected_assignments = connectivity_planner.connectivity_rejected_assignments
+        report.connectivity_deferred_tasks = connectivity_planner.connectivity_deferred_tasks
+        report.relay_required_for_assignment = connectivity_planner.relay_required_for_assignment
+        report.connectivity_preserved_during_task = connectivity_planner.connectivity_preserved_during_task
+        report.communication_induced_replans = connectivity_planner.communication_induced_replans
+    else:
+        report.communication_induced_replans = sum(1 for e in all_events if getattr(e, "event_type", None) == EventType.COMMUNICATION_REPLAN)
+        report.connectivity_deferred_tasks = sum(1 for e in all_events if getattr(e, "event_type", None) == EventType.TASK_CONNECTIVITY_DEFERRED)
+
+    report.reporting_deadline_success = report.reports_delivered
+    report.reporting_deadline_failure = report.reports_deadline_exceeded
 
     return report

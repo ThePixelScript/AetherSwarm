@@ -5,6 +5,11 @@ from .a1_allocator import (
     A1CommunicationAwareAllocator,
     A1TaskAllocator,
 )
+from .connectivity_planner import (
+    ConnectivityAwarePlanner,
+    ConnectivityAwarePlannerConfig,
+    ConnectivityFeasibilityResult,
+)
 from .relay_manager import (
     DynamicRelayManager,
     RelayManagementConfig,
@@ -28,6 +33,9 @@ __all__ = [
     "A1TaskAllocator",
     "AllocationResult",
     "AllocationWeights",
+    "ConnectivityAwarePlanner",
+    "ConnectivityAwarePlannerConfig",
+    "ConnectivityFeasibilityResult",
     "DynamicRelayManager",
     "PositionProtocol",
     "RelayManagementConfig",

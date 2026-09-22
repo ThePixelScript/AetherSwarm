@@ -23,6 +23,7 @@ from ..core.commands import (
     StartRechargeCommand,
     StepPhysicsCommand,
 )
+from ..autonomy.connectivity_planner import ConnectivityAwarePlanner, ConnectivityAwarePlannerConfig
 from ..autonomy.relay_manager import DynamicRelayManager, RelayManagementConfig
 from ..core.enums import RTHState, SortieState, TaskStatus
 from ..core.events import CommandRejection, DomainEvent, EventType, StateTransitionResult
@@ -66,6 +67,7 @@ class MissionResult:
     separation_enforcer: Any = None
     geofence_enforcer: Any = None
     relay_manager: Any = None
+    connectivity_planner: Any = None
 
     def to_dict(self) -> dict[str, Any]:
         snap = self.final_snapshot
@@ -188,6 +190,16 @@ class MissionResult:
                     if self.relay_manager.network_reconfiguration_time_s is not None else None
                 ),
             }
+        if self.connectivity_planner is not None:
+            res_dict["connectivity_planning"] = {
+                "connectivity_feasibility_checks": self.connectivity_planner.connectivity_feasibility_checks,
+                "connectivity_feasible_assignments": self.connectivity_planner.connectivity_feasible_assignments,
+                "connectivity_rejected_assignments": self.connectivity_planner.connectivity_rejected_assignments,
+                "connectivity_deferred_tasks": self.connectivity_planner.connectivity_deferred_tasks,
+                "relay_required_for_assignment": self.connectivity_planner.relay_required_for_assignment,
+                "connectivity_preserved_during_task": round(self.connectivity_planner.connectivity_preserved_during_task, 2),
+                "communication_induced_replans": self.connectivity_planner.communication_induced_replans,
+            }
         return res_dict
 
     def save_json(self, output_path: str | Path) -> Path:
@@ -209,6 +221,7 @@ class MissionRunner:
         safety_hook: Optional[Callable[[StateSnapshot, NetworkAnalysis], Any]] = None,
         autonomy_adapter: Optional[Any] = None,
         relay_manager: Optional[DynamicRelayManager] = None,
+        connectivity_planner: Optional[ConnectivityAwarePlanner] = None,
     ):
         if isinstance(scenario, ScenarioConfig):
             self.scenario = scenario
@@ -283,6 +296,24 @@ class MissionRunner:
         elif getattr(self.scenario, "enable_relay_manager", False) or getattr(challenge_profile, "enable_relay_manager", False):
             self.relay_manager = DynamicRelayManager()
 
+        self.connectivity_planner: Optional[ConnectivityAwarePlanner] = None
+        if connectivity_planner is not None:
+            self.connectivity_planner = connectivity_planner
+            if self.relay_manager is None:
+                self.relay_manager = connectivity_planner.relay_manager
+        elif getattr(self.scenario, "enable_connectivity_aware_planning", False) or getattr(challenge_profile, "enable_connectivity_aware_planning", False):
+            if self.relay_manager is None:
+                self.relay_manager = DynamicRelayManager()
+            self.connectivity_planner = ConnectivityAwarePlanner(
+                relay_manager=self.relay_manager,
+                comm_range=self.scenario.communication.max_range,
+                speed_limit=self.scenario.speed_limit,
+                idle_rate=self.scenario.battery_idle_rate,
+                movement_rate=self.scenario.battery_movement_rate,
+                max_sortie_duration_s=max_sortie_s,
+                enforce_sortie_limit=enforce_sortie,
+            )
+
         self.history: list[StepResult] = []
         self.all_events: list[DomainEvent] = []
 
@@ -317,6 +348,8 @@ class MissionRunner:
             self.geofence_enforcer.reset()
         if self.relay_manager is not None:
             self.relay_manager.reset()
+        if self.connectivity_planner is not None:
+            self.connectivity_planner.reset()
         self.history.clear()
         self.all_events.clear()
         return self.state_store.snapshot()
@@ -390,7 +423,22 @@ class MissionRunner:
                 rejected_commands.extend(res_relay.rejected_commands)
                 tick_events.extend(res_relay.emitted_events)
 
-        # 4. Beta A0 Autonomy Allocation (Filter dynamically visible tasks)
+        # 3.7 Connectivity-Aware Task Monitoring & Replanning (Phase 4)
+        if self.connectivity_planner is not None:
+            flight_records = getattr(self.safety_assessor.report, "uav_flight_records", None)
+            replan_cmds = self.connectivity_planner.monitor_active_tasks(
+                snapshot=self.state_store.snapshot(),
+                network_analysis=net_analysis,
+                flight_records=flight_records,
+                dt=self.scenario.dt,
+            )
+            if replan_cmds:
+                res_replan = self.state_store.apply(replan_cmds)
+                applied_commands.extend(res_replan.applied_commands)
+                rejected_commands.extend(res_replan.rejected_commands)
+                tick_events.extend(res_replan.emitted_events)
+
+        # 4. Beta A0/A1 Autonomy Allocation (Filter dynamically visible tasks)
         snap_for_alloc = self.state_store.snapshot()
         visible_tasks = {
             tid: t
@@ -403,21 +451,25 @@ class MissionRunner:
         ]
         if unassigned_visible:
             alloc_snap = replace(snap_for_alloc, tasks=MappingProxyType(visible_tasks))
-            accepts_net = getattr(
-                self.autonomy_adapter,
-                "accepts_network_analysis",
-                getattr(getattr(self.autonomy_adapter, "allocator", None), "accepts_network_analysis", None),
-            )
-            if accepts_net is True:
-                assign_cmds = self.autonomy_adapter.plan(alloc_snap, net_analysis)
-            elif accepts_net is False:
-                assign_cmds = self.autonomy_adapter.plan(alloc_snap)
+            flight_records = getattr(self.safety_assessor.report, "uav_flight_records", None)
+            if self.connectivity_planner is not None:
+                assign_cmds = self.connectivity_planner.plan(alloc_snap, net_analysis, flight_records)
             else:
-                sig = inspect.signature(self.autonomy_adapter.plan)
-                if "network_analysis" in sig.parameters:
+                accepts_net = getattr(
+                    self.autonomy_adapter,
+                    "accepts_network_analysis",
+                    getattr(getattr(self.autonomy_adapter, "allocator", None), "accepts_network_analysis", None),
+                )
+                if accepts_net is True:
                     assign_cmds = self.autonomy_adapter.plan(alloc_snap, net_analysis)
-                else:
+                elif accepts_net is False:
                     assign_cmds = self.autonomy_adapter.plan(alloc_snap)
+                else:
+                    sig = inspect.signature(self.autonomy_adapter.plan)
+                    if "network_analysis" in sig.parameters:
+                        assign_cmds = self.autonomy_adapter.plan(alloc_snap, net_analysis)
+                    else:
+                        assign_cmds = self.autonomy_adapter.plan(alloc_snap)
             if assign_cmds:
                 res_assign = self.state_store.apply(assign_cmds)
                 applied_commands.extend(res_assign.applied_commands)
@@ -598,6 +650,7 @@ class MissionRunner:
             separation_enforcer=self.separation_enforcer,
             geofence_enforcer=self.geofence_enforcer,
             relay_manager=self.relay_manager,
+            connectivity_planner=self.connectivity_planner,
         )
         return MissionResult(
             scenario_name=self.scenario.name,
@@ -614,6 +667,7 @@ class MissionRunner:
             separation_enforcer=self.separation_enforcer,
             geofence_enforcer=self.geofence_enforcer,
             relay_manager=self.relay_manager,
+            connectivity_planner=self.connectivity_planner,
         )
 
 
