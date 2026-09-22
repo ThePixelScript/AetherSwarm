@@ -189,6 +189,7 @@ class MissionRunner:
         enable_task_progress: bool = True,
         safety_hook: Optional[Callable[[StateSnapshot, NetworkAnalysis], Any]] = None,
         autonomy_adapter: Optional[Any] = None,
+        comm_analyzer: Optional[Any] = None,
     ):
         if isinstance(scenario, ScenarioConfig):
             self.scenario = scenario
@@ -199,6 +200,7 @@ class MissionRunner:
         self.enable_task_progress = enable_task_progress
         self.safety_hook = safety_hook
         self._custom_autonomy_adapter = autonomy_adapter
+        self._custom_comm_analyzer = comm_analyzer
 
         self.initial_snapshot: StateSnapshot
         self.state_store: StateStore
@@ -270,7 +272,10 @@ class MissionRunner:
 
         self.initial_snapshot = create_initial_snapshot(self.scenario)
         self.state_store = StateStore(self.initial_snapshot)
-        self.comm_analyzer = BaselineCommunicationAnalyzer(config=self.scenario.communication)
+        if self._custom_comm_analyzer is not None:
+            self.comm_analyzer = self._custom_comm_analyzer
+        else:
+            self.comm_analyzer = BaselineCommunicationAnalyzer(config=self.scenario.communication)
         if self._custom_autonomy_adapter is not None:
             self.autonomy_adapter = self._custom_autonomy_adapter
         else:

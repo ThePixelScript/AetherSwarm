@@ -9,12 +9,8 @@ from ares_swarm.autonomy.a0_adapter import A0AutonomyAdapter
 from ares_swarm.core.event_scheduler import ScheduledEvent, ScheduledEventType
 
 def run_experiment(name: str, a1: bool, seed: int = 42):
-    allocator = A1TaskAllocator() if a1 else A0TaskAllocator()
-    adapter = A0AutonomyAdapter(allocator=allocator)
-    
     # Load base scenario
     base_scenario = load_scenario(Path("scenarios/poc_round1.yaml"))
-    # Always enforce 100m for PoC comparisons
     import dataclasses
     
     # E0: Baseline (no changes)
@@ -59,12 +55,38 @@ def run_experiment(name: str, a1: bool, seed: int = 42):
         uavs=uavs
     )
 
+    conds = []
+    if name == "E2":
+        from ares_swarm.communication.scenario import CommunicationCondition
+        # Build E2 impairment scenario
+        # normal topology -> degradation -> outage -> recovery
+        # 0 - 150: normal
+        # 150 - 250: degradation on key relays (e.g. uav_1 <-> uav_2, uav_2 <-> uav_3)
+        # 250 - 350: full outage
+        # 350+: recovery
+        conds = [
+            CommunicationCondition(source_id="uav_1", target_id="uav_2", start_time_s=150.0, end_time_s=250.0, quality_multiplier=0.3),
+            CommunicationCondition(source_id="uav_2", target_id="uav_3", start_time_s=150.0, end_time_s=250.0, quality_multiplier=0.3),
+            CommunicationCondition(source_id="uav_1", target_id="uav_2", start_time_s=250.0, end_time_s=350.0, outage=True),
+            CommunicationCondition(source_id="uav_2", target_id="uav_3", start_time_s=250.0, end_time_s=350.0, outage=True),
+        ]
+
+    from ares_swarm.communication.analysis import BaselineCommunicationAnalyzer
+    comm_analyzer = BaselineCommunicationAnalyzer(
+        config=base_scenario.communication,
+        scenario_conditions=tuple(conds)
+    )
+
+    allocator = A1TaskAllocator(comm_analyzer=comm_analyzer) if a1 else A0TaskAllocator()
+    adapter = A0AutonomyAdapter(allocator=allocator)
+
     runner = MissionRunner(
         scenario=base_scenario,
         seed=seed,
-        autonomy_adapter=adapter
+        autonomy_adapter=adapter,
+        comm_analyzer=comm_analyzer
     )
-    
+
     # Inject scheduled events if any
     for evt in scheduled_events:
         runner.sim_engine.event_scheduler.schedule(evt)
@@ -91,6 +113,6 @@ def run_experiment(name: str, a1: bool, seed: int = 42):
     return metrics
 
 if __name__ == "__main__":
-    for exp in ["E0", "E1", "E3", "E4"]:
+    for exp in ["E0", "E1", "E2", "E3", "E4"]:
         run_experiment(exp, a1=False)
         run_experiment(exp, a1=True)
