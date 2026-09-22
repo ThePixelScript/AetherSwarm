@@ -24,6 +24,8 @@ Thumbs.db
 # Generated results
 results/*
 !results/.gitkeep
+!results/challenge_v1/
+!results/fleet_sweep/
 
 # ML
 *.pt

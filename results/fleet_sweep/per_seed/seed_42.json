@@ -1,0 +1,1267 @@
+{
+  "seed": 42,
+  "geometry": {
+    "seed": 42,
+    "poi_count": 10,
+    "pois": [
+      {
+        "id": "poi_03",
+        "position": [
+          91.07,
+          422.7
+        ],
+        "priority": 1,
+        "spawn_time": 28.1,
+        "distance_from_gcs_m": 183.18,
+        "required_geometric_min_hops": 2
+      },
+      {
+        "id": "poi_07",
+        "position": [
+          341.85,
+          158.92
+        ],
+        "priority": 2,
+        "spawn_time": 30.7,
+        "distance_from_gcs_m": 538.61,
+        "required_geometric_min_hops": 6
+      },
+      {
+        "id": "poi_09",
+        "position": [
+          804.06,
+          727.43
+        ],
+        "priority": 3,
+        "spawn_time": 37.4,
+        "distance_from_gcs_m": 908.0,
+        "required_geometric_min_hops": 10
+      },
+      {
+        "id": "poi_04",
+        "position": [
+          235.33,
+          601.0
+        ],
+        "priority": 3,
+        "spawn_time": 59.7,
+        "distance_from_gcs_m": 326.35,
+        "required_geometric_min_hops": 4
+      },
+      {
+        "id": "poi_01",
+        "position": [
+          638.03,
+          29.76
+        ],
+        "priority": 2,
+        "spawn_time": 73.5,
+        "distance_from_gcs_m": 854.13,
+        "required_geometric_min_hops": 9
+      },
+      {
+        "id": "poi_05",
+        "position": [
+          648.39,
+          544.49
+        ],
+        "priority": 1,
+        "spawn_time": 134.8,
+        "distance_from_gcs_m": 724.76,
+        "required_geometric_min_hops": 8
+      },
+      {
+        "id": "poi_08",
+        "position": [
+          381.13,
+          360.39
+        ],
+        "priority": 2,
+        "spawn_time": 181.1,
+        "distance_from_gcs_m": 477.02,
+        "required_geometric_min_hops": 5
+      },
+      {
+        "id": "poi_06",
+        "position": [
+          280.41,
+          865.61
+        ],
+        "priority": 1,
+        "spawn_time": 209.4,
+        "distance_from_gcs_m": 509.89,
+        "required_geometric_min_hops": 6
+      },
+      {
+        "id": "poi_10",
+        "position": [
+          918.07,
+          83.01
+        ],
+        "priority": 2,
+        "spawn_time": 248.8,
+        "distance_from_gcs_m": 1077.06,
+        "required_geometric_min_hops": 11
+      },
+      {
+        "id": "poi_02",
+        "position": [
+          143.14,
+          106.47
+        ],
+        "priority": 3,
+        "spawn_time": 267.7,
+        "distance_from_gcs_m": 449.95,
+        "required_geometric_min_hops": 5
+      }
+    ],
+    "min_poi_distance_from_gcs_m": 183.18,
+    "max_poi_distance_from_gcs_m": 1077.06,
+    "mean_poi_distance_from_gcs_m": 604.89,
+    "min_required_hop_count": 2,
+    "max_required_hop_count": 11
+  },
+  "fleet_runs": {
+    "N_1": {
+      "N": 1,
+      "seed": 42,
+      "sim_wall_time_s": 3.535,
+      "classification": {
+        "MISSION_SUCCESS": false,
+        "COMMUNICATION_SUCCESS": false,
+        "SAFETY_SUCCESS": true,
+        "ENDURANCE_SUCCESS": true,
+        "LANDING_SUCCESS": true,
+        "FULL_SUCCESS": false
+      },
+      "mission": {
+        "completion_rate": 0.4,
+        "completion_time_s": 2700.0,
+        "completed_pois": 4,
+        "total_pois": 10,
+        "priority_weighted_score": 0.35,
+        "energy_consumed_wh": 2435.5016
+      },
+      "communication": {
+        "connectivity_availability": 0.0568,
+        "communication_downtime_s": 1145.0,
+        "PDR": 0.8191,
+        "mean_latency_ms": 6.48,
+        "max_latency_ms": 10.0,
+        "detection_reporting_compliance": 0.0,
+        "reports_delivered": 0,
+        "reports_deadline_exceeded": 4,
+        "total_detections": 4
+      },
+      "autonomy": {
+        "relay_reallocations": null,
+        "recovery_time_s": null,
+        "network_reconfiguration_efficiency": null
+      },
+      "robustness": {
+        "uav_failures": 0,
+        "task_recovery_after_failure": "N/A - no failure injected",
+        "performance_after_failure": "N/A - no failure injected"
+      },
+      "safety": {
+        "collision_separation_violations": 0,
+        "minimum_observed_separation_m": null,
+        "geofence_violations": 0,
+        "altitude_violations": 0,
+        "battery_exhaustion": 0,
+        "maximum_continuous_sortie_duration_s": 1185.0,
+        "landing_violations": 0,
+        "final_landing_status": {
+          "all_landed": true,
+          "landed_count": 1,
+          "total_uavs": 1
+        }
+      },
+      "scenario_geometry": {
+        "max_poi_distance_from_gcs_m": 1077.06,
+        "max_required_hop_count": 11,
+        "connected_path_at_detection": {
+          "poi_03": false,
+          "poi_04": false,
+          "poi_05": false,
+          "poi_10": false
+        }
+      }
+    },
+    "N_2": {
+      "N": 2,
+      "seed": 42,
+      "sim_wall_time_s": 6.327,
+      "classification": {
+        "MISSION_SUCCESS": false,
+        "COMMUNICATION_SUCCESS": false,
+        "SAFETY_SUCCESS": true,
+        "ENDURANCE_SUCCESS": true,
+        "LANDING_SUCCESS": true,
+        "FULL_SUCCESS": false
+      },
+      "mission": {
+        "completion_rate": 0.7,
+        "completion_time_s": 2700.0,
+        "completed_pois": 7,
+        "total_pois": 10,
+        "priority_weighted_score": 0.7,
+        "energy_consumed_wh": 4370.9559
+      },
+      "communication": {
+        "connectivity_availability": 0.0632,
+        "communication_downtime_s": 1112.0,
+        "PDR": 0.7299,
+        "mean_latency_ms": 7.34,
+        "max_latency_ms": 17.49,
+        "detection_reporting_compliance": 0.0,
+        "reports_delivered": 0,
+        "reports_deadline_exceeded": 7,
+        "total_detections": 7
+      },
+      "autonomy": {
+        "relay_reallocations": null,
+        "recovery_time_s": null,
+        "network_reconfiguration_efficiency": null
+      },
+      "robustness": {
+        "uav_failures": 0,
+        "task_recovery_after_failure": "N/A - no failure injected",
+        "performance_after_failure": "N/A - no failure injected"
+      },
+      "safety": {
+        "collision_separation_violations": 0,
+        "minimum_observed_separation_m": 20.01,
+        "geofence_violations": 0,
+        "altitude_violations": 0,
+        "battery_exhaustion": 0,
+        "maximum_continuous_sortie_duration_s": 1189.0,
+        "landing_violations": 0,
+        "final_landing_status": {
+          "all_landed": true,
+          "landed_count": 2,
+          "total_uavs": 2
+        }
+      },
+      "scenario_geometry": {
+        "max_poi_distance_from_gcs_m": 1077.06,
+        "max_required_hop_count": 11,
+        "connected_path_at_detection": {
+          "poi_03": false,
+          "poi_04": false,
+          "poi_07": false,
+          "poi_05": false,
+          "poi_08": false,
+          "poi_02": false,
+          "poi_10": false
+        }
+      }
+    },
+    "N_3": {
+      "N": 3,
+      "seed": 42,
+      "sim_wall_time_s": 30.831,
+      "classification": {
+        "MISSION_SUCCESS": false,
+        "COMMUNICATION_SUCCESS": false,
+        "SAFETY_SUCCESS": true,
+        "ENDURANCE_SUCCESS": false,
+        "LANDING_SUCCESS": false,
+        "FULL_SUCCESS": false
+      },
+      "mission": {
+        "completion_rate": 0.8,
+        "completion_time_s": 2700.0,
+        "completed_pois": 8,
+        "total_pois": 10,
+        "priority_weighted_score": 0.85,
+        "energy_consumed_wh": 10940.1128
+      },
+      "communication": {
+        "connectivity_availability": 0.5843,
+        "communication_downtime_s": 1142.0,
+        "PDR": 0.7523,
+        "mean_latency_ms": 6.68,
+        "max_latency_ms": 16.5,
+        "detection_reporting_compliance": 0.0,
+        "reports_delivered": 0,
+        "reports_deadline_exceeded": 8,
+        "total_detections": 8
+      },
+      "autonomy": {
+        "relay_reallocations": null,
+        "recovery_time_s": null,
+        "network_reconfiguration_efficiency": null
+      },
+      "robustness": {
+        "uav_failures": 0,
+        "task_recovery_after_failure": "N/A - no failure injected",
+        "performance_after_failure": "N/A - no failure injected"
+      },
+      "safety": {
+        "collision_separation_violations": 0,
+        "minimum_observed_separation_m": 20.01,
+        "geofence_violations": 0,
+        "altitude_violations": 0,
+        "battery_exhaustion": 0,
+        "maximum_continuous_sortie_duration_s": 2699.0,
+        "landing_violations": 0,
+        "final_landing_status": {
+          "all_landed": false,
+          "landed_count": 0,
+          "total_uavs": 3
+        }
+      },
+      "scenario_geometry": {
+        "max_poi_distance_from_gcs_m": 1077.06,
+        "max_required_hop_count": 11,
+        "connected_path_at_detection": {
+          "poi_03": false,
+          "poi_04": false,
+          "poi_07": false,
+          "poi_09": false,
+          "poi_05": false,
+          "poi_08": false,
+          "poi_02": false,
+          "poi_10": false
+        }
+      }
+    },
+    "N_4": {
+      "N": 4,
+      "seed": 42,
+      "sim_wall_time_s": 34.606,
+      "classification": {
+        "MISSION_SUCCESS": true,
+        "COMMUNICATION_SUCCESS": false,
+        "SAFETY_SUCCESS": true,
+        "ENDURANCE_SUCCESS": false,
+        "LANDING_SUCCESS": false,
+        "FULL_SUCCESS": false
+      },
+      "mission": {
+        "completion_rate": 1.0,
+        "completion_time_s": 394.0,
+        "completed_pois": 10,
+        "total_pois": 10,
+        "priority_weighted_score": 1.0,
+        "energy_consumed_wh": 14703.0447
+      },
+      "communication": {
+        "connectivity_availability": 0.5896,
+        "communication_downtime_s": 1117.0,
+        "PDR": 0.7434,
+        "mean_latency_ms": 6.75,
+        "max_latency_ms": 17.49,
+        "detection_reporting_compliance": 0.0,
+        "reports_delivered": 0,
+        "reports_deadline_exceeded": 10,
+        "total_detections": 10
+      },
+      "autonomy": {
+        "relay_reallocations": null,
+        "recovery_time_s": null,
+        "network_reconfiguration_efficiency": null
+      },
+      "robustness": {
+        "uav_failures": 0,
+        "task_recovery_after_failure": "N/A - no failure injected",
+        "performance_after_failure": "N/A - no failure injected"
+      },
+      "safety": {
+        "collision_separation_violations": 0,
+        "minimum_observed_separation_m": 20.01,
+        "geofence_violations": 0,
+        "altitude_violations": 0,
+        "battery_exhaustion": 0,
+        "maximum_continuous_sortie_duration_s": 2699.0,
+        "landing_violations": 0,
+        "final_landing_status": {
+          "all_landed": false,
+          "landed_count": 0,
+          "total_uavs": 4
+        }
+      },
+      "scenario_geometry": {
+        "max_poi_distance_from_gcs_m": 1077.06,
+        "max_required_hop_count": 11,
+        "connected_path_at_detection": {
+          "poi_03": false,
+          "poi_04": false,
+          "poi_07": false,
+          "poi_01": false,
+          "poi_09": false,
+          "poi_05": false,
+          "poi_08": false,
+          "poi_02": false,
+          "poi_10": false,
+          "poi_06": false
+        }
+      }
+    },
+    "N_5": {
+      "N": 5,
+      "seed": 42,
+      "sim_wall_time_s": 41.213,
+      "classification": {
+        "MISSION_SUCCESS": true,
+        "COMMUNICATION_SUCCESS": false,
+        "SAFETY_SUCCESS": true,
+        "ENDURANCE_SUCCESS": false,
+        "LANDING_SUCCESS": false,
+        "FULL_SUCCESS": false
+      },
+      "mission": {
+        "completion_rate": 1.0,
+        "completion_time_s": 339.0,
+        "completed_pois": 10,
+        "total_pois": 10,
+        "priority_weighted_score": 1.0,
+        "energy_consumed_wh": 17404.9145
+      },
+      "communication": {
+        "connectivity_availability": 0.5867,
+        "communication_downtime_s": 1324.0,
+        "PDR": 0.7317,
+        "mean_latency_ms": 6.9,
+        "max_latency_ms": 17.49,
+        "detection_reporting_compliance": 0.0,
+        "reports_delivered": 0,
+        "reports_deadline_exceeded": 10,
+        "total_detections": 10
+      },
+      "autonomy": {
+        "relay_reallocations": null,
+        "recovery_time_s": null,
+        "network_reconfiguration_efficiency": null
+      },
+      "robustness": {
+        "uav_failures": 0,
+        "task_recovery_after_failure": "N/A - no failure injected",
+        "performance_after_failure": "N/A - no failure injected"
+      },
+      "safety": {
+        "collision_separation_violations": 0,
+        "minimum_observed_separation_m": 20.01,
+        "geofence_violations": 0,
+        "altitude_violations": 0,
+        "battery_exhaustion": 0,
+        "maximum_continuous_sortie_duration_s": 2699.0,
+        "landing_violations": 0,
+        "final_landing_status": {
+          "all_landed": false,
+          "landed_count": 0,
+          "total_uavs": 5
+        }
+      },
+      "scenario_geometry": {
+        "max_poi_distance_from_gcs_m": 1077.06,
+        "max_required_hop_count": 11,
+        "connected_path_at_detection": {
+          "poi_03": false,
+          "poi_04": false,
+          "poi_07": false,
+          "poi_01": false,
+          "poi_09": false,
+          "poi_05": false,
+          "poi_08": false,
+          "poi_10": false,
+          "poi_06": false,
+          "poi_02": false
+        }
+      }
+    },
+    "N_6": {
+      "N": 6,
+      "seed": 42,
+      "sim_wall_time_s": 50.335,
+      "classification": {
+        "MISSION_SUCCESS": true,
+        "COMMUNICATION_SUCCESS": false,
+        "SAFETY_SUCCESS": true,
+        "ENDURANCE_SUCCESS": false,
+        "LANDING_SUCCESS": false,
+        "FULL_SUCCESS": false
+      },
+      "mission": {
+        "completion_rate": 1.0,
+        "completion_time_s": 339.0,
+        "completed_pois": 10,
+        "total_pois": 10,
+        "priority_weighted_score": 1.0,
+        "energy_consumed_wh": 20104.4107
+      },
+      "communication": {
+        "connectivity_availability": 0.6691,
+        "communication_downtime_s": 1116.0,
+        "PDR": 0.7959,
+        "mean_latency_ms": 6.44,
+        "max_latency_ms": 32.22,
+        "detection_reporting_compliance": 0.1,
+        "reports_delivered": 1,
+        "reports_deadline_exceeded": 9,
+        "total_detections": 10
+      },
+      "autonomy": {
+        "relay_reallocations": null,
+        "recovery_time_s": null,
+        "network_reconfiguration_efficiency": null
+      },
+      "robustness": {
+        "uav_failures": 0,
+        "task_recovery_after_failure": "N/A - no failure injected",
+        "performance_after_failure": "N/A - no failure injected"
+      },
+      "safety": {
+        "collision_separation_violations": 0,
+        "minimum_observed_separation_m": 20.01,
+        "geofence_violations": 0,
+        "altitude_violations": 0,
+        "battery_exhaustion": 0,
+        "maximum_continuous_sortie_duration_s": 2699.0,
+        "landing_violations": 0,
+        "final_landing_status": {
+          "all_landed": false,
+          "landed_count": 0,
+          "total_uavs": 6
+        }
+      },
+      "scenario_geometry": {
+        "max_poi_distance_from_gcs_m": 1077.06,
+        "max_required_hop_count": 11,
+        "connected_path_at_detection": {
+          "poi_03": true,
+          "poi_04": false,
+          "poi_07": false,
+          "poi_09": false,
+          "poi_05": false,
+          "poi_08": false,
+          "poi_01": false,
+          "poi_10": false,
+          "poi_06": false,
+          "poi_02": false
+        }
+      }
+    },
+    "N_7": {
+      "N": 7,
+      "seed": 42,
+      "sim_wall_time_s": 58.228,
+      "classification": {
+        "MISSION_SUCCESS": true,
+        "COMMUNICATION_SUCCESS": false,
+        "SAFETY_SUCCESS": true,
+        "ENDURANCE_SUCCESS": false,
+        "LANDING_SUCCESS": false,
+        "FULL_SUCCESS": false
+      },
+      "mission": {
+        "completion_rate": 1.0,
+        "completion_time_s": 339.0,
+        "completed_pois": 10,
+        "total_pois": 10,
+        "priority_weighted_score": 1.0,
+        "energy_consumed_wh": 22796.956
+      },
+      "communication": {
+        "connectivity_availability": 0.7166,
+        "communication_downtime_s": 1115.0,
+        "PDR": 0.7905,
+        "mean_latency_ms": 6.42,
+        "max_latency_ms": 31.72,
+        "detection_reporting_compliance": 0.1,
+        "reports_delivered": 1,
+        "reports_deadline_exceeded": 9,
+        "total_detections": 10
+      },
+      "autonomy": {
+        "relay_reallocations": null,
+        "recovery_time_s": null,
+        "network_reconfiguration_efficiency": null
+      },
+      "robustness": {
+        "uav_failures": 0,
+        "task_recovery_after_failure": "N/A - no failure injected",
+        "performance_after_failure": "N/A - no failure injected"
+      },
+      "safety": {
+        "collision_separation_violations": 0,
+        "minimum_observed_separation_m": 20.01,
+        "geofence_violations": 0,
+        "altitude_violations": 0,
+        "battery_exhaustion": 0,
+        "maximum_continuous_sortie_duration_s": 2699.0,
+        "landing_violations": 0,
+        "final_landing_status": {
+          "all_landed": false,
+          "landed_count": 0,
+          "total_uavs": 7
+        }
+      },
+      "scenario_geometry": {
+        "max_poi_distance_from_gcs_m": 1077.06,
+        "max_required_hop_count": 11,
+        "connected_path_at_detection": {
+          "poi_03": true,
+          "poi_04": false,
+          "poi_07": false,
+          "poi_09": false,
+          "poi_05": false,
+          "poi_08": false,
+          "poi_01": false,
+          "poi_10": false,
+          "poi_06": false,
+          "poi_02": false
+        }
+      }
+    },
+    "N_8": {
+      "N": 8,
+      "seed": 42,
+      "sim_wall_time_s": 75.205,
+      "classification": {
+        "MISSION_SUCCESS": true,
+        "COMMUNICATION_SUCCESS": false,
+        "SAFETY_SUCCESS": true,
+        "ENDURANCE_SUCCESS": false,
+        "LANDING_SUCCESS": false,
+        "FULL_SUCCESS": false
+      },
+      "mission": {
+        "completion_rate": 1.0,
+        "completion_time_s": 339.0,
+        "completed_pois": 10,
+        "total_pois": 10,
+        "priority_weighted_score": 1.0,
+        "energy_consumed_wh": 25488.8291
+      },
+      "communication": {
+        "connectivity_availability": 0.753,
+        "communication_downtime_s": 1113.0,
+        "PDR": 0.7816,
+        "mean_latency_ms": 6.5,
+        "max_latency_ms": 42.41,
+        "detection_reporting_compliance": 0.0,
+        "reports_delivered": 0,
+        "reports_deadline_exceeded": 10,
+        "total_detections": 10
+      },
+      "autonomy": {
+        "relay_reallocations": null,
+        "recovery_time_s": null,
+        "network_reconfiguration_efficiency": null
+      },
+      "robustness": {
+        "uav_failures": 0,
+        "task_recovery_after_failure": "N/A - no failure injected",
+        "performance_after_failure": "N/A - no failure injected"
+      },
+      "safety": {
+        "collision_separation_violations": 0,
+        "minimum_observed_separation_m": 20.01,
+        "geofence_violations": 0,
+        "altitude_violations": 0,
+        "battery_exhaustion": 0,
+        "maximum_continuous_sortie_duration_s": 2699.0,
+        "landing_violations": 0,
+        "final_landing_status": {
+          "all_landed": false,
+          "landed_count": 0,
+          "total_uavs": 8
+        }
+      },
+      "scenario_geometry": {
+        "max_poi_distance_from_gcs_m": 1077.06,
+        "max_required_hop_count": 11,
+        "connected_path_at_detection": {
+          "poi_03": false,
+          "poi_04": false,
+          "poi_07": false,
+          "poi_09": false,
+          "poi_05": false,
+          "poi_08": false,
+          "poi_01": false,
+          "poi_10": false,
+          "poi_06": false,
+          "poi_02": false
+        }
+      }
+    },
+    "N_9": {
+      "N": 9,
+      "seed": 42,
+      "sim_wall_time_s": 94.264,
+      "classification": {
+        "MISSION_SUCCESS": true,
+        "COMMUNICATION_SUCCESS": false,
+        "SAFETY_SUCCESS": true,
+        "ENDURANCE_SUCCESS": false,
+        "LANDING_SUCCESS": false,
+        "FULL_SUCCESS": false
+      },
+      "mission": {
+        "completion_rate": 1.0,
+        "completion_time_s": 339.0,
+        "completed_pois": 10,
+        "total_pois": 10,
+        "priority_weighted_score": 1.0,
+        "energy_consumed_wh": 28190.7967
+      },
+      "communication": {
+        "connectivity_availability": 0.7805,
+        "communication_downtime_s": 1113.0,
+        "PDR": 0.7852,
+        "mean_latency_ms": 6.5,
+        "max_latency_ms": 42.85,
+        "detection_reporting_compliance": 0.0,
+        "reports_delivered": 0,
+        "reports_deadline_exceeded": 10,
+        "total_detections": 10
+      },
+      "autonomy": {
+        "relay_reallocations": null,
+        "recovery_time_s": null,
+        "network_reconfiguration_efficiency": null
+      },
+      "robustness": {
+        "uav_failures": 0,
+        "task_recovery_after_failure": "N/A - no failure injected",
+        "performance_after_failure": "N/A - no failure injected"
+      },
+      "safety": {
+        "collision_separation_violations": 0,
+        "minimum_observed_separation_m": 20.0,
+        "geofence_violations": 0,
+        "altitude_violations": 0,
+        "battery_exhaustion": 0,
+        "maximum_continuous_sortie_duration_s": 2699.0,
+        "landing_violations": 0,
+        "final_landing_status": {
+          "all_landed": false,
+          "landed_count": 0,
+          "total_uavs": 9
+        }
+      },
+      "scenario_geometry": {
+        "max_poi_distance_from_gcs_m": 1077.06,
+        "max_required_hop_count": 11,
+        "connected_path_at_detection": {
+          "poi_03": false,
+          "poi_04": false,
+          "poi_07": false,
+          "poi_09": false,
+          "poi_05": false,
+          "poi_08": false,
+          "poi_01": false,
+          "poi_06": false,
+          "poi_10": false,
+          "poi_02": false
+        }
+      }
+    },
+    "N_10": {
+      "N": 10,
+      "seed": 42,
+      "sim_wall_time_s": 108.328,
+      "classification": {
+        "MISSION_SUCCESS": true,
+        "COMMUNICATION_SUCCESS": false,
+        "SAFETY_SUCCESS": true,
+        "ENDURANCE_SUCCESS": false,
+        "LANDING_SUCCESS": false,
+        "FULL_SUCCESS": false
+      },
+      "mission": {
+        "completion_rate": 1.0,
+        "completion_time_s": 339.0,
+        "completed_pois": 10,
+        "total_pois": 10,
+        "priority_weighted_score": 1.0,
+        "energy_consumed_wh": 30880.8522
+      },
+      "communication": {
+        "connectivity_availability": 0.8026,
+        "communication_downtime_s": 1112.0,
+        "PDR": 0.7734,
+        "mean_latency_ms": 6.6,
+        "max_latency_ms": 43.29,
+        "detection_reporting_compliance": 0.1,
+        "reports_delivered": 1,
+        "reports_deadline_exceeded": 9,
+        "total_detections": 10
+      },
+      "autonomy": {
+        "relay_reallocations": null,
+        "recovery_time_s": null,
+        "network_reconfiguration_efficiency": null
+      },
+      "robustness": {
+        "uav_failures": 0,
+        "task_recovery_after_failure": "N/A - no failure injected",
+        "performance_after_failure": "N/A - no failure injected"
+      },
+      "safety": {
+        "collision_separation_violations": 0,
+        "minimum_observed_separation_m": 20.0,
+        "geofence_violations": 0,
+        "altitude_violations": 0,
+        "battery_exhaustion": 0,
+        "maximum_continuous_sortie_duration_s": 2699.0,
+        "landing_violations": 0,
+        "final_landing_status": {
+          "all_landed": false,
+          "landed_count": 0,
+          "total_uavs": 10
+        }
+      },
+      "scenario_geometry": {
+        "max_poi_distance_from_gcs_m": 1077.06,
+        "max_required_hop_count": 11,
+        "connected_path_at_detection": {
+          "poi_03": true,
+          "poi_04": false,
+          "poi_07": false,
+          "poi_09": false,
+          "poi_05": false,
+          "poi_08": false,
+          "poi_01": false,
+          "poi_06": false,
+          "poi_10": false,
+          "poi_02": false
+        }
+      }
+    },
+    "N_11": {
+      "N": 11,
+      "seed": 42,
+      "sim_wall_time_s": 120.248,
+      "classification": {
+        "MISSION_SUCCESS": true,
+        "COMMUNICATION_SUCCESS": false,
+        "SAFETY_SUCCESS": true,
+        "ENDURANCE_SUCCESS": false,
+        "LANDING_SUCCESS": false,
+        "FULL_SUCCESS": false
+      },
+      "mission": {
+        "completion_rate": 1.0,
+        "completion_time_s": 339.0,
+        "completed_pois": 10,
+        "total_pois": 10,
+        "priority_weighted_score": 1.0,
+        "energy_consumed_wh": 33580.8522
+      },
+      "communication": {
+        "connectivity_availability": 0.8209,
+        "communication_downtime_s": 1110.0,
+        "PDR": 0.7445,
+        "mean_latency_ms": 6.84,
+        "max_latency_ms": 44.94,
+        "detection_reporting_compliance": 0.1,
+        "reports_delivered": 1,
+        "reports_deadline_exceeded": 9,
+        "total_detections": 10
+      },
+      "autonomy": {
+        "relay_reallocations": null,
+        "recovery_time_s": null,
+        "network_reconfiguration_efficiency": null
+      },
+      "robustness": {
+        "uav_failures": 0,
+        "task_recovery_after_failure": "N/A - no failure injected",
+        "performance_after_failure": "N/A - no failure injected"
+      },
+      "safety": {
+        "collision_separation_violations": 0,
+        "minimum_observed_separation_m": 20.0,
+        "geofence_violations": 0,
+        "altitude_violations": 0,
+        "battery_exhaustion": 0,
+        "maximum_continuous_sortie_duration_s": 2699.0,
+        "landing_violations": 0,
+        "final_landing_status": {
+          "all_landed": false,
+          "landed_count": 0,
+          "total_uavs": 11
+        }
+      },
+      "scenario_geometry": {
+        "max_poi_distance_from_gcs_m": 1077.06,
+        "max_required_hop_count": 11,
+        "connected_path_at_detection": {
+          "poi_03": true,
+          "poi_04": false,
+          "poi_07": false,
+          "poi_09": false,
+          "poi_05": false,
+          "poi_08": false,
+          "poi_01": false,
+          "poi_06": false,
+          "poi_10": false,
+          "poi_02": false
+        }
+      }
+    },
+    "N_12": {
+      "N": 12,
+      "seed": 42,
+      "sim_wall_time_s": 136.506,
+      "classification": {
+        "MISSION_SUCCESS": true,
+        "COMMUNICATION_SUCCESS": false,
+        "SAFETY_SUCCESS": true,
+        "ENDURANCE_SUCCESS": false,
+        "LANDING_SUCCESS": false,
+        "FULL_SUCCESS": false
+      },
+      "mission": {
+        "completion_rate": 1.0,
+        "completion_time_s": 339.0,
+        "completed_pois": 10,
+        "total_pois": 10,
+        "priority_weighted_score": 1.0,
+        "energy_consumed_wh": 36258.2017
+      },
+      "communication": {
+        "connectivity_availability": 0.8358,
+        "communication_downtime_s": 1110.0,
+        "PDR": 0.7363,
+        "mean_latency_ms": 6.91,
+        "max_latency_ms": 26.3,
+        "detection_reporting_compliance": 0.1,
+        "reports_delivered": 1,
+        "reports_deadline_exceeded": 9,
+        "total_detections": 10
+      },
+      "autonomy": {
+        "relay_reallocations": null,
+        "recovery_time_s": null,
+        "network_reconfiguration_efficiency": null
+      },
+      "robustness": {
+        "uav_failures": 0,
+        "task_recovery_after_failure": "N/A - no failure injected",
+        "performance_after_failure": "N/A - no failure injected"
+      },
+      "safety": {
+        "collision_separation_violations": 0,
+        "minimum_observed_separation_m": 20.0,
+        "geofence_violations": 0,
+        "altitude_violations": 0,
+        "battery_exhaustion": 0,
+        "maximum_continuous_sortie_duration_s": 2699.0,
+        "landing_violations": 0,
+        "final_landing_status": {
+          "all_landed": false,
+          "landed_count": 0,
+          "total_uavs": 12
+        }
+      },
+      "scenario_geometry": {
+        "max_poi_distance_from_gcs_m": 1077.06,
+        "max_required_hop_count": 11,
+        "connected_path_at_detection": {
+          "poi_03": true,
+          "poi_04": false,
+          "poi_07": false,
+          "poi_09": false,
+          "poi_05": false,
+          "poi_08": false,
+          "poi_01": false,
+          "poi_06": false,
+          "poi_10": false,
+          "poi_02": false
+        }
+      }
+    },
+    "N_13": {
+      "N": 13,
+      "seed": 42,
+      "sim_wall_time_s": 167.613,
+      "classification": {
+        "MISSION_SUCCESS": true,
+        "COMMUNICATION_SUCCESS": false,
+        "SAFETY_SUCCESS": true,
+        "ENDURANCE_SUCCESS": false,
+        "LANDING_SUCCESS": false,
+        "FULL_SUCCESS": false
+      },
+      "mission": {
+        "completion_rate": 1.0,
+        "completion_time_s": 339.0,
+        "completed_pois": 10,
+        "total_pois": 10,
+        "priority_weighted_score": 1.0,
+        "energy_consumed_wh": 38963.1967
+      },
+      "communication": {
+        "connectivity_availability": 0.8487,
+        "communication_downtime_s": 1108.0,
+        "PDR": 0.7273,
+        "mean_latency_ms": 7.06,
+        "max_latency_ms": 46.6,
+        "detection_reporting_compliance": 0.1,
+        "reports_delivered": 1,
+        "reports_deadline_exceeded": 9,
+        "total_detections": 10
+      },
+      "autonomy": {
+        "relay_reallocations": null,
+        "recovery_time_s": null,
+        "network_reconfiguration_efficiency": null
+      },
+      "robustness": {
+        "uav_failures": 0,
+        "task_recovery_after_failure": "N/A - no failure injected",
+        "performance_after_failure": "N/A - no failure injected"
+      },
+      "safety": {
+        "collision_separation_violations": 0,
+        "minimum_observed_separation_m": 20.0,
+        "geofence_violations": 0,
+        "altitude_violations": 0,
+        "battery_exhaustion": 0,
+        "maximum_continuous_sortie_duration_s": 2699.0,
+        "landing_violations": 0,
+        "final_landing_status": {
+          "all_landed": false,
+          "landed_count": 0,
+          "total_uavs": 13
+        }
+      },
+      "scenario_geometry": {
+        "max_poi_distance_from_gcs_m": 1077.06,
+        "max_required_hop_count": 11,
+        "connected_path_at_detection": {
+          "poi_03": true,
+          "poi_04": false,
+          "poi_07": false,
+          "poi_09": false,
+          "poi_05": false,
+          "poi_08": false,
+          "poi_01": false,
+          "poi_06": false,
+          "poi_10": false,
+          "poi_02": false
+        }
+      }
+    },
+    "N_14": {
+      "N": 14,
+      "seed": 42,
+      "sim_wall_time_s": 182.842,
+      "classification": {
+        "MISSION_SUCCESS": true,
+        "COMMUNICATION_SUCCESS": false,
+        "SAFETY_SUCCESS": true,
+        "ENDURANCE_SUCCESS": false,
+        "LANDING_SUCCESS": false,
+        "FULL_SUCCESS": false
+      },
+      "mission": {
+        "completion_rate": 1.0,
+        "completion_time_s": 339.0,
+        "completed_pois": 10,
+        "total_pois": 10,
+        "priority_weighted_score": 1.0,
+        "energy_consumed_wh": 41632.8834
+      },
+      "communication": {
+        "connectivity_availability": 0.8596,
+        "communication_downtime_s": 1107.0,
+        "PDR": 0.7161,
+        "mean_latency_ms": 7.17,
+        "max_latency_ms": 46.6,
+        "detection_reporting_compliance": 0.1,
+        "reports_delivered": 1,
+        "reports_deadline_exceeded": 9,
+        "total_detections": 10
+      },
+      "autonomy": {
+        "relay_reallocations": null,
+        "recovery_time_s": null,
+        "network_reconfiguration_efficiency": null
+      },
+      "robustness": {
+        "uav_failures": 0,
+        "task_recovery_after_failure": "N/A - no failure injected",
+        "performance_after_failure": "N/A - no failure injected"
+      },
+      "safety": {
+        "collision_separation_violations": 0,
+        "minimum_observed_separation_m": 20.0,
+        "geofence_violations": 0,
+        "altitude_violations": 0,
+        "battery_exhaustion": 0,
+        "maximum_continuous_sortie_duration_s": 2699.0,
+        "landing_violations": 0,
+        "final_landing_status": {
+          "all_landed": false,
+          "landed_count": 0,
+          "total_uavs": 14
+        }
+      },
+      "scenario_geometry": {
+        "max_poi_distance_from_gcs_m": 1077.06,
+        "max_required_hop_count": 11,
+        "connected_path_at_detection": {
+          "poi_03": true,
+          "poi_04": false,
+          "poi_07": false,
+          "poi_09": false,
+          "poi_05": false,
+          "poi_08": false,
+          "poi_01": false,
+          "poi_06": false,
+          "poi_10": false,
+          "poi_02": false
+        }
+      }
+    },
+    "N_15": {
+      "N": 15,
+      "seed": 42,
+      "sim_wall_time_s": 209.875,
+      "classification": {
+        "MISSION_SUCCESS": true,
+        "COMMUNICATION_SUCCESS": false,
+        "SAFETY_SUCCESS": true,
+        "ENDURANCE_SUCCESS": false,
+        "LANDING_SUCCESS": false,
+        "FULL_SUCCESS": false
+      },
+      "mission": {
+        "completion_rate": 1.0,
+        "completion_time_s": 339.0,
+        "completed_pois": 10,
+        "total_pois": 10,
+        "priority_weighted_score": 1.0,
+        "energy_consumed_wh": 44333.9428
+      },
+      "communication": {
+        "connectivity_availability": 0.8691,
+        "communication_downtime_s": 1106.0,
+        "PDR": 0.6952,
+        "mean_latency_ms": 7.38,
+        "max_latency_ms": 47.61,
+        "detection_reporting_compliance": 0.1,
+        "reports_delivered": 1,
+        "reports_deadline_exceeded": 9,
+        "total_detections": 10
+      },
+      "autonomy": {
+        "relay_reallocations": null,
+        "recovery_time_s": null,
+        "network_reconfiguration_efficiency": null
+      },
+      "robustness": {
+        "uav_failures": 0,
+        "task_recovery_after_failure": "N/A - no failure injected",
+        "performance_after_failure": "N/A - no failure injected"
+      },
+      "safety": {
+        "collision_separation_violations": 0,
+        "minimum_observed_separation_m": 20.0,
+        "geofence_violations": 0,
+        "altitude_violations": 0,
+        "battery_exhaustion": 0,
+        "maximum_continuous_sortie_duration_s": 2699.0,
+        "landing_violations": 0,
+        "final_landing_status": {
+          "all_landed": false,
+          "landed_count": 0,
+          "total_uavs": 15
+        }
+      },
+      "scenario_geometry": {
+        "max_poi_distance_from_gcs_m": 1077.06,
+        "max_required_hop_count": 11,
+        "connected_path_at_detection": {
+          "poi_03": true,
+          "poi_04": false,
+          "poi_07": false,
+          "poi_09": false,
+          "poi_05": false,
+          "poi_08": false,
+          "poi_01": false,
+          "poi_06": false,
+          "poi_10": false,
+          "poi_02": false
+        }
+      }
+    },
+    "N_16": {
+      "N": 16,
+      "seed": 42,
+      "sim_wall_time_s": 224.705,
+      "classification": {
+        "MISSION_SUCCESS": true,
+        "COMMUNICATION_SUCCESS": false,
+        "SAFETY_SUCCESS": true,
+        "ENDURANCE_SUCCESS": false,
+        "LANDING_SUCCESS": false,
+        "FULL_SUCCESS": false
+      },
+      "mission": {
+        "completion_rate": 1.0,
+        "completion_time_s": 339.0,
+        "completed_pois": 10,
+        "total_pois": 10,
+        "priority_weighted_score": 1.0,
+        "energy_consumed_wh": 47016.8694
+      },
+      "communication": {
+        "connectivity_availability": 0.8773,
+        "communication_downtime_s": 1106.0,
+        "PDR": 0.6923,
+        "mean_latency_ms": 7.42,
+        "max_latency_ms": 47.61,
+        "detection_reporting_compliance": 0.1,
+        "reports_delivered": 1,
+        "reports_deadline_exceeded": 9,
+        "total_detections": 10
+      },
+      "autonomy": {
+        "relay_reallocations": null,
+        "recovery_time_s": null,
+        "network_reconfiguration_efficiency": null
+      },
+      "robustness": {
+        "uav_failures": 0,
+        "task_recovery_after_failure": "N/A - no failure injected",
+        "performance_after_failure": "N/A - no failure injected"
+      },
+      "safety": {
+        "collision_separation_violations": 0,
+        "minimum_observed_separation_m": 20.0,
+        "geofence_violations": 0,
+        "altitude_violations": 0,
+        "battery_exhaustion": 0,
+        "maximum_continuous_sortie_duration_s": 2699.0,
+        "landing_violations": 0,
+        "final_landing_status": {
+          "all_landed": false,
+          "landed_count": 0,
+          "total_uavs": 16
+        }
+      },
+      "scenario_geometry": {
+        "max_poi_distance_from_gcs_m": 1077.06,
+        "max_required_hop_count": 11,
+        "connected_path_at_detection": {
+          "poi_03": true,
+          "poi_04": false,
+          "poi_07": false,
+          "poi_09": false,
+          "poi_05": false,
+          "poi_08": false,
+          "poi_01": false,
+          "poi_06": false,
+          "poi_10": false,
+          "poi_02": false
+        }
+      }
+    }
+  }
+}
