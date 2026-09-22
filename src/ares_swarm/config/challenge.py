@@ -46,6 +46,7 @@ class ChallengeSimulationConfig:
     reporting_deadline_s: float = 10.0
     detection_fov_radius_m: float = 40.0
     processing_delay_s: float = 0.0
+    recharge_duration_s: float = 300.0
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -66,6 +67,7 @@ class ChallengeSimulationConfig:
             "reporting_deadline_s": self.reporting_deadline_s,
             "detection_fov_radius_m": self.detection_fov_radius_m,
             "processing_delay_s": self.processing_delay_s,
+            "recharge_duration_s": self.recharge_duration_s,
         }
 
     @classmethod
@@ -88,4 +90,5 @@ class ChallengeSimulationConfig:
             reporting_deadline_s=float(data.get("reporting_deadline_s", 10.0)),
             detection_fov_radius_m=float(data.get("detection_fov_radius_m", 40.0)),
             processing_delay_s=float(data.get("processing_delay_s", 0.0)),
+            recharge_duration_s=float(data.get("recharge_duration_s", 300.0)),
         )

@@ -271,12 +271,14 @@ class SeparationEnforcer:
                         obs_p, obs_v,
                         dt,
                     )
+                    d_init = math.hypot(uav.position_xy[0] - obs_p[0], uav.position_xy[1] - obs_p[1])
+                    pair_thresh = safe_dist_threshold if d_init >= safe_dist_threshold else self.min_separation_m
+                    if sep < pair_thresh - EPSILON:
+                        return False, obs_id, sep
                     if sep < worst_min_sep:
                         worst_min_sep = sep
                         worst_partner = obs_id
 
-                if worst_min_sep < safe_dist_threshold:
-                    return False, worst_partner, worst_min_sep
                 return True, worst_partner, worst_min_sep
 
             safe_full, partner_id, min_sep = is_trajectory_safe(max_alpha)

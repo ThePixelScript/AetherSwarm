@@ -83,8 +83,8 @@ class ChallengeAirspace:
         if uav.rth_state in (RTHState.REQUIRED, RTHState.ACTIVE):
             return FlightPhase.EGRESS
 
-        # If previous phase was STAGING (or initial state)
-        if prev_phase in (None, FlightPhase.STAGING):
+        # If previous phase was STAGING, LANDED, or initial state
+        if prev_phase in (None, FlightPhase.STAGING, FlightPhase.LANDED):
             if self.is_in_staging_pad(uav.position_xy) and uav.role == Role.IDLE and uav.assigned_task_id is None:
                 return FlightPhase.STAGING
             if self.is_in_arena(uav.position_xy):

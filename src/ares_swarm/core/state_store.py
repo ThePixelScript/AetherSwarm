@@ -7,18 +7,21 @@ from typing import Dict, List, Optional, Sequence, Tuple
 
 from .commands import (
     AssignTaskCommand,
+    BeginLandingCommand,
     Command,
+    CompleteRechargeCommand,
     CompleteRTHCommand,
     FailUAVCommand,
     RecoverUAVCommand,
     ProgressTaskCommand,
     ReleaseTaskCommand,
     SetTargetPositionCommand,
+    StartRechargeCommand,
     StartRTHCommand,
     StepPhysicsCommand,
 )
 from .constants import EPSILON
-from .enums import EventType, FailureState, RejectionCode, Role, RTHState, TaskStatus
+from .enums import EventType, FailureState, RejectionCode, Role, RTHState, SortieState, TaskStatus
 from .events import CommandRejection, DomainEvent, StateTransitionResult
 from .models import StateSnapshot, TaskState, UAVState
 
@@ -103,6 +106,8 @@ class StateStore:
                     rejection = CommandRejection(cmd, RejectionCode.ENTITY_NOT_FOUND, f"Task {cmd.task_id} not found")
                 elif not uav.active or uav.rth_state != RTHState.NONE or uav.failure_state == FailureState.FAILED:
                     rejection = CommandRejection(cmd, RejectionCode.ILLEGAL_LIFECYCLE_TRANSITION, "UAV unavailable")
+                elif uav.sortie_state in (SortieState.RECHARGING, SortieState.RTH, SortieState.LANDING, SortieState.LANDED):
+                    rejection = CommandRejection(cmd, RejectionCode.ILLEGAL_LIFECYCLE_TRANSITION, f"UAV in sortie state {uav.sortie_state}")
                 elif uav.assignment_lock_until > self._simulation_time:
                     rejection = CommandRejection(cmd, RejectionCode.LOCKED_ASSIGNMENT, "UAV assignment locked")
                 elif task.status not in (TaskStatus.PENDING, TaskStatus.DEFERRED):
@@ -110,8 +115,18 @@ class StateStore:
                 elif task.assigned_uav_id is not None and task.assigned_uav_id != uav.id:
                     rejection = CommandRejection(cmd, RejectionCode.CONFLICTING_COMMAND, "Task assigned to another UAV")
                 else:
+                    was_deferred = (task.status == TaskStatus.DEFERRED)
+                    starting_new_sortie = (uav.sortie_state == SortieState.READY or uav.assigned_task_id is None)
+                    was_deferred = (task.status == TaskStatus.DEFERRED)
                     staged_tasks[task.id] = replace(task, status=TaskStatus.ASSIGNED, assigned_uav_id=uav.id)
-                    staged_uavs[uav.id] = replace(uav, assigned_task_id=task.id, target_position=task.position_xy)
+                    staged_uavs[uav.id] = replace(
+                        uav,
+                        assigned_task_id=task.id,
+                        target_position=task.position_xy,
+                        sortie_state=SortieState.ACTIVE,
+                        role=Role.SCOUT,
+                        active=True,
+                    )
                     staged_events.append(DomainEvent.create(
                         simulation_tick=self._simulation_tick,
                         simulation_time=self._simulation_time,
@@ -120,6 +135,15 @@ class StateStore:
                         payload={"task_id": task.id},
                         sequence=len(events) + len(staged_events),
                     ))
+                    if was_deferred:
+                        staged_events.append(DomainEvent.create(
+                            simulation_tick=self._simulation_tick,
+                            simulation_time=self._simulation_time,
+                            event_type=EventType.TASK_REASSIGNED,
+                            entity_id=task.id,
+                            payload={"uav_id": uav.id},
+                            sequence=len(events) + len(staged_events),
+                        ))
 
             elif isinstance(cmd, ReleaseTaskCommand):
                 task = self._tasks.get(cmd.task_id)
@@ -141,9 +165,26 @@ class StateStore:
                 if uav.assigned_task_id and uav.assigned_task_id in self._tasks:
                     old_task = self._tasks[uav.assigned_task_id]
                     staged_tasks[old_task.id] = replace(old_task, status=TaskStatus.DEFERRED, assigned_uav_id=None)
+                    staged_events.append(DomainEvent.create(
+                        simulation_tick=self._simulation_tick,
+                        simulation_time=self._simulation_time,
+                        event_type=EventType.TASK_HANDOFF,
+                        entity_id=old_task.id,
+                        payload={"uav_id": uav.id, "reason": "RTH_REQUIRED"},
+                        sequence=len(events) + len(staged_events),
+                    ))
+                    staged_events.append(DomainEvent.create(
+                        simulation_tick=self._simulation_tick,
+                        simulation_time=self._simulation_time,
+                        event_type=EventType.TASK_DEFERRED,
+                        entity_id=old_task.id,
+                        payload={"uav_id": uav.id, "reason": "RTH_HANDOFF"},
+                        sequence=len(events) + len(staged_events),
+                    ))
                 staged_uavs[uav.id] = replace(
                     uav,
                     rth_state=RTHState.ACTIVE,
+                    sortie_state=SortieState.RTH,
                     target_position=self._gcs_position,
                     assigned_task_id=None,
                 )
@@ -156,8 +197,12 @@ class StateStore:
                     sequence=len(events) + len(staged_events),
                 ))
 
+            elif isinstance(cmd, BeginLandingCommand):
+                if uav.sortie_state in (SortieState.RTH, SortieState.ACTIVE):
+                    staged_uavs[uav.id] = replace(uav, sortie_state=SortieState.LANDING)
+
             elif isinstance(cmd, CompleteRTHCommand):
-                if uav.rth_state != RTHState.ACTIVE:
+                if uav.rth_state != RTHState.ACTIVE and uav.sortie_state not in (SortieState.RTH, SortieState.LANDING):
                     rejection = CommandRejection(
                         cmd,
                         RejectionCode.ILLEGAL_LIFECYCLE_TRANSITION,
@@ -167,6 +212,7 @@ class StateStore:
                     staged_uavs[uav.id] = replace(
                         uav,
                         rth_state=RTHState.COMPLETE,
+                        sortie_state=SortieState.LANDED,
                         role=Role.IDLE,
                         velocity_xy=(0.0, 0.0),
                         target_position=None,
@@ -178,6 +224,75 @@ class StateStore:
                         event_type=EventType.UAV_LANDED,
                         entity_id=uav.id,
                         payload={"final_energy": uav.battery_energy},
+                        sequence=len(events) + len(staged_events),
+                    ))
+                    staged_events.append(DomainEvent.create(
+                        simulation_tick=self._simulation_tick,
+                        simulation_time=self._simulation_time,
+                        event_type=EventType.SORTIE_COMPLETED,
+                        entity_id=uav.id,
+                        payload={"final_energy": uav.battery_energy},
+                        sequence=len(events) + len(staged_events),
+                    ))
+
+            elif isinstance(cmd, StartRechargeCommand):
+                if uav.sortie_state not in (SortieState.LANDED, SortieState.READY, SortieState.RECHARGING) and uav.rth_state != RTHState.COMPLETE:
+                    rejection = CommandRejection(
+                        cmd,
+                        RejectionCode.ILLEGAL_LIFECYCLE_TRANSITION,
+                        f"UAV {uav.id} cannot recharge from sortie state {uav.sortie_state}",
+                    )
+                else:
+                    staged_uavs[uav.id] = replace(
+                        uav,
+                        sortie_state=SortieState.RECHARGING,
+                        recharge_start_time=self._simulation_time,
+                        recharge_duration_s=cmd.recharge_duration_s,
+                        active=False,
+                    )
+                    staged_events.append(DomainEvent.create(
+                        simulation_tick=self._simulation_tick,
+                        simulation_time=self._simulation_time,
+                        event_type=EventType.UAV_RECHARGING,
+                        entity_id=uav.id,
+                        payload={"recharge_duration_s": cmd.recharge_duration_s},
+                        sequence=len(events) + len(staged_events),
+                    ))
+
+            elif isinstance(cmd, CompleteRechargeCommand):
+                if uav.sortie_state not in (SortieState.RECHARGING, SortieState.LANDED):
+                    rejection = CommandRejection(
+                        cmd,
+                        RejectionCode.ILLEGAL_LIFECYCLE_TRANSITION,
+                        f"UAV {uav.id} is in sortie state {uav.sortie_state}, expected RECHARGING",
+                    )
+                else:
+                    staged_uavs[uav.id] = replace(
+                        uav,
+                        sortie_state=SortieState.READY,
+                        rth_state=RTHState.NONE,
+                        battery_energy=uav.battery_capacity,
+                        recharge_start_time=None,
+                        recharge_duration_s=0.0,
+                        active=True,
+                        role=Role.IDLE,
+                        velocity_xy=(0.0, 0.0),
+                        target_position=None,
+                    )
+                    staged_events.append(DomainEvent.create(
+                        simulation_tick=self._simulation_tick,
+                        simulation_time=self._simulation_time,
+                        event_type=EventType.UAV_RECHARGED,
+                        entity_id=uav.id,
+                        payload={"battery_energy": uav.battery_capacity},
+                        sequence=len(events) + len(staged_events),
+                    ))
+                    staged_events.append(DomainEvent.create(
+                        simulation_tick=self._simulation_tick,
+                        simulation_time=self._simulation_time,
+                        event_type=EventType.UAV_ACTIVATED,
+                        entity_id=uav.id,
+                        payload={"reason": "RECHARGE_COMPLETE"},
                         sequence=len(events) + len(staged_events),
                     ))
 

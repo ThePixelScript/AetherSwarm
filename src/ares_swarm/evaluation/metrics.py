@@ -4,7 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Mapping, Sequence
 
-from ..core.enums import TaskStatus
+from ..core.enums import EventType, RTHState, SortieState, TaskStatus
 from ..core.models import StateSnapshot
 
 
@@ -54,6 +54,19 @@ class MissionMetricsReport:
     max_reporting_latency_s: float | None = None
     per_uav_detection_counts: dict[str, int] = field(default_factory=dict)
     per_uav_delivered_counts: dict[str, int] = field(default_factory=dict)
+
+    # Phase 2: Sortie rotation and handoff metrics
+    sorties_started: int = 0
+    sorties_completed: int = 0
+    recharge_count: int = 0
+    RTH_count: int = 0
+    task_handoffs: int = 0
+    successful_task_reassignments: int = 0
+    max_continuous_sortie_duration_s: float = 0.0
+    battery_exhaustions: int = 0
+    landing_deadlocks: int = 0
+    UAVs_landed: int = 0
+    UAVs_ready_at_end: int = 0
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -110,6 +123,19 @@ class MissionMetricsReport:
                 "max_reporting_latency_s": round(self.max_reporting_latency_s, 3) if self.max_reporting_latency_s is not None else None,
                 "per_uav_detection_counts": dict(self.per_uav_detection_counts),
                 "per_uav_delivered_counts": dict(self.per_uav_delivered_counts),
+            },
+            "sortie_rotation": {
+                "sorties_started": self.sorties_started,
+                "sorties_completed": self.sorties_completed,
+                "recharge_count": self.recharge_count,
+                "RTH_count": self.RTH_count,
+                "task_handoffs": self.task_handoffs,
+                "successful_task_reassignments": self.successful_task_reassignments,
+                "max_continuous_sortie_duration_s": round(self.max_continuous_sortie_duration_s, 2),
+                "battery_exhaustions": self.battery_exhaustions,
+                "landing_deadlocks": self.landing_deadlocks,
+                "UAVs_landed": self.UAVs_landed,
+                "UAVs_ready_at_end": self.UAVs_ready_at_end,
             },
         }
 
@@ -248,5 +274,45 @@ def compute_mission_metrics(
         report.max_reporting_latency_s = telem_metrics.get("max_reporting_latency_s")
         report.per_uav_detection_counts = telem_metrics.get("per_uav_detection_counts", {})
         report.per_uav_delivered_counts = telem_metrics.get("per_uav_delivered_counts", {})
+
+    # 6. Sortie Rotation & Handoff Metrics
+    all_events = []
+    for step in step_history:
+        evs = getattr(step, "events", ())
+        if evs:
+            all_events.extend(evs)
+
+    if safety_report and safety_report.uav_flight_records:
+        report.sorties_started = sum(max(1 if rec.takeoff_time is not None else 0, rec.sortie_count) for rec in safety_report.uav_flight_records.values())
+        report.sorties_completed = max(
+            sum(getattr(rec, "sorties_completed", 0) for rec in safety_report.uav_flight_records.values()),
+            sum(1 for e in all_events if getattr(e, "event_type", None) == EventType.SORTIE_COMPLETED),
+        )
+        report.max_continuous_sortie_duration_s = getattr(safety_report, "max_observed_sortie_duration_s", 0.0)
+        report.battery_exhaustions = getattr(safety_report, "battery_exhaustions_count", 0)
+    else:
+        report.sorties_started = sum(1 for e in all_events if getattr(e, "event_type", None) == EventType.SORTIE_STARTED)
+        report.sorties_completed = sum(1 for e in all_events if getattr(e, "event_type", None) in (EventType.SORTIE_COMPLETED, EventType.UAV_LANDED))
+        report.max_continuous_sortie_duration_s = 0.0
+        report.battery_exhaustions = report.battery_exhaustion_count
+
+    report.recharge_count = sum(1 for e in all_events if getattr(e, "event_type", None) == EventType.UAV_RECHARGED)
+    report.RTH_count = sum(1 for e in all_events if getattr(e, "event_type", None) == EventType.RTH_TRIGGERED)
+    report.task_handoffs = sum(1 for e in all_events if getattr(e, "event_type", None) == EventType.TASK_HANDOFF)
+    report.successful_task_reassignments = sum(1 for e in all_events if getattr(e, "event_type", None) == EventType.TASK_REASSIGNED)
+
+    final_uavs = final_snapshot.uavs
+    report.UAVs_landed = sum(
+        1 for u in final_uavs.values()
+        if getattr(u, "sortie_state", None) == SortieState.LANDED or getattr(u, "rth_state", None) == RTHState.COMPLETE
+    )
+    report.UAVs_ready_at_end = sum(
+        1 for u in final_uavs.values()
+        if getattr(u, "sortie_state", None) == SortieState.READY
+    )
+    report.landing_deadlocks = sum(
+        1 for u in final_uavs.values()
+        if getattr(u, "rth_state", None) == RTHState.ACTIVE and getattr(u, "active", False)
+    )
 
     return report

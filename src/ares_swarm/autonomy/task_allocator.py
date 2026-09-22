@@ -162,6 +162,13 @@ class A0TaskAllocator:
         if rth_state in ("REQUIRED", "ACTIVE", "COMPLETE", "RETURNING", "REQUESTED"):
             return False, f"UAV is in RTH state {rth_state}"
 
+        # Sortie State eligibility
+        sortie_state_obj = getattr(uav, "sortie_state", None)
+        if sortie_state_obj is not None:
+            s_val = (sortie_state_obj.value if hasattr(sortie_state_obj, "value") else str(sortie_state_obj)).upper().split(".")[-1]
+            if s_val in ("RECHARGING", "RTH", "LANDING", "LANDED"):
+                return False, f"UAV is in sortie state {s_val}"
+
         # Role eligibility
         role = str(getattr(uav, "role", "IDLE")).upper()
         if role in ("UAVROLE.RETURN_TO_HOME", "RETURN_TO_HOME"):

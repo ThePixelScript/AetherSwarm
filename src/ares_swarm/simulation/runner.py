@@ -15,12 +15,15 @@ from ..autonomy.task_allocator import A0TaskAllocator
 from ..communication.analysis import BaselineCommunicationAnalyzer
 from ..core.commands import (
     AssignTaskCommand,
+    BeginLandingCommand,
+    CompleteRechargeCommand,
     CompleteRTHCommand,
     ProgressTaskCommand,
     SetTargetPositionCommand,
+    StartRechargeCommand,
     StepPhysicsCommand,
 )
-from ..core.enums import RTHState, TaskStatus
+from ..core.enums import RTHState, SortieState, TaskStatus
 from ..core.events import CommandRejection, DomainEvent, EventType, StateTransitionResult
 from ..core.models import StateSnapshot, TaskState, UAVState
 from ..core.simulator import SimulationEngine
@@ -430,27 +433,64 @@ class MissionRunner:
         rejected_commands.extend(step_res.rejected_commands)
         tick_events.extend(step_res.emitted_events)
 
-        # 7. RTH Arrival Completion (Canonical CompleteRTHCommand on GCS arrival)
+        # 7. RTH Arrival Completion and Recharge Lifecycle Management
         snap_post_step = self.state_store.snapshot()
-        complete_rth_cmds = []
+        lifecycle_cmds = []
         gcs_pos = self.scenario.gcs_position
+        challenge_prof = getattr(self.scenario, "challenge_profile", None)
+        recharge_duration_s = float(
+            getattr(challenge_prof, "recharge_duration_s",
+            getattr(getattr(self.scenario.config, "challenge", None), "recharge_duration_s", 300.0))
+        )
+        allow_multi_sortie = not getattr(challenge_prof, "enforce_single_sortie", True)
+
         for uav in sorted(snap_post_step.uavs.values(), key=lambda u: u.id):
-            if uav.rth_state == RTHState.ACTIVE:
-                dx = uav.position_xy[0] - gcs_pos[0]
-                dy = uav.position_xy[1] - gcs_pos[1]
-                dist_to_gcs = (dx**2 + dy**2) ** 0.5
-                if dist_to_gcs <= 0.05:  # Arrived at GCS landing threshold
-                    complete_rth_cmds.append(
-                        CompleteRTHCommand(
-                            source_tick=current_tick,
-                            uav_id=uav.id,
-                        )
+            dx = uav.position_xy[0] - gcs_pos[0]
+            dy = uav.position_xy[1] - gcs_pos[1]
+            dist_to_gcs = (dx**2 + dy**2) ** 0.5
+
+            # Transition to LANDING when entering final approach (< 25m from GCS)
+            if uav.rth_state == RTHState.ACTIVE and dist_to_gcs <= 25.0 and uav.sortie_state == SortieState.RTH:
+                lifecycle_cmds.append(
+                    BeginLandingCommand(source_tick=current_tick, uav_id=uav.id)
+                )
+
+            # Complete landing when reached GCS landing threshold
+            if uav.rth_state == RTHState.ACTIVE and dist_to_gcs <= 0.05:
+                lifecycle_cmds.append(
+                    CompleteRTHCommand(source_tick=current_tick, uav_id=uav.id)
+                )
+
+            # Recharging lifecycle management
+            elif uav.sortie_state == SortieState.LANDED and allow_multi_sortie:
+                lifecycle_cmds.append(
+                    StartRechargeCommand(
+                        source_tick=current_tick,
+                        uav_id=uav.id,
+                        recharge_duration_s=recharge_duration_s,
                     )
-        if complete_rth_cmds:
-            res_complete = self.state_store.apply(complete_rth_cmds)
-            applied_commands.extend(res_complete.applied_commands)
-            rejected_commands.extend(res_complete.rejected_commands)
-            tick_events.extend(res_complete.emitted_events)
+                )
+
+            elif uav.sortie_state == SortieState.RECHARGING:
+                r_start = uav.recharge_start_time if uav.recharge_start_time is not None else snap_post_step.simulation_time
+                r_dur = uav.recharge_duration_s if uav.recharge_duration_s > 0 else recharge_duration_s
+                if snap_post_step.simulation_time >= r_start + r_dur:
+                    lifecycle_cmds.append(
+                        CompleteRechargeCommand(source_tick=current_tick, uav_id=uav.id)
+                    )
+                    # Reset flight record in safety assessor so new sortie starts cleanly
+                    rec = self.safety_assessor.report.uav_flight_records.get(uav.id)
+                    if rec:
+                        rec.is_airborne = False
+                        rec.landing_time = None
+                        rec.current_sortie_duration_s = 0.0
+                        rec.takeoff_time = None
+
+        if lifecycle_cmds:
+            res_lifecycle = self.state_store.apply(lifecycle_cmds)
+            applied_commands.extend(res_lifecycle.applied_commands)
+            rejected_commands.extend(res_lifecycle.rejected_commands)
+            tick_events.extend(res_lifecycle.emitted_events)
 
         # 8. Post-physics analysis, perception detection, and telemetry routing
         post_physics_snap = self.state_store.snapshot()

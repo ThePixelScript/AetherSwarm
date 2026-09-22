@@ -47,6 +47,7 @@ class ChallengeProfileConfig:
     enabled: bool = False
     max_sortie_duration_s: float = 1200.0
     rth_safety_margin_s: float = 15.0
+    recharge_duration_s: float = 300.0
     enforce_sortie_limit: bool = True
     enforce_single_sortie: bool = True
     enforce_separation: bool = False
@@ -155,6 +156,7 @@ def load_scenario(source: str | Path | dict[str, Any]) -> ScenarioConfig:
         enabled=challenge_enabled,
         max_sortie_duration_s=float(challenge_raw.get("max_sortie_duration_s", 1200.0)),
         rth_safety_margin_s=float(challenge_raw.get("rth_safety_margin_s", 15.0)),
+        recharge_duration_s=float(challenge_raw.get("recharge_duration_s", raw.get("recharge_duration_s", 300.0))),
         enforce_sortie_limit=bool(challenge_raw.get("enforce_sortie_limit", True)),
         enforce_single_sortie=bool(challenge_raw.get("enforce_single_sortie", True)),
         enforce_separation=bool(challenge_raw.get("enforce_separation", False)),
@@ -184,6 +186,7 @@ def load_scenario(source: str | Path | dict[str, Any]) -> ScenarioConfig:
         mission_duration_s=duration,
         max_sortie_duration_s=challenge_profile.max_sortie_duration_s,
         rth_safety_margin_s=challenge_profile.rth_safety_margin_s,
+        recharge_duration_s=challenge_profile.recharge_duration_s,
         reporting_deadline_s=challenge_profile.detection_pipeline.reporting_deadline_s,
         detection_fov_radius_m=challenge_profile.detection_pipeline.sensor_fov_radius_m,
         processing_delay_s=challenge_profile.detection_pipeline.processing_delay_s,

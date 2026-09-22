@@ -5,7 +5,7 @@ from types import MappingProxyType
 from typing import Mapping, Optional, Tuple
 
 from .constants import EPSILON
-from .enums import FailureState, HandoverState, Role, RTHState, TaskStatus, TelemetryStatus
+from .enums import FailureState, HandoverState, Role, RTHState, SortieState, TaskStatus, TelemetryStatus
 
 
 @dataclass(frozen=True)
@@ -24,6 +24,10 @@ class UAVState:
     battery_energy: float = 10000.0
     rth_state: RTHState = RTHState.NONE
     handover_state: HandoverState = HandoverState.NONE
+    sortie_state: SortieState = SortieState.READY
+    recharge_start_time: Optional[float] = None
+    recharge_duration_s: float = 0.0
+    sortie_count: int = 0
     hop_count: int = 0
     neighbor_link_states: Mapping[str, float] = field(default_factory=lambda: MappingProxyType({}))
     role_lock_until: float = 0.0

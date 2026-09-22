@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
 
 from ..core.commands import StartRTHCommand
 from ..core.constants import EPSILON
-from ..core.enums import Role, RTHState
+from ..core.enums import Role, RTHState, SortieState
 from ..core.models import StateSnapshot, UAVState
 from ..interfaces.communication import NetworkAnalysis
 from .airspace import ChallengeAirspace, FlightPhase
@@ -33,6 +33,8 @@ class UAVFlightRecord:
     cumulative_airborne_s: float = 0.0
     is_airborne: bool = False
     landing_position: Optional[Tuple[float, float]] = None
+    sortie_count: int = 0
+    sorties_completed: int = 0
 
 
 @dataclass
@@ -168,7 +170,13 @@ class SafetyAssessor:
                 d2_gcs = math.hypot(u2.position_xy[0] - self.gcs_position[0], u2.position_xy[1] - self.gcs_position[1])
 
                 pad_radius = self.airspace.staging_pad_radius_m if self.airspace else 1.0
-                if (d1_gcs <= pad_radius and u1.rth_state == RTHState.COMPLETE) or (d2_gcs <= pad_radius and u2.rth_state == RTHState.COMPLETE):
+                rec1 = self.report.uav_flight_records.get(u1.id)
+                rec2 = self.report.uav_flight_records.get(u2.id)
+                airborne1 = rec1.is_airborne if rec1 else False
+                airborne2 = rec2.is_airborne if rec2 else False
+
+                if (d1_gcs <= pad_radius and (u1.rth_state == RTHState.COMPLETE or not airborne1 or u1.sortie_state in (SortieState.READY, SortieState.RECHARGING, SortieState.LANDED))) or \
+                   (d2_gcs <= pad_radius and (u2.rth_state == RTHState.COMPLETE or not airborne2 or u2.sortie_state in (SortieState.READY, SortieState.RECHARGING, SortieState.LANDED))):
                     continue
                 if self.airspace is None and (d1_gcs <= 1.0 or d2_gcs <= 1.0):
                     continue
@@ -234,13 +242,19 @@ class SafetyAssessor:
 
             # Detect takeoff (requires actual physical movement or departure from pad)
             # A staged UAV that is assigned a task but stationary on pad is NOT airborne
-            if u.active and not rec.is_airborne and rec.landing_time is None:
+            if u.active and not rec.is_airborne and (rec.landing_time is None or not self.enforce_single_sortie):
                 if dist_gcs > pad_radius or speed > EPSILON:
                     rec.takeoff_time = sim_time
                     rec.is_airborne = True
+                    rec.landing_time = None
+                    rec.current_sortie_duration_s = 0.0
+                    rec.sortie_count += 1
                 elif self.airspace is None and dist_gcs > 1.0:
                     rec.takeoff_time = sim_time
                     rec.is_airborne = True
+                    rec.landing_time = None
+                    rec.current_sortie_duration_s = 0.0
+                    rec.sortie_count += 1
 
             # Update airborne duration
             if rec.is_airborne:
@@ -255,6 +269,7 @@ class SafetyAssessor:
                     rec.is_airborne = False
                     rec.landing_position = u.position_xy
                     rec.cumulative_airborne_s += rec.current_sortie_duration_s
+                    rec.sorties_completed += 1
 
                     # Validate landing position if airspace configured
                     if self.airspace is not None:
@@ -334,8 +349,8 @@ class SafetyAssessor:
                 rec = self.report.uav_flight_records.get(u.id)
                 current_sortie = rec.current_sortie_duration_s if rec and rec.is_airborne else 0.0
                 remaining_sortie = max(0.0, self.max_sortie_duration_s - current_sortie)
-                # Transit time to GCS plus safety margin
-                required_rth_time = return_time_s + self.rth_safety_margin_s
+                # Transit time to GCS plus safety margin and deterministic stagger to avoid convergence deadlocks
+                required_rth_time = return_time_s + self.rth_safety_margin_s + stagger_time
                 if remaining_sortie <= required_rth_time + EPSILON:
                     sortie_trigger = True
 

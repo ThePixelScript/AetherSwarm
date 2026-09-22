@@ -41,8 +41,26 @@ class StartRTHCommand(Command):
 
 
 @dataclass(frozen=True)
+class BeginLandingCommand(Command):
+    """Transition UAV to final approach landing state."""
+    pass
+
+
+@dataclass(frozen=True)
 class CompleteRTHCommand(Command):
     """Complete Return-to-Home upon arrival at GCS landing threshold."""
+    pass
+
+
+@dataclass(frozen=True)
+class StartRechargeCommand(Command):
+    """Initiate battery recharge on the ground/staging pad."""
+    recharge_duration_s: float = 300.0
+
+
+@dataclass(frozen=True)
+class CompleteRechargeCommand(Command):
+    """Complete battery recharge, restoring capacity and marking UAV READY."""
     pass
 
 
