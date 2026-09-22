@@ -79,9 +79,20 @@ visualization/webots/
    - Configurable via `AETHERSWARM_SUBSTEPS` (default: 4 sub-steps per tick).
    - Authoritative states, events, HUD metrics, and spatial verifications remain strictly locked to 1.0s ticks.
 
-9. **Interactive Playback & Post-Mission Inspection**:
-   - Respects Webots GUI transport controls (Play, Pause, Fast, Real-Time).
-   - Keeps the 3D world open upon scenario completion with a mission complete banner for presenter inspection (auto-quit disabled by default, enabled via `AETHERSWARM_AUTO_QUIT=1`).
+9. **Interactive Playback & Replay Controls**:
+   - Built-in presentation replay controls with visible clickable HUD buttons: `[ RESET ]`, `[ -3s ]`, `[ -1s ]`, `[ PLAY / PAUSE ]`, `[ +1s ]`, `[ +3s ]`.
+   - Keyboard shortcuts:
+     - `Home` / `R`: Reset to tick 0 and pause
+     - `Left Arrow`: Step backward -1s (-1 tick, clamped at tick 0)
+     - `Shift + Left Arrow`: Step backward -3s (-3 ticks, clamped at tick 0)
+     - `Right Arrow`: Step forward +1s (+1 tick, clamped at final tick)
+     - `Shift + Right Arrow`: Step forward +3s (+3 ticks, clamped at final tick)
+     - `Space` / `P`: Toggle Play/Pause
+   - Direct mouse click support on the in-world HUD buttons.
+   - Immediate visual reconstruction: seeking immediately renders the selected frame, UAV coordinates, yaw headings, drone health indicators, POI statuses, and RF mesh links.
+   - Smooth sub-tick visual interpolation (`AETHERSWARM_SUBSTEPS`) resumes smoothly when playback continues.
+   - Strict immutability: authoritative simulation traces are strictly read-only; seeking only adjusts the observational playback cursor.
+   - Scenario completion holds the final frame open with a mission complete banner for presenter inspection (auto-quit via `AETHERSWARM_AUTO_QUIT=1`).
 
 10. **In-World HUD Telemetry**:
    - Lightweight overlay showing real-time scenario name, tick progress, swarm active/failed counts, POI task completions, and independent spatial verification metrics.

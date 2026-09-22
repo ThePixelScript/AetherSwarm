@@ -25,10 +25,12 @@ from typing import Any
 
 # Webots Controller API
 try:
-    from controller import Supervisor
+    from controller import Keyboard, Mouse, Supervisor
 except ImportError:
     # Running outside Webots for CLI verification / syntax checking / dry-run
     Supervisor = None
+    Keyboard = None
+    Mouse = None
 
 
 LOG_FILE = Path(__file__).resolve().parent / ".." / ".." / "data" / "webots_execution.log"
@@ -158,6 +160,29 @@ class WebotsAetherSwarmSupervisor:
 
         # Visual sub-tick interpolation steps (1 = instantaneous per tick, 4 = smooth presentation default)
         self.sub_steps = 1 if self.is_standalone else max(1, int(os.environ.get("AETHERSWARM_SUBSTEPS", "4")))
+
+        # Interactive Replay Controls State
+        self.playback_cursor = 0
+        self.sub_step_idx = 0
+        self.is_paused = False
+        self._prev_mouse_left = False
+
+        # Input Devices (Keyboard & Mouse)
+        self.keyboard = None
+        self.mouse = None
+        if self.supervisor:
+            try:
+                self.keyboard = self.supervisor.getKeyboard()
+                if self.keyboard:
+                    self.keyboard.enable(self.time_step)
+            except Exception:
+                pass
+            try:
+                self.mouse = self.supervisor.getMouse()
+                if self.mouse:
+                    self.mouse.enable(self.time_step)
+            except Exception:
+                pass
 
         log_msg(f"[Webots Supervisor] Trace scenario: {self.metadata.get('scenario_name')}")
         log_msg(f"[Webots Supervisor] Total simulation ticks: {self.total_ticks}")
@@ -601,9 +626,11 @@ class WebotsAetherSwarmSupervisor:
         # 1. Header Banner
         self.supervisor.setLabel(0, "AETHERSWARM UAV-X RESEARCH DEMONSTRATION", 0.015, 0.015, 0.045, 0xFFFFFF, 0.0, "Arial")
 
-        # 2. Playback & Time
-        time_text = f"Scenario: {scenario}  |  Tick: {sim_tick}/{self.total_ticks}  ({sim_time:.1f}s)"
-        self.supervisor.setLabel(1, time_text, 0.015, 0.050, 0.038, 0x00D0FF, 0.0, "Arial")
+        # 2. Playback, Time & Replay State
+        mode_str = "⏸ PAUSED" if self.is_paused else "▶ PLAYING"
+        mode_color = 0xFFAA22 if self.is_paused else 0x00D0FF
+        time_text = f"Scenario: {scenario}  |  Tick: {sim_tick}/{self.total_ticks}  ({sim_time:.1f}s)  |  {mode_str}"
+        self.supervisor.setLabel(1, time_text, 0.015, 0.050, 0.038, mode_color, 0.0, "Arial")
 
         # 3. Swarm Status
         swarm_color = 0xFF4444 if failed_count > 0 else 0x44FF88
@@ -618,7 +645,16 @@ class WebotsAetherSwarmSupervisor:
         min_sep_text = f"Spatial Verifier: Min Separation: {self.min_observed_separation:.2f}m (Constraint: >= {self.min_separation_m}m)"
         self.supervisor.setLabel(4, min_sep_text, 0.015, 0.140, 0.038, 0x55FFBB, 0.0, "Arial")
 
-        # 6. Top-Center Event Alert Banner
+        # 6. Interactive Replay Controls Bar (Visible clickable buttons)
+        play_btn = "▶ PLAY" if self.is_paused else "⏸ PAUSE"
+        btn_bar = f"[ RESET ]    [ -3s ]    [ -1s ]    [ {play_btn} ]    [ +1s ]    [ +3s ]"
+        self.supervisor.setLabel(6, btn_bar, 0.015, 0.170, 0.038, 0xFFDD44, 0.0, "Arial")
+
+        # 7. Keyboard Shortcuts Guide
+        hint_text = "Controls: [Home]=Reset  [Shift+Left]=-3s  [Left]=-1s  [Space]=Play/Pause  [Right]=+1s  [Shift+Right]=+3s"
+        self.supervisor.setLabel(7, hint_text, 0.015, 0.198, 0.030, 0x99BBDD, 0.0, "Arial")
+
+        # 8. Top-Center Event Alert Banner
         if self._last_event_banner:
             banner_color = 0xFF3333 if "ALERT" in self._last_event_banner else 0x33DDFF
             self.supervisor.setLabel(5, self._last_event_banner, 0.28, 0.015, 0.042, banner_color, 0.0, "Arial")
@@ -668,8 +704,171 @@ class WebotsAetherSwarmSupervisor:
                 self.verification_log.append(msg)
                 print(f"  [Webots Spatial Warning] {msg}")
 
+    def seek_to(self, target_tick: int, pause: bool | None = None) -> None:
+        """Seek replay cursor to target authoritative tick, clamped to [0, total_ticks - 1].
+
+        Immediately reconstructs and renders the full visual scene.
+        Never mutates the trace or authoritative simulation state.
+        """
+        clamped = max(0, min(target_tick, self.total_ticks - 1))
+        self.playback_cursor = clamped
+        self.sub_step_idx = 0
+        if pause is not None:
+            self.is_paused = pause
+
+        if clamped == 0:
+            self._last_event_banner = ""
+
+        step = self.ticks[self.playback_cursor]
+        sim_tick = step["tick"]
+        sim_time = step["time"]
+        state_str = "PAUSED" if self.is_paused else "PLAYING"
+        log_msg(f"[Webots Replay] Seek -> Tick {sim_tick}/{self.total_ticks} ({sim_time:.1f}s) [{state_str}]")
+
+        # Immediately reconstruct visual frame for the selected tick
+        self.render_frame(self.playback_cursor, alpha=0.0)
+
+    def seek_relative(self, delta_ticks: int) -> None:
+        """Seek replay cursor relative to current position by delta ticks."""
+        self.seek_to(self.playback_cursor + delta_ticks)
+
+    def toggle_play_pause(self) -> None:
+        """Toggle playback between playing and paused."""
+        self.is_paused = not self.is_paused
+        state_str = "PAUSED" if self.is_paused else "RESUMED"
+        log_msg(f"[Webots Replay] Playback {state_str} at Tick {self.playback_cursor}")
+        # Refresh HUD label to reflect new state immediately
+        step = self.ticks[self.playback_cursor]
+        self.update_hud(step["tick"], step["time"], step["uavs"], step["tasks"], step.get("events", []))
+
+    def process_input(self) -> None:
+        """Handle keyboard shortcuts and mouse clicks for interactive presentation replay."""
+        if not self.supervisor:
+            return
+
+        # 1. Keyboard Shortcuts
+        if self.keyboard:
+            key = self.keyboard.getKey()
+            while key > 0:
+                base_key = key & 0xFFFF
+                is_shift = bool(key & 65536)  # Keyboard.SHIFT is 65536
+
+                if base_key == 314:  # Keyboard.LEFT
+                    if is_shift:
+                        self.seek_relative(-3)  # Shift+Left: -3s
+                    else:
+                        self.seek_relative(-1)  # Left: -1s
+                elif base_key == 316:  # Keyboard.RIGHT
+                    if is_shift:
+                        self.seek_relative(+3)  # Shift+Right: +3s
+                    else:
+                        self.seek_relative(+1)  # Right: +1s
+                elif base_key in (32, ord("p"), ord("P")):  # Space / P
+                    self.toggle_play_pause()
+                elif base_key in (313, ord("r"), ord("R")):  # Home / R
+                    self.seek_to(0, pause=True)         # Reset to 0 and pause
+
+                key = self.keyboard.getKey()
+
+        # 2. Mouse Click Detection on HUD Control Buttons
+        if self.mouse:
+            m_state = self.mouse.getState()
+            is_click = m_state.left and not self._prev_mouse_left
+            self._prev_mouse_left = m_state.left
+
+            if is_click:
+                u, v = m_state.u, m_state.v
+                # Check top HUD control bar (v in [0.150, 0.205])
+                if 0.150 <= v <= 0.205:
+                    if 0.010 <= u < 0.090:
+                        self.seek_to(0, pause=True)       # [ RESET ]
+                    elif 0.090 <= u < 0.165:
+                        self.seek_relative(-3)            # [ -3s ]
+                    elif 0.165 <= u < 0.240:
+                        self.seek_relative(-1)            # [ -1s ]
+                    elif 0.240 <= u < 0.380:
+                        self.toggle_play_pause()          # [ PLAY / PAUSE ]
+                    elif 0.380 <= u < 0.455:
+                        self.seek_relative(+1)            # [ +1s ]
+                    elif 0.455 <= u < 0.550:
+                        self.seek_relative(+3)            # [ +3s ]
+                # Check bottom bar (v in [0.880, 1.000]) if clicked near bottom
+                elif 0.880 <= v <= 1.000:
+                    if 0.150 <= u < 0.280:
+                        self.seek_to(0, pause=True)       # [ RESET ]
+                    elif 0.280 <= u < 0.380:
+                        self.seek_relative(-3)            # [ -3s ]
+                    elif 0.380 <= u < 0.480:
+                        self.seek_relative(-1)            # [ -1s ]
+                    elif 0.480 <= u < 0.620:
+                        self.toggle_play_pause()          # [ PLAY / PAUSE ]
+                    elif 0.620 <= u < 0.720:
+                        self.seek_relative(+1)            # [ +1s ]
+                    elif 0.720 <= u < 0.850:
+                        self.seek_relative(+3)            # [ +3s ]
+
+    def render_frame(self, tick_idx: int, alpha: float = 0.0) -> None:
+        """Reconstruct and render the complete visual scene for a given tick and interpolation fraction."""
+        if tick_idx < 0 or tick_idx >= self.total_ticks:
+            return
+
+        step = self.ticks[tick_idx]
+        sim_tick = step["tick"]
+        sim_time = step["time"]
+        uavs = step["uavs"]
+        tasks = step["tasks"]
+        network = step.get("network", {})
+        events = step.get("events", [])
+
+        # Target next tick for visual interpolation
+        next_step = self.ticks[min(tick_idx + 1, self.total_ticks - 1)]
+        next_uavs = next_step.get("uavs", {})
+
+        # Compute interpolated positions & yaw
+        interp_positions: dict[str, list[float]] = {}
+        for uid, u_state in uavs.items():
+            p0 = u_state["position"]
+            y0 = u_state.get("yaw", 0.0)
+            if uid in next_uavs:
+                p1 = next_uavs[uid]["position"]
+                y1 = next_uavs[uid].get("yaw", 0.0)
+            else:
+                p1 = p0
+                y1 = y0
+
+            p_interp = [
+                (1.0 - alpha) * p0[0] + alpha * p1[0],
+                (1.0 - alpha) * p0[1] + alpha * p1[1],
+                (1.0 - alpha) * p0[2] + alpha * p1[2],
+            ]
+            dyaw = ((y1 - y0 + math.pi) % (2.0 * math.pi)) - math.pi
+            y_interp = y0 + alpha * dyaw
+
+            interp_positions[uid] = p_interp
+
+            if self.supervisor:
+                trans_field = self.drone_trans_fields.get(uid)
+                if trans_field:
+                    trans_field.setSFVec3f(p_interp)
+                rot_field = self.drone_rot_fields.get(uid)
+                if rot_field:
+                    rot_field.setSFRotation([0.0, 0.0, 1.0, y_interp])
+                self.update_drone_appearance(uid, u_state)
+
+        if self.supervisor:
+            for tid, t_state in tasks.items():
+                self.update_poi_appearance(tid, t_state)
+
+            self.update_comm_mesh(
+                network.get("active_links", []),
+                network.get("routes_to_gcs", {}),
+                interp_positions,
+            )
+            self.update_drop_lines(interp_positions)
+            self.update_hud(sim_tick, sim_time, uavs, tasks, events)
+
     def run(self) -> None:
-        """Execute playback loop driven by authoritative trace steps with smooth visual sub-tick interpolation."""
+        """Execute interactive presentation playback loop."""
         log_msg("[Webots Supervisor] Commencing simulation playback and spatial verification...")
 
         # Optional simulation mode override (e.g. AETHERSWARM_SIM_MODE=fast or realtime)
@@ -690,137 +889,109 @@ class WebotsAetherSwarmSupervisor:
         if self.supervisor:
             screenshot_dir.mkdir(parents=True, exist_ok=True)
 
-        for tick_idx in range(self.total_ticks):
-            step = self.ticks[tick_idx]
+        # Initial frame render at tick 0
+        self.seek_to(0, pause=False)
+
+        # Track evaluated ticks to avoid duplicate verification logging during seeking
+        verified_ticks: set[int] = set()
+
+        def evaluate_authoritative_tick(tick: int) -> None:
+            step = self.ticks[tick]
             sim_tick = step["tick"]
             sim_time = step["time"]
             uavs = step["uavs"]
-            tasks = step["tasks"]
-            network = step.get("network", {})
             events = step.get("events", [])
 
-            # Print significant domain events
-            for ev in events:
-                ev_type = ev.get("type")
-                if ev_type in ("UAV_FAILED", "TASK_DEFERRED", "TASK_ASSIGNED", "TASK_COMPLETED", "RTH_TRIGGERED", "UAV_LANDED"):
-                    log_msg(f"  [Authoritative Event @ Tick {sim_tick} ({sim_time}s)] {ev_type} -> {ev.get('entity_id')} payload={ev.get('payload')}")
+            # Print domain events only on first encounter
+            if tick not in verified_ticks:
+                for ev in events:
+                    ev_type = ev.get("type")
+                    if ev_type in ("UAV_FAILED", "TASK_DEFERRED", "TASK_ASSIGNED", "TASK_COMPLETED", "RTH_TRIGGERED", "UAV_LANDED"):
+                        log_msg(f"  [Authoritative Event @ Tick {sim_tick} ({sim_time}s)] {ev_type} -> {ev.get('entity_id')} payload={ev.get('payload')}")
 
-            # Determine authoritative active positions for spatial verification
-            current_active_positions: dict[str, list[float]] = {}
-            for uid, u_state in uavs.items():
-                if u_state.get("active", True) and u_state.get("failure_state") != "FAILED":
-                    current_active_positions[uid] = u_state["position"]
-
-            # 1. Update discrete domain appearances strictly from authoritative state
-            if self.supervisor:
+                current_active_positions: dict[str, list[float]] = {}
                 for uid, u_state in uavs.items():
-                    self.update_drone_appearance(uid, u_state)
+                    if u_state.get("active", True) and u_state.get("failure_state") != "FAILED":
+                        current_active_positions[uid] = u_state["position"]
 
-                for tid, t_state in tasks.items():
-                    self.update_poi_appearance(tid, t_state)
+                self.perform_spatial_verification(sim_tick, sim_time, current_active_positions)
+                verified_ticks.add(tick)
 
-                # 2. Update in-world HUD telemetry with authoritative tick/time
-                self.update_hud(sim_tick, sim_time, uavs, tasks, events)
+                if sim_tick % 100 == 0 or sim_tick == self.total_ticks - 1:
+                    log_msg(f"  [Webots Playback] Progress: tick {sim_tick}/{self.total_ticks} ({sim_time:.1f}s)")
 
-            # 3. Perform independent observational spatial verification on authoritative coordinates
-            self.perform_spatial_verification(sim_tick, sim_time, current_active_positions)
-
-            # Capture key demonstration screenshots
-            if self.supervisor and sim_tick in (0, 8, 21, 300, 305):
-                shot_path = screenshot_dir / f"webots_tick_{sim_tick}.png"
-                try:
-                    self.supervisor.exportImage(str(shot_path), 95)
-                except Exception:
-                    pass
-
-            if sim_tick % 100 == 0 or sim_tick == self.total_ticks - 1:
-                log_msg(f"  [Webots Playback] Progress: tick {sim_tick}/{self.total_ticks} ({sim_time:.1f}s)")
-
-            # 4. Visual rendering with sub-tick interpolation across Webots animation frames
-            if self.supervisor:
-                # Target next tick state for interpolation
-                next_step = self.ticks[tick_idx + 1] if tick_idx + 1 < self.total_ticks else step
-                next_uavs = next_step.get("uavs", {})
-
-                # Render intermediate visual states between tick k and k+1
-                sub_count = 1 if tick_idx == self.total_ticks - 1 else self.sub_steps
-                for sub_idx in range(sub_count):
-                    alpha = float(sub_idx) / float(sub_count)
-                    interp_positions: dict[str, list[float]] = {}
-
-                    for uid, u_state in uavs.items():
-                        p0 = u_state["position"]
-                        y0 = u_state.get("yaw", 0.0)
-
-                        if uid in next_uavs:
-                            p1 = next_uavs[uid]["position"]
-                            y1 = next_uavs[uid].get("yaw", 0.0)
-                        else:
-                            p1 = p0
-                            y1 = y0
-
-                        # Linear translation interpolation: p(alpha) = (1 - alpha)*p0 + alpha*p1
-                        p_interp = [
-                            (1.0 - alpha) * p0[0] + alpha * p1[0],
-                            (1.0 - alpha) * p0[1] + alpha * p1[1],
-                            (1.0 - alpha) * p0[2] + alpha * p1[2],
-                        ]
-
-                        # Shortest-path angular heading interpolation with correct [-pi, pi] wraparound
-                        dyaw = ((y1 - y0 + math.pi) % (2.0 * math.pi)) - math.pi
-                        y_interp = y0 + alpha * dyaw
-
-                        interp_positions[uid] = p_interp
-
-                        trans_field = self.drone_trans_fields.get(uid)
-                        if trans_field:
-                            trans_field.setSFVec3f(p_interp)
-
-                        rot_field = self.drone_rot_fields.get(uid)
-                        if rot_field:
-                            rot_field.setSFRotation([0.0, 0.0, 1.0, y_interp])
-
-                    # Smooth visual update for communication links and altitude drop-lines
-                    self.update_comm_mesh(
-                        network.get("active_links", []),
-                        network.get("routes_to_gcs", {}),
-                        interp_positions,
-                    )
-                    self.update_drop_lines(interp_positions)
-
-                    # Advance Webots simulation by one physics time step
-                    step_result = self.supervisor.step(self.time_step)
-                    if step_result == -1:
-                        log_msg("[Webots Supervisor] Simulation window closed by user.")
-                        return
-
-        # Final Spatial Verification Report
-        self.output_verification_report()
-
-        # Post-mission presentation state: keep world open for presenter inspection
-        if self.supervisor:
-            log_msg("[Webots Supervisor] Reached final trace tick. Scenario execution complete.")
-            log_msg("[Webots Supervisor] Mission finished: simulation paused for presenter inspection.")
-            try:
-                self.supervisor.setLabel(
-                    5,
-                    "MISSION COMPLETE - ALL TASKS SERVICED & SWARM SAFELY LANDED",
-                    0.20,
-                    0.015,
-                    0.042,
-                    0x44FF88,
-                    0.0,
-                    "Arial",
-                )
-                auto_quit = os.environ.get("AETHERSWARM_AUTO_QUIT", "").strip().lower() in ("1", "true", "yes")
-                if auto_quit:
-                    self.supervisor.simulationQuit(0)
-                else:
-                    self.supervisor.simulationSetMode(Supervisor.SIMULATION_MODE_PAUSE)
-                    while self.supervisor.step(self.time_step) != -1:
+                # Capture key demonstration screenshots
+                if self.supervisor and sim_tick in (0, 8, 21, 300, 305):
+                    shot_path = screenshot_dir / f"webots_tick_{sim_tick}.png"
+                    try:
+                        self.supervisor.exportImage(str(shot_path), 95)
+                    except Exception:
                         pass
-            except Exception:
-                pass
+
+        # Evaluate tick 0 initially
+        evaluate_authoritative_tick(0)
+
+        # Main interactive simulation loop
+        while True:
+            # 1. Process user input (keyboard shortcuts & mouse clicks)
+            if self.supervisor:
+                self.process_input()
+
+            # 2. If playing, advance sub-step interpolation
+            if not self.is_paused:
+                self.sub_step_idx += 1
+                if self.sub_step_idx >= self.sub_steps:
+                    self.sub_step_idx = 0
+                    if self.playback_cursor < self.total_ticks - 1:
+                        self.playback_cursor += 1
+                        evaluate_authoritative_tick(self.playback_cursor)
+                    else:
+                        # Reached final tick -> pause at end
+                        self.is_paused = True
+                        log_msg("[Webots Supervisor] Reached final trace tick. Scenario execution complete.")
+                        log_msg("[Webots Supervisor] Mission finished: simulation paused for presenter inspection.")
+                        self.output_verification_report()
+
+                        # Refresh HUD with completion banner
+                        try:
+                            self.supervisor.setLabel(
+                                5,
+                                "MISSION COMPLETE - ALL TASKS SERVICED & SWARM SAFELY LANDED",
+                                0.20,
+                                0.015,
+                                0.042,
+                                0x44FF88,
+                                0.0,
+                                "Arial",
+                            )
+                        except Exception:
+                            pass
+
+                        auto_quit = os.environ.get("AETHERSWARM_AUTO_QUIT", "").strip().lower() in ("1", "true", "yes")
+                        if auto_quit:
+                            if self.supervisor:
+                                self.supervisor.simulationQuit(0)
+                            return
+
+                alpha = float(self.sub_step_idx) / float(self.sub_steps)
+                self.render_frame(self.playback_cursor, alpha=alpha)
+
+            # 3. Advance Webots simulation clock or advance standalone loop
+            if self.supervisor:
+                step_res = self.supervisor.step(self.time_step)
+                if step_res == -1:
+                    log_msg("[Webots Supervisor] Simulation window closed by user.")
+                    return
+            else:
+                # Standalone verification mode: advance tick by tick until complete
+                if self.playback_cursor < self.total_ticks - 1:
+                    self.playback_cursor += 1
+                    evaluate_authoritative_tick(self.playback_cursor)
+                else:
+                    break
+
+        if not self.supervisor:
+            self.output_verification_report()
 
     def output_verification_report(self) -> None:
         """Output summary of independent spatial verification."""
