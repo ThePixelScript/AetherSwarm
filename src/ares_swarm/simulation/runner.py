@@ -280,6 +280,7 @@ class MissionRunner:
             dt=self.scenario.dt,
             idle_rate=self.scenario.battery_idle_rate,
             movement_rate=self.scenario.battery_movement_rate,
+            max_speed=self.scenario.speed_limit,
         )
         self.safety_assessor.reset()
         if self.detection_manager is not None:

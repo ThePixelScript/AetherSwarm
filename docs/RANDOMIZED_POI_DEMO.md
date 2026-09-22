@@ -29,22 +29,20 @@ flowchart LR
 
 ---
 
-## 2. Rejection Sampling & Geometric Constraints
+## 2. POI Sampling & Geometric Placement
 
-POIs are generated using spatial rejection sampling subject to the following rules:
+POIs are sampled randomly across the configured arena bounds; the generator does not enforce quadrant or regional distribution.
 
 1. **Count**: Exactly 10 POIs (`poi_01` to `poi_10`).
 2. **Operational Arena Containment**:
-   - Standard operational arena is $x \in [0.0, 1000.0]$, $y \in [0.0, 1000.0]$.
-   - Boundary margin: configurable (default $\ge 30.0$ m).
-   - Ingress corridor exclusion: $x \ge \text{margin} > 0.0$ guarantees no POI is ever placed in the staging/corridor area ($x \le 0.0$).
-3. **Anti-Clustering & Anti-Grid**:
-   - Coordinates are drawn from continuous uniform distributions rather than discretized grid steps.
-   - Rejection condition: if $\text{dist}(p_\text{new}, p_i) < \text{min\_spacing}$ for any existing $p_i$, $p_\text{new}$ is rejected and resampled.
-4. **Operational Swarm Reach (Default Demonstration Corridor)**:
-   - By default, POIs are sampled within $x \in [60.0, 420.0]$ and $y \in [220.0, 780.0]$ to demonstrate multi-hop RF mesh connectivity and active servicing within the 1200s battery endurance limit.
-   - For unrestricted arena sampling, pass `--full-arena` ($x, y \in [30.0, 970.0]$).
-5. **Deterministic Ordering**:
+   - Standard operational arena bounds: $x \in [5.0, 995.0]$, $y \in [5.0, 995.0]$ (configured via `ScenarioGenConfig.x_range` and `y_range`).
+   - Boundary margin: configurable (default $0.0$ m; bounds explicitly constrain coordinates within the valid arena).
+   - Ingress corridor exclusion: $x \ge 5.0 > 0.0$ guarantees no POI is ever placed in the staging/corridor area ($x \le 0.0$).
+3. **Independent Uniform Random Placement**:
+   - By default (`min_spacing_m = 0.0`), X and Y coordinates are sampled independently from Uniform(5.0, 995.0).
+   - No quadrant balancing, no sector allocation, no grid placement, and no intentional spatial spreading.
+   - When minimum spacing is explicitly requested (`min_spacing_m > 0.0`), deterministic seeded rejection sampling enforces that constraint (producing constrained random placement, not independent uniform samples).
+4. **Deterministic Ordering**:
    - When multiple POIs have identical spawn times, ties are deterministically resolved by lexicographic task ID sorting (`(t["spawn_time"], t["id"])`).
 
 ---
@@ -67,12 +65,12 @@ The generator script is located at [`scripts/generate_random_demo.py`](file:///h
 | Argument | Type | Default | Description |
 |---|---|---|---|
 | `--seed` | `int` | `2026` | PRNG seed for deterministic scenario and trace generation |
-| `--num-pois` | `int` | `10` | Number of POIs to place (must be 10 for UAV-X challenge) |
-| `--min-spacing` | `float` | `40.0` | Minimum pairwise 2D Euclidean distance between POIs (meters) |
-| `--margin` | `float` | `30.0` | Minimum clearance distance from arena boundaries (meters) |
+| `--num-pois` | `int` | `10` | Number of POIs to place (10 default) |
+| `--min-spacing` | `float` | `0.0` | Minimum pairwise distance in meters (0.0 = direct independent uniform sampling; >0 enables rejection sampling) |
+| `--margin` | `float` | `0.0` | Optional margin from operational arena boundaries in meters |
 | `--spawn-start` | `float` | `0.0` | Earliest POI appearance time (seconds) |
 | `--spawn-end` | `float` | `300.0` | Latest POI appearance time (seconds) |
-| `--full-arena` | `flag` | `False` | Expand sampling across full $[30, 970] \times [30, 970]$ arena |
+| `--full-arena` | `flag` | `False` | Sample across full arena bounds |
 | `--output-scenario` | `path` | `scenarios/demo_random_seed_{seed}.yaml` | Destination scenario YAML file |
 | `--output-trace` | `path` | `visualization/webots/data/random_demo_trace.json` | Destination JSON trace file |
 | `--max-ticks` | `int` | `None` | Optional tick limit (default: full duration 2700 ticks) |

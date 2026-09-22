@@ -41,85 +41,121 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "src"))
 sys.path.insert(0, str(REPO_ROOT / "scripts"))
 
+from ares_swarm.config import ScenarioGenConfig
 from export_webots_trace import export_trace
 
 
 def sample_random_pois(
-    seed: int,
+    seed: int = 42,
     num_pois: int = 10,
-    min_spacing: float = 40.0,
-    margin: float = 30.0,
+    min_spacing: float = 0.0,
+    margin: float = 0.0,
     arena_size_x: float = 1000.0,
     arena_size_y: float = 1000.0,
     x_range: tuple[float, float] | None = None,
     y_range: tuple[float, float] | None = None,
     spawn_window: tuple[float, float] = (0.0, 300.0),
     max_attempts: int = 20000,
+    config: ScenarioGenConfig | None = None,
 ) -> list[dict[str, Any]]:
-    """Sample non-overlapping, non-grid POIs using rejection sampling.
+    """Sample POIs across the configured arena bounds.
+
+    POIs are sampled randomly across the configured arena bounds; the generator
+    does not enforce quadrant or regional distribution.
+
+    Placement modes:
+      - When min_spacing <= 0.0 (default): Direct independent uniform sampling
+        from Uniform(x_min, x_max) and Uniform(y_min, y_max) with zero spatial rejection,
+        no quadrant balancing, no sector allocation, and no grid constraints.
+      - When min_spacing > 0.0: Deterministic seeded rejection sampling enforces the
+        requested minimum pairwise spacing (producing constrained random placement,
+        not independent uniform samples).
 
     Guarantees:
-      1. Exactly num_pois (10) generated.
-      2. Pairwise 2D Euclidean distance >= min_spacing between all POIs.
-      3. At least margin away from operational arena boundaries.
-      4. Strictly inside the arena (x >= margin > 0, never in corridor/staging).
-      5. Continuous coordinate distribution (no grid pattern or artificial clustering).
-      6. Deterministic ordering when spawn times are identical (sorted by spawn_time, then id).
-      7. Fully reproducible from seed.
+      1. Exactly num_pois (10 by default) generated.
+      2. Coordinates lie strictly within [x_min, x_max] and [y_min, y_max] (default: [5.0, 995.0]).
+      3. No quadrant balancing, sector coverage, or grid placement.
+      4. Deterministic ordering: sorted by spawn_time then id.
+      5. Bit-for-bit reproducible from seed.
     """
-    rng = random.Random(seed)
+    if config is not None:
+        seed = config.seed
+        num_pois = config.num_pois
+        min_spacing = config.min_spacing_m
+        margin = config.margin_m
+        x_range = config.x_range
+        y_range = config.y_range
+        spawn_window = config.spawn_window_s
 
+    # Default randomized placement bounds: (5.0, 995.0) on both axes
     if x_range is not None:
         x_min, x_max = x_range
     else:
-        # Default operational swarm demonstration corridor
-        x_min, x_max = max(margin, 60.0), min(arena_size_x - margin, 420.0)
+        x_min, x_max = (5.0, arena_size_x - 5.0)
 
     if y_range is not None:
         y_min, y_max = y_range
     else:
-        y_min, y_max = max(margin, 220.0), min(arena_size_y - margin, 780.0)
+        y_min, y_max = (5.0, arena_size_y - 5.0)
 
-    # Clamp sampling bounds strictly to valid arena interior
-    x_min = max(margin, min(x_min, arena_size_x - margin))
-    x_max = max(x_min, min(x_max, arena_size_x - margin))
-    y_min = max(margin, min(y_min, arena_size_y - margin))
-    y_max = max(y_min, min(y_max, arena_size_y - margin))
+    if margin > 0.0:
+        x_min = max(margin, x_min)
+        x_max = min(arena_size_x - margin, x_max)
+        y_min = max(margin, y_min)
+        y_max = min(arena_size_y - margin, y_max)
 
+    rng = random.Random(seed)
     tasks: list[dict[str, Any]] = []
-    attempts = 0
 
-    while len(tasks) < num_pois and attempts < max_attempts:
-        attempts += 1
-        px = round(rng.uniform(x_min, x_max), 2)
-        py = round(rng.uniform(y_min, y_max), 2)
+    if min_spacing <= 0.0:
+        # Direct independent uniform sampling with no spatial rejection
+        for i in range(num_pois):
+            px = round(rng.uniform(x_min, x_max), 2)
+            py = round(rng.uniform(y_min, y_max), 2)
+            tid = f"poi_{i + 1:02d}"
+            priority = rng.choice([1, 2, 3])
+            spawn_time = round(rng.uniform(spawn_window[0], spawn_window[1]), 1)
 
-        # Rejection: check pairwise distance against all previously accepted POIs
-        too_close = any(
-            math.hypot(px - t["position"][0], py - t["position"][1]) < min_spacing
-            for t in tasks
-        )
-        if too_close:
-            continue
+            tasks.append({
+                "id": tid,
+                "position": [px, py],
+                "priority": priority,
+                "spawn_time": spawn_time,
+                "deadline_offset": 10.0,
+                "service_duration": 2.0,
+            })
+    else:
+        # Constrained random placement using deterministic rejection sampling
+        attempts = 0
+        while len(tasks) < num_pois and attempts < max_attempts:
+            attempts += 1
+            px = round(rng.uniform(x_min, x_max), 2)
+            py = round(rng.uniform(y_min, y_max), 2)
 
-        tid = f"poi_{len(tasks) + 1:02d}"
-        priority = rng.choice([1, 2, 3])
-        spawn_time = round(rng.uniform(spawn_window[0], spawn_window[1]), 1)
+            too_close = any(
+                math.hypot(px - t["position"][0], py - t["position"][1]) < min_spacing
+                for t in tasks
+            )
+            if too_close:
+                continue
 
-        tasks.append({
-            "id": tid,
-            "position": [px, py],
-            "priority": priority,
-            "spawn_time": spawn_time,
-            "deadline_offset": 10.0,
-            "service_duration": 2.0,
-        })
+            tid = f"poi_{len(tasks) + 1:02d}"
+            priority = rng.choice([1, 2, 3])
+            spawn_time = round(rng.uniform(spawn_window[0], spawn_window[1]), 1)
 
-    if len(tasks) < num_pois:
-        raise RuntimeError(
-            f"Failed to place {num_pois} POIs with min_spacing={min_spacing}m after {max_attempts} attempts. "
-            f"Try decreasing min_spacing or expanding the sampling area."
-        )
+            tasks.append({
+                "id": tid,
+                "position": [px, py],
+                "priority": priority,
+                "spawn_time": spawn_time,
+                "deadline_offset": 10.0,
+                "service_duration": 2.0,
+            })
+
+        if len(tasks) < num_pois:
+            raise RuntimeError(
+                f"Failed to place {num_pois} POIs with min_spacing={min_spacing}m after {max_attempts} attempts."
+            )
 
     # Deterministic tie-breaking: sort strictly by spawn_time then id
     tasks.sort(key=lambda t: (t["spawn_time"], t["id"]))
@@ -197,6 +233,24 @@ def generate_demo_scenario_dict(
                 "max_height": 100.0,
             },
         },
+        "config": {
+            "challenge": {
+                "arena_bounds_x": [0.0, arena_size],
+                "arena_bounds_y": [0.0, arena_size],
+                "speed_limit_mps": speed_limit,
+                "comm_range_m": comm_range,
+                "min_separation_m": min_separation,
+            },
+            "features": {
+                "enforce_separation": True,
+                "enforce_geofence": True,
+            },
+            "scenario": {
+                "seed": seed,
+                "scenario_type": "random_demo",
+                "num_pois": len(tasks),
+            },
+        },
         "uavs": uavs_data,
         "tasks": tasks,
     }
@@ -234,8 +288,8 @@ def compute_poi_metrics(tasks: list[dict[str, Any]]) -> dict[str, Any]:
 def generate_and_export_demo(
     seed: int = 2026,
     num_pois: int = 10,
-    min_spacing: float = 40.0,
-    margin: float = 30.0,
+    min_spacing: float = 0.0,
+    margin: float = 0.0,
     spawn_start: float = 0.0,
     spawn_end: float = 300.0,
     full_arena: bool = False,
@@ -245,15 +299,23 @@ def generate_and_export_demo(
     output_trace: str | Path | None = None,
     max_ticks: int | None = None,
     run_simulation: bool = True,
+    config: ScenarioGenConfig | None = None,
 ) -> dict[str, Any]:
     """Execute the full demo generation and export pipeline deterministically."""
-    # Determine sampling spatial bounds
-    if full_arena:
-        x_range = (margin, 1000.0 - margin)
-        y_range = (margin, 1000.0 - margin)
-    else:
+    # Determine sampling spatial bounds (default: independent uniform across (5.0, 995.0))
+    if custom_x_range is not None:
         x_range = custom_x_range
+    elif margin > 0.0:
+        x_range = (max(margin, 5.0), min(1000.0 - margin, 995.0))
+    else:
+        x_range = (5.0, 995.0)
+
+    if custom_y_range is not None:
         y_range = custom_y_range
+    elif margin > 0.0:
+        y_range = (max(margin, 5.0), min(1000.0 - margin, 995.0))
+    else:
+        y_range = (5.0, 995.0)
 
     # 1. Sample POIs
     tasks = sample_random_pois(
@@ -264,6 +326,7 @@ def generate_and_export_demo(
         x_range=x_range,
         y_range=y_range,
         spawn_window=(spawn_start, spawn_end),
+        config=config,
     )
 
     # 2. Build scenario dictionary
@@ -317,11 +380,11 @@ def main() -> int:
     )
     parser.add_argument("--seed", type=int, default=2026, help="Deterministic random seed (default: 2026)")
     parser.add_argument("--num-pois", type=int, default=10, help="Number of POIs to generate (default: 10)")
-    parser.add_argument("--min-spacing", type=float, default=40.0, help="Minimum POI-to-POI 2D Euclidean distance in meters (default: 40.0)")
-    parser.add_argument("--margin", type=float, default=30.0, help="Minimum margin from operational arena boundaries in meters (default: 30.0)")
+    parser.add_argument("--min-spacing", type=float, default=0.0, help="Minimum POI-to-POI 2D Euclidean distance in meters (default: 0.0 for direct independent uniform sampling; >0 enables rejection sampling constraint)")
+    parser.add_argument("--margin", type=float, default=0.0, help="Minimum margin from operational arena boundaries in meters (default: 0.0)")
     parser.add_argument("--spawn-start", type=float, default=0.0, help="Spawn window start time in seconds (default: 0.0)")
     parser.add_argument("--spawn-end", type=float, default=300.0, help="Spawn window end time in seconds (default: 300.0)")
-    parser.add_argument("--full-arena", action="store_true", help="Sample across the full 1000m x 1000m arena rather than the multi-hop demonstration corridor")
+    parser.add_argument("--full-arena", action="store_true", help="Sample across the full 1000m x 1000m arena")
     parser.add_argument("--x-range", nargs=2, type=float, default=None, metavar=("X_MIN", "X_MAX"), help="Custom X sampling bounds")
     parser.add_argument("--y-range", nargs=2, type=float, default=None, metavar=("Y_MIN", "Y_MAX"), help="Custom Y sampling bounds")
     parser.add_argument("--output-scenario", "-o", type=str, default=None, help="Output YAML scenario path")

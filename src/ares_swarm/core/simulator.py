@@ -26,6 +26,7 @@ class SimulationEngine:
         dt: float = 1.0,
         idle_rate: float = 1.0,
         movement_rate: float = 0.5,
+        max_speed: float = 5.0,
     ):
         if dt <= 0:
             raise ValueError("dt must be greater than 0")
@@ -34,7 +35,7 @@ class SimulationEngine:
         self.dt = dt
         self.idle_rate = idle_rate
         self.movement_rate = movement_rate
-        self.max_speed = 5.0
+        self.max_speed = max_speed
         self.event_scheduler = EventScheduler()
 
     def advance_tick(self) -> float:

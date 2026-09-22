@@ -8,6 +8,13 @@ from typing import Any, Mapping, Sequence, Tuple
 import yaml
 
 from ..communication.config import CommunicationConfig
+from ..config import (
+    AetherSwarmConfig,
+    ChallengeSimulationConfig,
+    FeatureConfig,
+    ScenarioGenConfig,
+    WebotsPresentationConfig,
+)
 from ..core.enums import FailureState, Role, RTHState, TaskStatus
 from ..core.models import StateSnapshot, TaskState, UAVState
 
@@ -70,6 +77,7 @@ class ScenarioConfig:
     uavs: tuple[dict[str, Any], ...] = ()
     tasks: tuple[dict[str, Any], ...] = ()
     challenge_profile: ChallengeProfileConfig = field(default_factory=ChallengeProfileConfig)
+    config: AetherSwarmConfig = field(default_factory=AetherSwarmConfig)
 
 
 def load_scenario(source: str | Path | dict[str, Any]) -> ScenarioConfig:
@@ -160,6 +168,61 @@ def load_scenario(source: str | Path | dict[str, Any]) -> ScenarioConfig:
         ),
     )
 
+    # Build typed AetherSwarmConfig
+    challenge_cfg = ChallengeSimulationConfig(
+        arena_bounds_x=arena_bounds_x,
+        arena_bounds_y=arena_bounds_y,
+        max_altitude_m=max_height,
+        speed_limit_mps=speed_limit,
+        min_separation_m=min_separation_m,
+        comm_range_m=communication.max_range,
+        comm_base_latency_ms=communication.base_latency,
+        staging_pad_center=airspace_config.staging_pad_center,
+        staging_pad_radius_m=airspace_config.staging_pad_radius_m,
+        corridor_bounds_x=airspace_config.corridor_bounds_x,
+        corridor_bounds_y=airspace_config.corridor_bounds_y,
+        mission_duration_s=duration,
+        max_sortie_duration_s=challenge_profile.max_sortie_duration_s,
+        rth_safety_margin_s=challenge_profile.rth_safety_margin_s,
+        reporting_deadline_s=challenge_profile.detection_pipeline.reporting_deadline_s,
+        detection_fov_radius_m=challenge_profile.detection_pipeline.sensor_fov_radius_m,
+        processing_delay_s=challenge_profile.detection_pipeline.processing_delay_s,
+    )
+    feature_cfg = FeatureConfig(
+        enforce_separation=challenge_profile.enforce_separation,
+        enforce_geofence=challenge_profile.enforce_geofence,
+        enforce_sortie_limit=challenge_profile.enforce_sortie_limit,
+        enforce_single_sortie=challenge_profile.enforce_single_sortie,
+        enable_detection_pipeline=challenge_profile.detection_pipeline.enabled,
+        enable_auto_rth=enable_auto_rth,
+        return_by_mission_end=return_by_mission_end,
+    )
+    scenario_gen_cfg = ScenarioGenConfig.from_dict({
+        "seed": seed,
+        "scenario_type": "canonical" if "poc" in name else "random_demo",
+        **raw.get("config", {}).get("scenario", {}),
+    })
+    pres_cfg = WebotsPresentationConfig.from_dict(raw.get("config", {}).get("presentation", {}))
+
+    # Merge explicit config section if present
+    if "config" in raw and isinstance(raw["config"], dict):
+        raw_c = raw["config"]
+        if "challenge" in raw_c and isinstance(raw_c["challenge"], dict):
+            challenge_cfg = ChallengeSimulationConfig.from_dict({**challenge_cfg.to_dict(), **raw_c["challenge"]})
+        if "features" in raw_c and isinstance(raw_c["features"], dict):
+            feature_cfg = FeatureConfig.from_dict({**feature_cfg.to_dict(), **raw_c["features"]})
+        if "scenario" in raw_c and isinstance(raw_c["scenario"], dict):
+            scenario_gen_cfg = ScenarioGenConfig.from_dict({**scenario_gen_cfg.to_dict(), **raw_c["scenario"]})
+        if "presentation" in raw_c and isinstance(raw_c["presentation"], dict):
+            pres_cfg = WebotsPresentationConfig.from_dict({**pres_cfg.to_dict(), **raw_c["presentation"]})
+
+    aetherswarm_config = AetherSwarmConfig(
+        challenge=challenge_cfg,
+        features=feature_cfg,
+        scenario=scenario_gen_cfg,
+        presentation=pres_cfg,
+    )
+
     return ScenarioConfig(
         name=name,
         seed=seed,
@@ -180,6 +243,7 @@ def load_scenario(source: str | Path | dict[str, Any]) -> ScenarioConfig:
         uavs=uavs_raw,
         tasks=tasks_raw,
         challenge_profile=challenge_profile,
+        config=aetherswarm_config,
     )
 
 

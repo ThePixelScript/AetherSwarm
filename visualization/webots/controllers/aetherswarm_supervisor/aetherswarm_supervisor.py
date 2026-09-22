@@ -152,6 +152,8 @@ class WebotsAetherSwarmSupervisor:
             self.trace_data = json.load(f)
 
         self.metadata = self.trace_data.get("metadata", {})
+        self.config_meta = self.metadata.get("config", {})
+        self.pres_cfg = self.config_meta.get("presentation", {})
         self.ticks = self.trace_data.get("ticks", [])
         self.total_ticks = len(self.ticks)
         self.min_separation_m = float(self.metadata.get("min_separation_m", 20.0))
@@ -159,7 +161,8 @@ class WebotsAetherSwarmSupervisor:
         self.gcs_pos = self.metadata.get("gcs_position", [-50.0, 500.0, 0.0])
 
         # Visual sub-tick interpolation steps (1 = instantaneous per tick, 4 = smooth presentation default)
-        self.sub_steps = 1 if self.is_standalone else max(1, int(os.environ.get("AETHERSWARM_SUBSTEPS", "4")))
+        default_sub_steps = int(self.pres_cfg.get("sub_steps", 4))
+        self.sub_steps = 1 if self.is_standalone else max(1, int(os.environ.get("AETHERSWARM_SUBSTEPS", str(default_sub_steps))))
 
         # Interactive Replay Controls State
         self.playback_cursor = 0
@@ -871,9 +874,9 @@ class WebotsAetherSwarmSupervisor:
         """Execute interactive presentation playback loop."""
         log_msg("[Webots Supervisor] Commencing simulation playback and spatial verification...")
 
-        # Optional simulation mode override (e.g. AETHERSWARM_SIM_MODE=fast or realtime)
+        # Optional simulation mode override (e.g. AETHERSWARM_SIM_MODE=fast or realtime, or from config)
         if self.supervisor:
-            sim_mode = os.environ.get("AETHERSWARM_SIM_MODE", "").strip().lower()
+            sim_mode = os.environ.get("AETHERSWARM_SIM_MODE", "").strip().lower() or str(self.pres_cfg.get("sim_mode", "")).strip().lower()
             if sim_mode == "fast":
                 try:
                     self.supervisor.simulationSetMode(Supervisor.SIMULATION_MODE_FAST)
@@ -967,7 +970,10 @@ class WebotsAetherSwarmSupervisor:
                         except Exception:
                             pass
 
-                        auto_quit = os.environ.get("AETHERSWARM_AUTO_QUIT", "").strip().lower() in ("1", "true", "yes")
+                        auto_quit = (
+                            os.environ.get("AETHERSWARM_AUTO_QUIT", "").strip().lower() in ("1", "true", "yes")
+                            or bool(self.pres_cfg.get("auto_quit", False))
+                        )
                         if auto_quit:
                             if self.supervisor:
                                 self.supervisor.simulationQuit(0)

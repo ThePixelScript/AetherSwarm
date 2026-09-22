@@ -176,6 +176,7 @@ def export_trace(
         "min_separation_m": scenario.min_separation_m,
         "uav_ids": uav_ids,
         "task_ids": task_ids,
+        "config": scenario.config.to_dict() if hasattr(scenario, "config") else {},
     }
 
     ticks_data = []
