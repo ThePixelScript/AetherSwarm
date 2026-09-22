@@ -147,28 +147,29 @@ For N candidates evaluated for T tasks, `feasibility_checks ≤ N×T` and `feasi
 
 ---
 
-## Experimental Results (3-Seed Comparison)
+## Experimental Evaluation
 
-> Seeds: 2026, 42, 5001 | POIs: 10 | Fleet: 5 UAVs | Mission: 2700s | Sortie: 1200s
+Two distinct evaluations were conducted to validate the Connectivity-Aware Mission Planner:
+1. **Controlled Scenario Demonstration**: Fixed POI geometry within single-relay range (all 10 POIs <= 188m from GCS). Demonstrates relay activation and 100% deadline compliance under an ideal spatial distribution.
+2. **Randomized Robustness Validation**: Unconstrained uniform random sampling across the full 1000m x 1000m arena for seeds 2026, 42, and 5001. Evaluates feasibility gating, relay deployment, task deferral, and multi-hop boundary behavior.
 
-### Configuration Difference
+---
 
-| Parameter | Baseline | Connectivity-Aware |
-|-----------|----------|-------------------|
-| Connectivity planner | Disabled | Enabled |
-| Relay manager | Disabled | Enabled |
-| Comm range | 100m | 100m |
-| All other params | Identical | Identical |
+### Evaluation 1: Controlled Scenario Demonstration (Fixed POIs)
 
-### Results (all seeds produce identical values due to fixed POI positions)
+> Scenario: `poc_round1.yaml` geometry | Seeds: 2026, 42, 5001 | POIs: 10 (all within 188m of GCS) | Fleet: 5 UAVs | Duration: 2700s
 
-| Metric | Baseline | Connectivity-Aware | Δ |
-|--------|----------|-------------------|---|
+In this controlled demonstration, all 10 POIs are placed within single-relay intermediate coverage (distances from GCS: 130m to 188m). Because POI locations are fixed in this scenario, all three seeds produce identical geometry.
+
+#### Controlled Results
+
+| Metric | Baseline (Conn OFF) | Connectivity-Aware (Conn ON) | Δ |
+|--------|---------------------|------------------------------|---|
 | Completed POIs | 10/10 | 10/10 | = |
 | Completion Rate | 100% | 100% | = |
 | Reporting Delivered | 2/10 | **10/10** | **+8** |
 | Deadline Exceeded | 8 | **0** | **−8** |
-| **Reporting Compliance** | **20%** | **100%** | **+80pp** |
+| **Reporting Compliance** | **20.0%** | **100.0%** | **+80.0pp** |
 | Connectivity Availability | 55.3% | **93.9%** | +38.6pp |
 | PDR (model est.) | 0.9574 | 0.7748 | −0.183 (relay hop cost) |
 | Latency ms (model est.) | 5.74 | 7.75 | +2.01ms (relay latency) |
@@ -179,28 +180,93 @@ For N candidates evaluated for T tasks, `feasibility_checks ≤ N×T` and `feasi
 | Rejected Assignments | 0 | 0 | = |
 | Deferred Tasks | 0 | 0 | = |
 | Relay-Required Assignments | 0 | **5** | +5 |
-| Conn. Preserved (s) | 0 | 81 | +81s |
+| Conn. Preserved (s) | 0.0 | 81.0 | +81.0s |
 | Comm-Induced Replans | 0 | 0 | = |
-| Max Sortie Duration (s) | 1185 | 1185 | = |
+| Max Sortie Duration (s) | 1185.0 | 1185.0 | = |
 | Battery Exhaustion | 0 | 0 | = |
 | Safety Violations | 0 | 0 | = |
 | Geofence Violations | 0 | 0 | = |
 
-### Analysis
+*Artifact: `docs/phase4_comparison_results.json`*
 
-**Reporting compliance improved from 20% to 100%.** Without connectivity-aware planning, 8 out of 10 reports failed their 10-second deadline because UAVs operating beyond 95m from GCS had no communication path. The baseline allocator assigns tasks without verifying connectivity, so reports from out-of-range UAVs are buffered and delivered late (or not at all within the deadline).
+---
 
-**5 of 10 tasks required relay deployment.** POIs at x=80 (GCS distance ~152m) and x=120 (~188m) are beyond direct range. The planner correctly identified these and deployed relay UAVs to midpoint positions, enabling the 10-second deadline to be met.
+### Evaluation 2: Randomized Robustness Validation (Seeds 2026, 42, 5001)
 
-**PDR decrease with connectivity-aware mode** is expected and correct: the model-estimated PDR for a 2-hop path is the product of per-hop PDRs. This is a real tradeoff — relay paths have lower PDR but far higher connectivity availability and deadline compliance.
+> Generator: Authoritative `sample_random_pois` | Arena: [5.0, 995.0]^2 | Uniform sampling, no quadrant balancing | Fleet: 5 UAVs | Duration: 2700s
 
-**All 10 POIs completed in both modes** — completion rate is unchanged because the POIs are well within the fleet's endurance envelope regardless of relay deployment. The connectivity planner does not reduce task throughput in this scenario.
+This validation tests the planner against genuinely unconstrained random environments where POIs can spawn anywhere in the 1000m x 1000m arena.
 
-**No deferred tasks** — all POIs are within the 190m single-relay coverage limit, so the planner successfully finds a feasible path for every task.
+#### Spatial Geometry Across Seeds
 
-**Communication-induced replans: 0** — relays remained healthy throughout the mission; no relay failures or RTH during active task service were observed.
+| Seed | Distance Range to GCS | Mean Distance | Reachable (Direct <=95m) | Reachable (Single-Relay <=190m) | Beyond Single-Relay (>190m) |
+|------|----------------------|---------------|--------------------------|---------------------------------|-----------------------------|
+| **2026** | 148.6m – 1068.4m | 658.2m | 0 | 2 (poi_09: 148.6m, poi_01: 172.9m) | 8 |
+| **42** | 160.9m – 1054.1m | 583.8m | 0 | 1 (poi_03: 160.9m) | 9 |
+| **5001** | 542.4m – 1085.4m | 827.1m | 0 | 0 | 10 |
 
-> **Note:** The three seeds produce identical metrics because the POI positions are fixed (not seed-randomized). Seed variation would produce different results in randomly-generated scenarios via the `ScenarioGenConfig` pathway.
+#### Per-Seed Paired Results
+
+| Metric | S2026 BASE | S2026 CONN | S42 BASE | S42 CONN | S5001 BASE | S5001 CONN |
+|--------|-----------:|-----------:|---------:|---------:|-----------:|-----------:|
+| **Completed POIs** | 8 | 2 | 10 | 1 | 5 | 0 |
+| **Completion Rate** | 80.0% | 20.0% | 100.0% | 10.0% | 50.0% | 0.0% |
+| **Completion Time (s)** | 2700.0 | 2700.0 | 339.0 | 2700.0 | 2700.0 | 2700.0 |
+| **Reports Delivered** | 0 | 2 | 1 | 1 | 0 | 0 |
+| **Deadline Exceeded** | 9 | 0 | 9 | 0 | 5 | 0 |
+| **Reporting Compliance** | **0.0%** | **100.0%** | **10.0%** | **100.0%** | **0.0%** | **100.0%** |
+| **Connectivity Availability** | 56.56% | 100.0% | 56.52% | 100.0% | 58.82% | 100.0% |
+| **Route PDR** | 0.9429 | 0.7052 | 0.9470 | 0.6917 | 0.9214 | 0.6881 |
+| **Route Latency (ms)** | 6.00 | 9.82 | 5.83 | 10.84 | 6.38 | 10.48 |
+| **Feasibility Checks** | 0 | 73,439 | 0 | 91,504 | 0 | 109,980 |
+| **Feasible Assignments** | 0 | 2 | 0 | 1 | 0 | 0 |
+| **Rejected Assignments** | 0 | 73,430 | 0 | 91,499 | 0 | 109,980 |
+| **Deferred Tasks** | 0 | 20,326 | 0 | 23,053 | 0 | 25,238 |
+| **Relay-Req Assignments** | 0 | 2 | 0 | 1 | 0 | 0 |
+| **Relay Assignments** | 0 | 2 | 0 | 1 | 0 | 0 |
+| **Relay Handoffs** | 0 | 0 | 0 | 0 | 0 | 0 |
+| **Comm Replans** | 0 | 0 | 0 | 0 | 0 | 0 |
+| **Conn Preserved (s)** | 0.0 | 21.0 | 0.0 | 10.0 | 0.0 | 0.0 |
+| **Separation Violations** | 0 | 0 | 0 | 0 | 0 | 0 |
+| **Geofence Violations** | 0 | 0 | 0 | 0 | 0 | 0 |
+| **Battery Exhaustion** | 0 | 0 | 0 | 0 | 0 | 0 |
+| **Max Sortie (s)** | 1185.0 | 1186.0 | 1185.0 | 1185.0 | 1185.0 | 1185.0 |
+
+#### Aggregate Statistics (Mean [Min, Max]) Across Seeds
+
+| Metric | Baseline | Connectivity-Aware |
+|--------|:--------:|:------------------:|
+| **Reporting Compliance** | 0.0333 [0.0000, 0.1000] | **1.0000 [1.0000, 1.0000]** |
+| **Connectivity Availability** | 0.5730 [0.5652, 0.5882] | **1.0000 [1.0000, 1.0000]** |
+| **Completed POIs** | 7.6667 [5, 10] | 1.0000 [0, 2] |
+| **Route PDR** | 0.9371 [0.9214, 0.9470] | 0.6950 [0.6881, 0.7052] |
+| **Route Latency (ms)** | 6.0700 [5.83, 6.38] | 10.3800 [9.82, 10.84] |
+| **Relay Assignments** | 0.0000 [0, 0] | 1.0000 [0, 2] |
+| **Communication-Induced Replans** | 0.0000 [0, 0] | 0.0000 [0, 0] |
+
+*Artifact: `results/phase4_randomized_comparison.json`*
+
+---
+
+### Architectural Analysis & Critical Insights
+
+1. **The Disconnect-and-Complete vs. Connect-and-Comply Tradeoff**:
+   - In **Baseline** mode, the allocator has no concept of communication constraints. It dispatches UAVs across the full 1000m arena. While this completes 7.67 POIs on average, **almost every report fails its 10-second delivery deadline** (mean compliance: 3.3%, with 0% on Seeds 2026 and 5001). UAVs spend over 40% of their operational time disconnected from GCS.
+   - In **Connectivity-Aware** mode, the planner rigorously gates assignments against the communication model. It refuses to dispatch UAVs into communication blackouts. As a result, **100% of serviced tasks satisfy the reporting deadline**, and connectivity availability is 100%.
+
+2. **The V1 Single-Relay Boundary**:
+   - V1 evaluates direct line-of-sight (<=95m) and a single intermediate relay midpoint (<=190m).
+   - In Seed 2026, exactly 2 POIs lie within 190m of GCS. The planner deploys relays for both, completes both, and achieves 100% reporting compliance. The other 8 POIs are correctly deferred.
+   - In Seed 42, exactly 1 POI lies within 190m. The planner deploys a relay, completes it with 100% compliance, and defers the other 9 POIs.
+   - In Seed 5001, the closest POI is at 542m (well beyond 190m). The planner correctly deems all 10 POIs infeasible under V1 rules, defers them, and avoids sending UAVs into an unrecoverable communication blackout.
+   - **This behavior proves that the planner is functioning as designed**: it does not hallucinate feasibility for tasks that cannot maintain an active GCS route under the single-relay model.
+
+3. **Multi-Hop Relay Chain Requirement**:
+   - Servicing POIs in the far regions of a 1000m x 1000m arena (up to 1085m from GCS) while maintaining connected telemetry requires **multi-hop relay chains** (e.g., 3 to 11 hops).
+   - Because V1 is intentionally scoped to single-relay intermediate evaluation, tasks beyond 190m are deferred. Supporting deeper arena coverage requires multi-hop relay tree/chain formation (Phase 5).
+
+4. **Deterministic Reproducibility**:
+   - Running Seed 2026 twice produces identical generated POI coordinates, identical simulation event logs, and bit-identical metrics report values across all fields.
 
 ---
 
@@ -212,11 +278,11 @@ MissionRunner.step()
   ├── 3.1  Sensors / Detection
   ├── 3.2  Telemetry
   ├── 3.5  Relay Manager (DynamicRelayManager)
-  ├── 3.7  Connectivity Planner: monitor_active_tasks()   ← NEW (Phase 4)
+  ├── 3.7  Connectivity Planner: monitor_active_tasks()   ← (Phase 4)
   │         └── ReleaseTaskCommand if relay lost / disconnected
   └── 4.0  Autonomy Allocation
         └── If connectivity_planner is set:
-              ConnectivityAwarePlanner.plan()             ← NEW (Phase 4)
+              ConnectivityAwarePlanner.plan()             ← (Phase 4)
                 ├── check_task_connectivity_feasibility()  per (task, uav)
                 ├── AssignRelayRoleCommand + SetTargetPositionCommand  (if relay needed)
                 └── AssignTaskCommand  (if feasible candidate found)
@@ -226,7 +292,7 @@ The planner **replaces** the standard autonomy adapter for task assignment when 
 
 ---
 
-## Files
+## Artifacts & Files
 
 | File | Purpose |
 |------|---------|
@@ -238,5 +304,6 @@ The planner **replaces** the standard autonomy adapter for task assignment when 
 | `src/ares_swarm/core/enums.py` | `COMMUNICATION_REPLAN` event type |
 | `src/ares_swarm/core/state_store.py` | Phase 4 metric propagation |
 | `tests/test_connectivity_aware_planning.py` | 9 deterministic unit/integration tests |
-| `scripts/phase4_comparison.py` | 3-seed baseline vs. connectivity-aware comparison |
-| `docs/phase4_comparison_results.json` | Raw experiment results (JSON) |
+| `scripts/phase4_comparison.py` | Randomized 3-seed comparison runner & validator |
+| `results/phase4_randomized_comparison.json` | Authoritative randomized robustness results (Seeds 2026, 42, 5001) |
+| `docs/phase4_comparison_results.json` | Controlled scenario demonstration results (Fixed POIs) |

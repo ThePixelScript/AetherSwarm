@@ -26,6 +26,7 @@ results/*
 !results/.gitkeep
 !results/challenge_v1/
 !results/fleet_sweep/
+!results/phase4_randomized_comparison.json
 
 # ML
 *.pt
