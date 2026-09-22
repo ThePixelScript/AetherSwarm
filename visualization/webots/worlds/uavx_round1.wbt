@@ -11,7 +11,7 @@ WorldInfo {
   coordinateSystem "ENU"
 }
 
-Viewpoint {
+DEF MAIN_VIEWPOINT Viewpoint {
   orientation 0.655 0.354 -0.668 1.482
   position 200 -60 280
   near 0.5

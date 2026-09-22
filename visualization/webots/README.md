@@ -80,20 +80,41 @@ visualization/webots/
    - Configurable via `AETHERSWARM_SUBSTEPS` (default: 4 sub-steps per tick).
    - Authoritative states, events, HUD metrics, and spatial verifications remain strictly locked to 1.0s ticks.
 
-9. **Interactive Playback & Replay Controls**:
-   - Built-in presentation replay controls with visible clickable HUD buttons: `[ RESET ]`, `[ -3s ]`, `[ -1s ]`, `[ PLAY / PAUSE ]`, `[ +1s ]`, `[ +3s ]`.
-   - Keyboard shortcuts:
+9. **Interactive Playback & Working-Model Control Layer**:
+   - Built-in presentation replay controls with visible clickable HUD buttons:
+     `[ RESET ]`, `[ -3s ]`, `[ -1s ]`, `[ PLAY / PAUSE ]`, `[ +1s ]`, `[ +3s ]`, `[ SPD: Nx ]`, `[ CAM: MODE ]`.
+   - **Keyboard Replay Controls**:
      - `Home` / `R`: Reset to tick 0 and pause
      - `Left Arrow`: Step backward -1s (-1 tick, clamped at tick 0)
      - `Shift + Left Arrow`: Step backward -3s (-3 ticks, clamped at tick 0)
      - `Right Arrow`: Step forward +1s (+1 tick, clamped at final tick)
      - `Shift + Right Arrow`: Step forward +3s (+3 ticks, clamped at final tick)
-     - `Space` / `P`: Toggle Play/Pause
-   - Direct mouse click support on the in-world HUD buttons.
-   - Immediate visual reconstruction: seeking immediately renders the selected frame, UAV coordinates, yaw headings, drone health indicators, POI statuses, and RF mesh links.
-   - Smooth sub-tick visual interpolation (`AETHERSWARM_SUBSTEPS`) resumes smoothly when playback continues.
-   - Strict immutability: authoritative simulation traces are strictly read-only; seeking only adjusts the observational playback cursor.
-   - Scenario completion holds the final frame open with a mission complete banner for presenter inspection (auto-quit via `AETHERSWARM_AUTO_QUIT=1`).
+     - `Space`: Toggle Play/Pause
+   - **Configurable Playback Speed**:
+     - Presets: `0.25x`, `0.5x`, `1.0x`, `2.0x`, `4.0x`.
+     - `Up Arrow` / `]`: Increase speed to next higher preset
+     - `Down Arrow` / `[`: Decrease speed to next lower preset
+     - Keys `1`, `2`, `3`, `4`, `5`: Directly select 0.25x, 0.5x, 1x, 2x, 4x
+     - HUD button click: Cycle speed through presets
+   - **Camera Selection**:
+     - Modes: `Overview`, `Follow UAV`, `GCS`, `Recovery`.
+     - `O`: Overview perspective (arena-wide high vantage)
+     - `F`: Follow active UAV (chase tracking)
+     - `G`: GCS launch corridor & touchdown area
+     - `V`: Recovery zone & failure intervention area
+     - `C` / HUD button click: Cycle through cameras
+   - **Presentation-Layer Visibility Toggles**:
+     - `H`: Toggle HUD overlay
+     - `P` / `T`: Toggle 3D POI target markers and beacons
+     - `M`: Toggle active RF communication mesh lines
+     - `U`: Toggle multi-hop routing paths to GCS
+     - `D`: Toggle altitude drop lines and ground crosshair footprints
+     - `B`: Toggle 100m metric reference ground grid
+   - **Direct Mouse Click Support**: Clickable HUD controls for Reset, -3s, -1s, Play/Pause, +1s, +3s, Speed, Camera, and layer toggles.
+   - **Immediate Visual Reconstruction**: Seeking immediately reconstructs and renders the selected frame, UAV coordinates, yaw headings, drone health indicators, POI statuses, and RF mesh links.
+   - **Continuous Sub-Tick Interpolation**: Smooth visual interpolation resumes seamlessly after seeking.
+   - **Strict Immutability**: The authoritative simulation trace is strictly read-only; replay controls only modify the observational playback cursor without mutating or rerunning simulation state.
+   - **Inspection Hold**: Scenario completion holds the final frame open with a mission complete banner for presenter inspection (auto-quit via `AETHERSWARM_AUTO_QUIT=1`).
 
 10. **In-World HUD Telemetry**:
    - Lightweight overlay showing real-time scenario name, tick progress, swarm active/failed counts, POI task completions, and independent spatial verification metrics.

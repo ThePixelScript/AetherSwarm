@@ -92,12 +92,17 @@ Configures the downstream 3D robotics visualization:
 |---|---|---|---|
 | `sub_steps` | `int` | `4` | Sub-tick visual interpolation steps per 1.0s authoritative tick |
 | `sim_mode` | `str` | `"default"` | Playback mode (`default`, `fast`, `realtime`) |
+| `playback_speed` | `float` | `1.0` | Playback speed multiplier (0.25, 0.5, 1.0, 2.0, 4.0) |
+| `camera_mode` | `str` | `"overview"` | Active camera viewpoint (`overview`, `follow`, `gcs`, `recovery`) |
 | `default_camera` | `str` | `"demo_presentation_cam"` | Primary viewpoint camera node name |
 | `show_comm_mesh` | `bool` | `True` | Render active RF mesh communication links |
 | `show_routes` | `bool` | `True` | Render active multi-hop routing paths to GCS |
 | `show_drop_lines` | `bool` | `True` | Render vertical ground drop-lines and ground footprints |
+| `show_pois` | `bool` | `True` | Render 3D POI target markers and beacons |
+| `show_grid` | `bool` | `True` | Render 100m metric ground reference grid |
 | `show_hud` | `bool` | `True` | Render in-world HUD telemetry overlay |
 | `show_event_banner` | `bool` | `True` | Render top-center event notification banners |
+| `header_title` | `str` | `"AETHERSWARM UAV-X AUTONOMOUS WORKING MODEL"` | Header title text on in-world HUD overlay |
 | `auto_quit` | `bool` | `False` | Terminate Webots automatically when scenario ends |
 
 ---

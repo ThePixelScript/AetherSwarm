@@ -47,16 +47,23 @@ def log_msg(msg: str) -> None:
         pass
 
 
-def find_trace_file(supervisor: Any = None) -> Path:
+def find_trace_file(supervisor: Any = None, explicit_path: Path | str | None = None) -> Path:
     """Locate authoritative trace JSON deterministically from explicit selector.
 
     Priority:
-      1. Direct environment path: AETHERSWARM_TRACE_PATH or WEBOTS_TRACE_PATH
-      2. Scenario name from env: AETHERSWARM_SCENARIO ("e1" or "recovery")
-      3. Command-line argument: sys.argv[1] ("e1", "recovery", or direct path)
-      4. Robot customData field: supervisor.getCustomData() ("e1", "recovery")
-      5. Canonical default: e1_authoritative_trace.json (official benchmark)
+      1. Explicit argument path: explicit_path
+      2. Direct environment path: AETHERSWARM_TRACE_PATH or WEBOTS_TRACE_PATH
+      3. Scenario name from env: AETHERSWARM_SCENARIO ("e1", "random", "recovery")
+      4. Command-line argument: sys.argv[1] ("e1", "random", "recovery", or direct .json path)
+      5. Robot customData field: supervisor.getCustomData()
+      6. Canonical default: e1_authoritative_trace.json (official benchmark)
     """
+    if explicit_path:
+        p = Path(explicit_path)
+        if p.is_file():
+            log_msg(f"[Webots Supervisor] Selected trace from explicit path: {p.resolve()}")
+            return p.resolve()
+
     base_dir = Path(__file__).resolve().parent
     data_dir = (base_dir / ".." / ".." / "data").resolve()
     if not data_dir.is_dir():
@@ -70,8 +77,8 @@ def find_trace_file(supervisor: Any = None) -> Path:
             log_msg(f"[Webots Supervisor] Selected trace from environment path: {p}")
             return p
 
-    # Direct path from argv
-    if len(sys.argv) > 1:
+    # Direct JSON path from argv
+    if len(sys.argv) > 1 and sys.argv[1].endswith(".json"):
         arg_p = Path(sys.argv[1])
         if arg_p.is_file():
             log_msg(f"[Webots Supervisor] Selected trace from argv path: {arg_p.resolve()}")
@@ -138,7 +145,30 @@ def find_trace_file(supervisor: Any = None) -> Path:
 class WebotsAetherSwarmSupervisor:
     """Consumes authoritative trace and drives Webots 3D robotic simulation."""
 
-    def __init__(self) -> None:
+    SPEED_PRESETS = [0.25, 0.5, 1.0, 2.0, 4.0]
+    CAMERA_MODES = ["overview", "follow", "gcs", "recovery"]
+    CAMERA_PRESETS = {
+        "overview": {
+            "pos": [200.0, -60.0, 280.0],
+            "rot": [0.655, 0.354, -0.668, 1.482],
+            "follow": "",
+        },
+        "follow": {
+            "follow": "UAV_1",
+        },
+        "gcs": {
+            "pos": [-95.0, 460.0, 30.0],
+            "rot": [0.35, 0.45, -0.82, 1.68],
+            "follow": "",
+        },
+        "recovery": {
+            "pos": [35.0, 365.0, 42.0],
+            "rot": [0.32, 0.40, -0.86, 1.70],
+            "follow": "",
+        },
+    }
+
+    def __init__(self, trace_path: Path | str | None = None) -> None:
         self.is_standalone = Supervisor is None
         if not self.is_standalone:
             self.supervisor = Supervisor()
@@ -150,7 +180,7 @@ class WebotsAetherSwarmSupervisor:
             self.time_step = 32
             log_msg("[Webots Supervisor] Running in standalone spatial verification mode (controller API not imported)")
 
-        self.trace_file = find_trace_file(self.supervisor)
+        self.trace_file = find_trace_file(self.supervisor, explicit_path=trace_path)
         log_msg(f"[Webots Supervisor] Loading authoritative trace: {self.trace_file}")
         with open(self.trace_file, "r", encoding="utf-8") as f:
             self.trace_data = json.load(f)
@@ -164,15 +194,38 @@ class WebotsAetherSwarmSupervisor:
         self.max_altitude_m = float(self.metadata.get("max_altitude", 100.0))
         self.gcs_pos = self.metadata.get("gcs_position", [-50.0, 500.0, 0.0])
 
-        # Visual sub-tick interpolation steps (1 = instantaneous per tick, 4 = smooth presentation default)
+        # Visual sub-tick interpolation steps
         default_sub_steps = int(self.pres_cfg.get("sub_steps", 4))
         self.sub_steps = 1 if self.is_standalone else max(1, int(os.environ.get("AETHERSWARM_SUBSTEPS", str(default_sub_steps))))
 
         # Interactive Replay Controls State
         self.playback_cursor = 0
+        self.sub_step_progress = 0.0
         self.sub_step_idx = 0
         self.is_paused = False
         self._prev_mouse_left = False
+
+        # Configurable Playback Speed (0.25x, 0.5x, 1x, 2x, 4x)
+        initial_speed = float(os.environ.get("AETHERSWARM_PLAYBACK_SPEED", self.pres_cfg.get("playback_speed", 1.0)))
+        self.playback_speed = min(self.SPEED_PRESETS, key=lambda p: abs(p - initial_speed))
+        self.speed_idx = self.SPEED_PRESETS.index(self.playback_speed)
+
+        # Camera Selection ('overview', 'follow', 'gcs', 'recovery')
+        initial_cam = str(os.environ.get("AETHERSWARM_CAMERA_MODE", self.pres_cfg.get("camera_mode", "overview"))).strip().lower()
+        self.camera_mode = initial_cam if initial_cam in self.CAMERA_MODES else "overview"
+
+        # Presentation-Layer Visibility Toggles
+        self.show_hud = bool(self.pres_cfg.get("show_hud", True))
+        self.show_pois = bool(self.pres_cfg.get("show_pois", True))
+        self.show_comm_mesh = bool(self.pres_cfg.get("show_comm_mesh", True))
+        self.show_routes = bool(self.pres_cfg.get("show_routes", True))
+        self.show_drop_lines = bool(self.pres_cfg.get("show_drop_lines", True))
+        self.show_grid = bool(self.pres_cfg.get("show_grid", True))
+
+        # Configurable UI Labels
+        self.header_title = os.environ.get("AETHERSWARM_HUD_TITLE") or str(
+            self.pres_cfg.get("header_title", "AETHERSWARM UAV-X AUTONOMOUS WORKING MODEL")
+        )
 
         # Input Devices (Keyboard & Mouse)
         self.keyboard = None
@@ -194,6 +247,7 @@ class WebotsAetherSwarmSupervisor:
         log_msg(f"[Webots Supervisor] Trace scenario: {self.metadata.get('scenario_name')}")
         log_msg(f"[Webots Supervisor] Total simulation ticks: {self.total_ticks}")
         log_msg(f"[Webots Supervisor] Official constraints: min_sep={self.min_separation_m}m, max_alt={self.max_altitude_m}m")
+        log_msg(f"[Webots Supervisor] Playback speed: {self.playback_speed}x  |  Default Camera: {self.camera_mode.upper()}")
         log_msg(f"[Webots Supervisor] Visual interpolation: {self.sub_steps} sub-steps per tick")
 
         # Lookup drone nodes and material fields if running inside Webots
@@ -277,6 +331,37 @@ class WebotsAetherSwarmSupervisor:
             if d_coord_node and d_lines_node:
                 self.dropline_coord_field = d_coord_node.getField("point")
                 self.dropline_index_field = d_lines_node.getField("coordIndex")
+
+        # Lookup Viewpoint and Metric Grid nodes
+        self.viewpoint_node = None
+        self.viewpoint_pos_field = None
+        self.viewpoint_rot_field = None
+        self.viewpoint_follow_field = None
+        self.grid_node = None
+        self.grid_trans_field = None
+
+        if self.supervisor:
+            self.viewpoint_node = self.supervisor.getFromDef("MAIN_VIEWPOINT")
+            if not self.viewpoint_node:
+                try:
+                    root = self.supervisor.getRoot()
+                    children = root.getField("children")
+                    for i in range(children.getCount()):
+                        n = children.getMFNode(i)
+                        if n and n.getTypeName() == "Viewpoint":
+                            self.viewpoint_node = n
+                            break
+                except Exception:
+                    pass
+
+            if self.viewpoint_node:
+                self.viewpoint_pos_field = self.viewpoint_node.getField("position")
+                self.viewpoint_rot_field = self.viewpoint_node.getField("orientation")
+                self.viewpoint_follow_field = self.viewpoint_node.getField("follow")
+
+            self.grid_node = self.supervisor.getFromDef("METRIC_GRID")
+            if self.grid_node:
+                self.grid_trans_field = self.grid_node.getField("translation")
 
         # Independent spatial verification metrics
         self.min_observed_separation = float("inf")
@@ -594,6 +679,16 @@ class WebotsAetherSwarmSupervisor:
             for i, p in enumerate(d_points):
                 self.dropline_coord_field.setMFVec3f(i, p)
 
+    def _clear_hud(self) -> None:
+        """Clear all HUD overlay labels from Webots viewport."""
+        if not self.supervisor:
+            return
+        for i in range(10):
+            try:
+                self.supervisor.setLabel(i, "", 0.0, 0.0, 0.01, 0x000000, 1.0, "Arial")
+            except Exception:
+                pass
+
     def update_hud(
         self,
         sim_tick: int,
@@ -606,7 +701,7 @@ class WebotsAetherSwarmSupervisor:
 
         Zero external dependencies or IPC; purely uses standard Webots overlay mechanism.
         """
-        if not self.supervisor:
+        if not self.supervisor or not self.show_hud:
             return
 
         scenario = self.metadata.get("scenario_name", "AetherSwarm")
@@ -631,12 +726,15 @@ class WebotsAetherSwarmSupervisor:
                 self._last_event_banner = f"NAV: RTH Triggered for {ev.get('entity_id')}"
 
         # 1. Header Banner
-        self.supervisor.setLabel(0, "AETHERSWARM UAV-X AUTONOMOUS WORKING MODEL", 0.015, 0.015, 0.045, 0xFFFFFF, 0.0, "Arial")
+        self.supervisor.setLabel(0, self.header_title, 0.015, 0.015, 0.045, 0xFFFFFF, 0.0, "Arial")
 
         # 2. Playback, Time & Replay State
         mode_str = "⏸ PAUSED" if self.is_paused else "▶ PLAYING"
         mode_color = 0xFFAA22 if self.is_paused else 0x00D0FF
-        time_text = f"Scenario: {scenario}  |  Tick: {sim_tick}/{self.total_ticks}  ({sim_time:.1f}s)  |  {mode_str}"
+        time_text = (
+            f"Scenario: {scenario}  |  Tick: {sim_tick}/{self.total_ticks}  ({sim_time:.1f}s)  |  "
+            f"{mode_str} ({self.playback_speed:.2f}x)  |  Camera: {self.camera_mode.upper()}"
+        )
         self.supervisor.setLabel(1, time_text, 0.015, 0.050, 0.038, mode_color, 0.0, "Arial")
 
         # 3. Swarm Status
@@ -654,12 +752,23 @@ class WebotsAetherSwarmSupervisor:
 
         # 6. Interactive Replay Controls Bar (Visible clickable buttons)
         play_btn = "▶ PLAY" if self.is_paused else "⏸ PAUSE"
-        btn_bar = f"[ RESET ]    [ -3s ]    [ -1s ]    [ {play_btn} ]    [ +1s ]    [ +3s ]"
+        btn_bar = (
+            f"[ RESET ]    [ -3s ]    [ -1s ]    [ {play_btn} ]    [ +1s ]    [ +3s ]    |    "
+            f"[ SPD: {self.playback_speed:.2f}x ]    [ CAM: {self.camera_mode.upper()} ]"
+        )
         self.supervisor.setLabel(6, btn_bar, 0.015, 0.170, 0.038, 0xFFDD44, 0.0, "Arial")
 
-        # 7. Keyboard Shortcuts Guide
-        hint_text = "Controls: [Home]=Reset  [Shift+Left]=-3s  [Left]=-1s  [Space]=Play/Pause  [Right]=+1s  [Shift+Right]=+3s"
-        self.supervisor.setLabel(7, hint_text, 0.015, 0.198, 0.030, 0x99BBDD, 0.0, "Arial")
+        # 7. Presentation Layer Toggles Bar
+        p_st = "ON" if self.show_pois else "OFF"
+        m_st = "ON" if self.show_comm_mesh else "OFF"
+        r_st = "ON" if self.show_routes else "OFF"
+        d_st = "ON" if self.show_drop_lines else "OFF"
+        g_st = "ON" if self.show_grid else "OFF"
+        toggles_bar = (
+            f"Toggles: [H]UD  [P]OIs:{p_st}  [M]esh:{m_st}  Ro[u]tes:{r_st}  "
+            f"[D]ropLines:{d_st}  [B]Grid:{g_st}"
+        )
+        self.supervisor.setLabel(7, toggles_bar, 0.015, 0.200, 0.030, 0x99DDEE, 0.0, "Arial")
 
         # 8. Top-Center Event Alert Banner
         if self._last_event_banner:
@@ -719,6 +828,7 @@ class WebotsAetherSwarmSupervisor:
         """
         clamped = max(0, min(target_tick, self.total_ticks - 1))
         self.playback_cursor = clamped
+        self.sub_step_progress = 0.0
         self.sub_step_idx = 0
         if pause is not None:
             self.is_paused = pause
@@ -739,14 +849,161 @@ class WebotsAetherSwarmSupervisor:
         """Seek replay cursor relative to current position by delta ticks."""
         self.seek_to(self.playback_cursor + delta_ticks)
 
+    def reset(self) -> None:
+        """Reset replay cursor to tick 0 and pause."""
+        self.seek_to(0, pause=True)
+
+    def step_forward_1s(self) -> None:
+        """Step replay forward by 1 second (1 tick)."""
+        self.seek_relative(1)
+
+    def step_forward_3s(self) -> None:
+        """Step replay forward by 3 seconds (3 ticks)."""
+        self.seek_relative(3)
+
+    def step_backward_1s(self) -> None:
+        """Step replay backward by 1 second (1 tick)."""
+        self.seek_relative(-1)
+
+    def step_backward_3s(self) -> None:
+        """Step replay backward by 3 seconds (3 ticks)."""
+        self.seek_relative(-3)
+
     def toggle_play_pause(self) -> None:
         """Toggle playback between playing and paused."""
         self.is_paused = not self.is_paused
         state_str = "PAUSED" if self.is_paused else "RESUMED"
         log_msg(f"[Webots Replay] Playback {state_str} at Tick {self.playback_cursor}")
         # Refresh HUD label to reflect new state immediately
-        step = self.ticks[self.playback_cursor]
-        self.update_hud(step["tick"], step["time"], step["uavs"], step["tasks"], step.get("events", []))
+        if self.show_hud and self.playback_cursor < len(self.ticks):
+            step = self.ticks[self.playback_cursor]
+            self.update_hud(step["tick"], step["time"], step["uavs"], step["tasks"], step.get("events", []))
+
+    def set_playback_speed(self, speed: float) -> None:
+        """Set playback speed multiplier from presets (0.25x, 0.5x, 1x, 2x, 4x)."""
+        closest = min(self.SPEED_PRESETS, key=lambda p: abs(p - speed))
+        self.playback_speed = closest
+        self.speed_idx = self.SPEED_PRESETS.index(closest)
+        log_msg(f"[Webots Playback] Speed set to: {self.playback_speed}x")
+        if self.supervisor and self.show_hud and self.playback_cursor < len(self.ticks):
+            step = self.ticks[self.playback_cursor]
+            self.update_hud(step["tick"], step["time"], step["uavs"], step["tasks"], step.get("events", []))
+
+    def cycle_playback_speed(self, forward: bool = True) -> None:
+        """Cycle playback speed: 0.25x -> 0.5x -> 1.0x -> 2.0x -> 4.0x -> 0.25x."""
+        step_dir = 1 if forward else -1
+        self.speed_idx = (self.speed_idx + step_dir) % len(self.SPEED_PRESETS)
+        self.set_playback_speed(self.SPEED_PRESETS[self.speed_idx])
+
+    def speed_up(self) -> None:
+        """Increase playback speed to next higher preset."""
+        if self.speed_idx < len(self.SPEED_PRESETS) - 1:
+            self.speed_idx += 1
+            self.set_playback_speed(self.SPEED_PRESETS[self.speed_idx])
+
+    def slow_down(self) -> None:
+        """Decrease playback speed to next lower preset."""
+        if self.speed_idx > 0:
+            self.speed_idx -= 1
+            self.set_playback_speed(self.SPEED_PRESETS[self.speed_idx])
+
+    def set_camera(self, mode: str) -> None:
+        """Switch active camera viewpoint ('overview', 'follow', 'gcs', 'recovery')."""
+        clean_mode = mode.strip().lower()
+        if clean_mode not in self.CAMERA_MODES:
+            clean_mode = "overview"
+        self.camera_mode = clean_mode
+        log_msg(f"[Webots Camera] Active camera set to: {self.camera_mode.upper()}")
+
+        if self.viewpoint_node:
+            cfg = self.CAMERA_PRESETS[self.camera_mode]
+            follow_target = cfg.get("follow", "")
+            if self.viewpoint_follow_field:
+                self.viewpoint_follow_field.setSFString(follow_target)
+            if not follow_target:
+                if self.viewpoint_pos_field and "pos" in cfg:
+                    self.viewpoint_pos_field.setSFVec3f(cfg["pos"])
+                if self.viewpoint_rot_field and "rot" in cfg:
+                    self.viewpoint_rot_field.setSFRotation(cfg["rot"])
+
+        if self.supervisor and self.show_hud and self.playback_cursor < len(self.ticks):
+            step = self.ticks[self.playback_cursor]
+            self.update_hud(step["tick"], step["time"], step["uavs"], step["tasks"], step.get("events", []))
+
+    def cycle_camera(self) -> None:
+        """Cycle through camera modes: overview -> follow -> gcs -> recovery -> overview."""
+        curr_idx = self.CAMERA_MODES.index(self.camera_mode) if self.camera_mode in self.CAMERA_MODES else 0
+        next_idx = (curr_idx + 1) % len(self.CAMERA_MODES)
+        self.set_camera(self.CAMERA_MODES[next_idx])
+
+    def toggle_hud(self) -> None:
+        """Toggle HUD overlay display."""
+        self.show_hud = not self.show_hud
+        state_str = "VISIBLE" if self.show_hud else "HIDDEN"
+        log_msg(f"[Webots Visibility] HUD is now {state_str}")
+        if not self.show_hud:
+            self._clear_hud()
+        elif self.supervisor and self.playback_cursor < len(self.ticks):
+            step = self.ticks[self.playback_cursor]
+            self.update_hud(step["tick"], step["time"], step["uavs"], step["tasks"], step.get("events", []))
+
+    def toggle_pois(self) -> None:
+        """Toggle POI visibility."""
+        self.show_pois = not self.show_pois
+        state_str = "VISIBLE" if self.show_pois else "HIDDEN"
+        log_msg(f"[Webots Visibility] POIs are now {state_str}")
+        if self.supervisor and self.playback_cursor < len(self.ticks):
+            step = self.ticks[self.playback_cursor]
+            tasks = step.get("tasks", {})
+            for tid, trans_field in self.poi_trans_fields.items():
+                if tid in tasks and "position" in tasks[tid] and trans_field:
+                    t_pos = tasks[tid]["position"]
+                    z = 0.0 if self.show_pois else -100.0
+                    trans_field.setSFVec3f([float(t_pos[0]), float(t_pos[1]), z])
+            if self.show_hud:
+                self.update_hud(step["tick"], step["time"], step["uavs"], step["tasks"], step.get("events", []))
+
+    def toggle_comm_mesh(self) -> None:
+        """Toggle communication mesh line rendering."""
+        self.show_comm_mesh = not self.show_comm_mesh
+        state_str = "VISIBLE" if self.show_comm_mesh else "HIDDEN"
+        log_msg(f"[Webots Visibility] Comm mesh is now {state_str}")
+        if not self.show_comm_mesh and self.comm_coord_field and self.comm_index_field:
+            self._set_indexed_line_set(self.comm_coord_field, self.comm_index_field, [], [])
+        if self.supervisor and self.playback_cursor < len(self.ticks):
+            self.render_frame(self.playback_cursor, alpha=self.sub_step_progress)
+
+    def toggle_routes(self) -> None:
+        """Toggle active routing paths rendering."""
+        self.show_routes = not self.show_routes
+        state_str = "VISIBLE" if self.show_routes else "HIDDEN"
+        log_msg(f"[Webots Visibility] Routes are now {state_str}")
+        if not self.show_routes and self.route_coord_field and self.route_index_field:
+            self._set_indexed_line_set(self.route_coord_field, self.route_index_field, [], [])
+        if self.supervisor and self.playback_cursor < len(self.ticks):
+            self.render_frame(self.playback_cursor, alpha=self.sub_step_progress)
+
+    def toggle_drop_lines(self) -> None:
+        """Toggle altitude drop lines and footprints rendering."""
+        self.show_drop_lines = not self.show_drop_lines
+        state_str = "VISIBLE" if self.show_drop_lines else "HIDDEN"
+        log_msg(f"[Webots Visibility] Drop lines are now {state_str}")
+        if not self.show_drop_lines and self.dropline_coord_field and self.dropline_index_field:
+            self._set_indexed_line_set(self.dropline_coord_field, self.dropline_index_field, [], [])
+        if self.supervisor and self.playback_cursor < len(self.ticks):
+            self.render_frame(self.playback_cursor, alpha=self.sub_step_progress)
+
+    def toggle_grid(self) -> None:
+        """Toggle metric grid visibility."""
+        self.show_grid = not self.show_grid
+        state_str = "VISIBLE" if self.show_grid else "HIDDEN"
+        log_msg(f"[Webots Visibility] Metric grid is now {state_str}")
+        if self.grid_trans_field:
+            z = 0.04 if self.show_grid else -100.0
+            self.grid_trans_field.setSFVec3f([0.0, 0.0, z])
+        if self.supervisor and self.show_hud and self.playback_cursor < len(self.ticks):
+            step = self.ticks[self.playback_cursor]
+            self.update_hud(step["tick"], step["time"], step["uavs"], step["tasks"], step.get("events", []))
 
     def process_input(self) -> None:
         """Handle keyboard shortcuts and mouse clicks for interactive presentation replay."""
@@ -760,6 +1017,7 @@ class WebotsAetherSwarmSupervisor:
                 base_key = key & 0xFFFF
                 is_shift = bool(key & 65536)  # Keyboard.SHIFT is 65536
 
+                # Replay Controls
                 if base_key == 314:  # Keyboard.LEFT
                     if is_shift:
                         self.seek_relative(-3)  # Shift+Left: -3s
@@ -770,10 +1028,52 @@ class WebotsAetherSwarmSupervisor:
                         self.seek_relative(+3)  # Shift+Right: +3s
                     else:
                         self.seek_relative(+1)  # Right: +1s
-                elif base_key in (32, ord("p"), ord("P")):  # Space / P
+                elif base_key == 32:  # Space
                     self.toggle_play_pause()
                 elif base_key in (313, ord("r"), ord("R")):  # Home / R
-                    self.seek_to(0, pause=True)         # Reset to 0 and pause
+                    self.reset()
+
+                # Speed Controls (0.25x, 0.5x, 1x, 2x, 4x)
+                elif base_key == 315 or base_key == ord("]"):  # Up / ]
+                    self.speed_up()
+                elif base_key == 317 or base_key == ord("["):  # Down / [
+                    self.slow_down()
+                elif base_key == ord("1"):
+                    self.set_playback_speed(0.25)
+                elif base_key == ord("2"):
+                    self.set_playback_speed(0.5)
+                elif base_key == ord("3"):
+                    self.set_playback_speed(1.0)
+                elif base_key == ord("4"):
+                    self.set_playback_speed(2.0)
+                elif base_key == ord("5"):
+                    self.set_playback_speed(4.0)
+
+                # Camera Selection
+                elif base_key in (ord("c"), ord("C")):
+                    self.cycle_camera()
+                elif base_key in (ord("o"), ord("O")):
+                    self.set_camera("overview")
+                elif base_key in (ord("f"), ord("F")):
+                    self.set_camera("follow")
+                elif base_key in (ord("g"), ord("G")):
+                    self.set_camera("gcs")
+                elif base_key in (ord("v"), ord("V")):
+                    self.set_camera("recovery")
+
+                # Visibility Toggles
+                elif base_key in (ord("h"), ord("H")):
+                    self.toggle_hud()
+                elif base_key in (ord("p"), ord("P"), ord("t"), ord("T")):
+                    self.toggle_pois()
+                elif base_key in (ord("m"), ord("M")):
+                    self.toggle_comm_mesh()
+                elif base_key in (ord("u"), ord("U")):
+                    self.toggle_routes()
+                elif base_key in (ord("d"), ord("D")):
+                    self.toggle_drop_lines()
+                elif base_key in (ord("b"), ord("B")):
+                    self.toggle_grid()
 
                 key = self.keyboard.getKey()
 
@@ -785,34 +1085,38 @@ class WebotsAetherSwarmSupervisor:
 
             if is_click:
                 u, v = m_state.u, m_state.v
-                # Check top HUD control bar (v in [0.150, 0.205])
-                if 0.150 <= v <= 0.205:
-                    if 0.010 <= u < 0.090:
-                        self.seek_to(0, pause=True)       # [ RESET ]
-                    elif 0.090 <= u < 0.165:
-                        self.seek_relative(-3)            # [ -3s ]
-                    elif 0.165 <= u < 0.240:
-                        self.seek_relative(-1)            # [ -1s ]
-                    elif 0.240 <= u < 0.380:
-                        self.toggle_play_pause()          # [ PLAY / PAUSE ]
-                    elif 0.380 <= u < 0.455:
-                        self.seek_relative(+1)            # [ +1s ]
-                    elif 0.455 <= u < 0.550:
-                        self.seek_relative(+3)            # [ +3s ]
-                # Check bottom bar (v in [0.880, 1.000]) if clicked near bottom
-                elif 0.880 <= v <= 1.000:
-                    if 0.150 <= u < 0.280:
-                        self.seek_to(0, pause=True)       # [ RESET ]
-                    elif 0.280 <= u < 0.380:
-                        self.seek_relative(-3)            # [ -3s ]
-                    elif 0.380 <= u < 0.480:
-                        self.seek_relative(-1)            # [ -1s ]
-                    elif 0.480 <= u < 0.620:
-                        self.toggle_play_pause()          # [ PLAY / PAUSE ]
-                    elif 0.620 <= u < 0.720:
-                        self.seek_relative(+1)            # [ +1s ]
-                    elif 0.720 <= u < 0.850:
-                        self.seek_relative(+3)            # [ +3s ]
+                # Check top HUD control bar (v in [0.150, 0.200])
+                if 0.150 <= v <= 0.200:
+                    if 0.010 <= u < 0.080:
+                        self.reset()
+                    elif 0.080 <= u < 0.140:
+                        self.seek_relative(-3)
+                    elif 0.140 <= u < 0.200:
+                        self.seek_relative(-1)
+                    elif 0.200 <= u < 0.320:
+                        self.toggle_play_pause()
+                    elif 0.320 <= u < 0.380:
+                        self.seek_relative(+1)
+                    elif 0.380 <= u < 0.440:
+                        self.seek_relative(+3)
+                    elif 0.450 <= u < 0.580:
+                        self.cycle_playback_speed()
+                    elif 0.580 <= u < 0.740:
+                        self.cycle_camera()
+                # Check toggles bar (v in [0.200, 0.245])
+                elif 0.200 <= v <= 0.245:
+                    if 0.010 <= u < 0.080:
+                        self.toggle_hud()
+                    elif 0.080 <= u < 0.170:
+                        self.toggle_pois()
+                    elif 0.170 <= u < 0.260:
+                        self.toggle_comm_mesh()
+                    elif 0.260 <= u < 0.360:
+                        self.toggle_routes()
+                    elif 0.360 <= u < 0.480:
+                        self.toggle_drop_lines()
+                    elif 0.480 <= u < 0.600:
+                        self.toggle_grid()
 
     def render_frame(self, tick_idx: int, alpha: float = 0.0) -> None:
         """Reconstruct and render the complete visual scene for a given tick and interpolation fraction."""
@@ -863,16 +1167,34 @@ class WebotsAetherSwarmSupervisor:
                 self.update_drone_appearance(uid, u_state)
 
         if self.supervisor:
-            for tid, t_state in tasks.items():
-                self.update_poi_appearance(tid, t_state)
+            if self.show_pois:
+                for tid, t_state in tasks.items():
+                    self.update_poi_appearance(tid, t_state)
 
-            self.update_comm_mesh(
-                network.get("active_links", []),
-                network.get("routes_to_gcs", {}),
-                interp_positions,
-            )
-            self.update_drop_lines(interp_positions)
-            self.update_hud(sim_tick, sim_time, uavs, tasks, events)
+            if self.show_comm_mesh:
+                self.update_comm_mesh(
+                    network.get("active_links", []),
+                    network.get("routes_to_gcs", {}),
+                    interp_positions,
+                )
+            else:
+                if self.comm_coord_field and self.comm_index_field:
+                    self._set_indexed_line_set(self.comm_coord_field, self.comm_index_field, [], [])
+
+            if not self.show_routes:
+                if self.route_coord_field and self.route_index_field:
+                    self._set_indexed_line_set(self.route_coord_field, self.route_index_field, [], [])
+
+            if self.show_drop_lines:
+                self.update_drop_lines(interp_positions)
+            else:
+                if self.dropline_coord_field and self.dropline_index_field:
+                    self._set_indexed_line_set(self.dropline_coord_field, self.dropline_index_field, [], [])
+
+            if self.show_hud:
+                self.update_hud(sim_tick, sim_time, uavs, tasks, events)
+            else:
+                self._clear_hud()
 
     def run(self) -> None:
         """Execute interactive presentation playback loop."""
@@ -895,6 +1217,10 @@ class WebotsAetherSwarmSupervisor:
         screenshot_dir = Path(__file__).resolve().parent / ".." / ".." / "data" / "screenshots"
         if self.supervisor:
             screenshot_dir.mkdir(parents=True, exist_ok=True)
+
+        # Initial camera view application
+        if self.supervisor:
+            self.set_camera(self.camera_mode)
 
         # Initial frame render at tick 0
         self.seek_to(0, pause=False)
@@ -944,16 +1270,20 @@ class WebotsAetherSwarmSupervisor:
             if self.supervisor:
                 self.process_input()
 
-            # 2. If playing, advance sub-step interpolation
+            # 2. If playing, advance sub-step interpolation with speed multiplier
             if not self.is_paused:
-                self.sub_step_idx += 1
-                if self.sub_step_idx >= self.sub_steps:
-                    self.sub_step_idx = 0
+                delta_alpha = (self.time_step / 1000.0) * self.playback_speed
+                self.sub_step_progress += delta_alpha
+
+                while self.sub_step_progress >= 1.0:
+                    self.sub_step_progress -= 1.0
                     if self.playback_cursor < self.total_ticks - 1:
                         self.playback_cursor += 1
                         evaluate_authoritative_tick(self.playback_cursor)
                     else:
-                        # Reached final tick -> pause at end
+                        # Reached final tick -> clamp and pause at end
+                        self.playback_cursor = self.total_ticks - 1
+                        self.sub_step_progress = 0.0
                         self.is_paused = True
                         log_msg("[Webots Supervisor] Reached final trace tick. Scenario execution complete.")
                         log_msg("[Webots Supervisor] Mission finished: simulation paused for presenter inspection.")
@@ -961,16 +1291,17 @@ class WebotsAetherSwarmSupervisor:
 
                         # Refresh HUD with completion banner
                         try:
-                            self.supervisor.setLabel(
-                                5,
-                                "MISSION COMPLETE - ALL TASKS SERVICED & SWARM SAFELY LANDED",
-                                0.20,
-                                0.015,
-                                0.042,
-                                0x44FF88,
-                                0.0,
-                                "Arial",
-                            )
+                            if self.show_hud:
+                                self.supervisor.setLabel(
+                                    5,
+                                    "MISSION COMPLETE - ALL TASKS SERVICED & SWARM SAFELY LANDED",
+                                    0.20,
+                                    0.015,
+                                    0.042,
+                                    0x44FF88,
+                                    0.0,
+                                    "Arial",
+                                )
                         except Exception:
                             pass
 
@@ -982,8 +1313,9 @@ class WebotsAetherSwarmSupervisor:
                             if self.supervisor:
                                 self.supervisor.simulationQuit(0)
                             return
+                        break
 
-                alpha = float(self.sub_step_idx) / float(self.sub_steps)
+                alpha = self.sub_step_progress
                 self.render_frame(self.playback_cursor, alpha=alpha)
 
             # 3. Advance Webots simulation clock or advance standalone loop

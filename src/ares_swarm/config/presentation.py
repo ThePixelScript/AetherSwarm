@@ -30,6 +30,11 @@ class WebotsPresentationConfig:
     show_hud: bool = True
     show_event_banner: bool = True
     auto_quit: bool = False
+    playback_speed: float = 1.0
+    camera_mode: str = "overview"
+    show_pois: bool = True
+    show_grid: bool = True
+    header_title: str = "AETHERSWARM UAV-X AUTONOMOUS WORKING MODEL"
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -42,6 +47,11 @@ class WebotsPresentationConfig:
             "show_hud": self.show_hud,
             "show_event_banner": self.show_event_banner,
             "auto_quit": self.auto_quit,
+            "playback_speed": self.playback_speed,
+            "camera_mode": self.camera_mode,
+            "show_pois": self.show_pois,
+            "show_grid": self.show_grid,
+            "header_title": self.header_title,
         }
 
     @classmethod
@@ -56,4 +66,9 @@ class WebotsPresentationConfig:
             show_hud=bool(data.get("show_hud", True)),
             show_event_banner=bool(data.get("show_event_banner", True)),
             auto_quit=bool(data.get("auto_quit", False)),
+            playback_speed=float(data.get("playback_speed", 1.0)),
+            camera_mode=str(data.get("camera_mode", "overview")),
+            show_pois=bool(data.get("show_pois", True)),
+            show_grid=bool(data.get("show_grid", True)),
+            header_title=str(data.get("header_title", "AETHERSWARM UAV-X AUTONOMOUS WORKING MODEL")),
         )
