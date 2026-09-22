@@ -66,13 +66,24 @@ visualization/webots/
    - Highlighted active route overlays showing multi-hop paths to GCS without synthetic role inventions.
 
 7. **Dedicated Camera Viewpoints**:
+   - `demo_presentation_cam`: Dedicated presentation perspective framed tightly around the active corridor and mission zone ($X \in [-50, 450], Y \in [200, 750]$).
    - `overview_cam`: 1000m comprehensive mission overview perspective.
    - `e1_failure_cam`: Close-up view of central cluster for tick-300 relay failure demonstration.
    - `recovery_cam`: Focused view on `poi_recovery` for tick-8 failure and dynamic A1 reassignment.
    - `gcs_landing_cam`: Helipad approach, descent, and touchdown viewpoint.
    - `overhead_cam`: Vertical nadir orthographic-style swarm overview.
+   - `mission_camera`: Legacy compatible overview camera.
 
-8. **In-World HUD Telemetry**:
+8. **Smooth Sub-Tick Visual Interpolation**:
+   - Glides UAV 3D translations and scalar yaw rotations across intermediate Webots animation steps between authoritative 1.0s ticks.
+   - Configurable via `AETHERSWARM_SUBSTEPS` (default: 4 sub-steps per tick).
+   - Authoritative states, events, HUD metrics, and spatial verifications remain strictly locked to 1.0s ticks.
+
+9. **Interactive Playback & Post-Mission Inspection**:
+   - Respects Webots GUI transport controls (Play, Pause, Fast, Real-Time).
+   - Keeps the 3D world open upon scenario completion with a mission complete banner for presenter inspection (auto-quit disabled by default, enabled via `AETHERSWARM_AUTO_QUIT=1`).
+
+10. **In-World HUD Telemetry**:
    - Lightweight overlay showing real-time scenario name, tick progress, swarm active/failed counts, POI task completions, and independent spatial verification metrics.
 
 ---
@@ -112,12 +123,22 @@ Start-Process -FilePath "C:\Program Files\Webots\msys64\mingw64\bin\webots.exe" 
   -WorkingDirectory "C:\Program Files\Webots"
 ```
 
-### 3. Standalone Observational Spatial Verification (CLI / CI)
+### 3. Randomized POI Demonstration
+Executes the randomized POI presentation scenario showing 10 non-grid, spatially distributed POIs across the operational arena:
+```powershell
+$env:AETHERSWARM_SCENARIO = "random"
+Start-Process -FilePath "C:\Program Files\Webots\msys64\mingw64\bin\webots.exe" `
+  -ArgumentList @("C:\AetherSwarmWebots\worlds\uavx_round1.wbt") `
+  -WorkingDirectory "C:\Program Files\Webots"
+```
+
+### 4. Standalone Observational Spatial Verification (CLI / CI)
 The supervisor controller can also be executed directly from the terminal (WSL or Windows) to perform observational spatial verification against the authoritative traces without opening Webots:
 ```bash
 # In WSL:
 .venv/bin/python visualization/webots/controllers/aetherswarm_supervisor/aetherswarm_supervisor.py e1
 .venv/bin/python visualization/webots/controllers/aetherswarm_supervisor/aetherswarm_supervisor.py recovery
+.venv/bin/python visualization/webots/controllers/aetherswarm_supervisor/aetherswarm_supervisor.py random
 ```
 
 ---

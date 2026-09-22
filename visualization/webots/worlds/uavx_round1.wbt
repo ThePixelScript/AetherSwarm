@@ -13,7 +13,7 @@ WorldInfo {
 
 Viewpoint {
   orientation 0.655 0.354 -0.668 1.482
-  position 360 -380 480
+  position 200 -60 280
   near 0.5
   far 8000
 }
@@ -849,6 +849,15 @@ DEF SUPERVISOR Robot {
       width 1920
       height 1080
       fieldOfView 1.10
+    }
+    # 7. Dedicated Demo Presentation Camera (Corridor & Active Arena Focus)
+    Camera {
+      translation 200 -60 280
+      rotation 0.655 0.354 -0.668 1.482
+      name "demo_presentation_cam"
+      width 1920
+      height 1080
+      fieldOfView 1.05
     }
   ]
 }

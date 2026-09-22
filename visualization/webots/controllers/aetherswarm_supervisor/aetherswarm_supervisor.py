@@ -156,9 +156,13 @@ class WebotsAetherSwarmSupervisor:
         self.max_altitude_m = float(self.metadata.get("max_altitude", 100.0))
         self.gcs_pos = self.metadata.get("gcs_position", [-50.0, 500.0, 0.0])
 
+        # Visual sub-tick interpolation steps (1 = instantaneous per tick, 4 = smooth presentation default)
+        self.sub_steps = 1 if self.is_standalone else max(1, int(os.environ.get("AETHERSWARM_SUBSTEPS", "4")))
+
         log_msg(f"[Webots Supervisor] Trace scenario: {self.metadata.get('scenario_name')}")
         log_msg(f"[Webots Supervisor] Total simulation ticks: {self.total_ticks}")
         log_msg(f"[Webots Supervisor] Official constraints: min_sep={self.min_separation_m}m, max_alt={self.max_altitude_m}m")
+        log_msg(f"[Webots Supervisor] Visual interpolation: {self.sub_steps} sub-steps per tick")
 
         # Lookup drone nodes and material fields if running inside Webots
         self.drone_nodes: dict[str, Any] = {}
@@ -665,35 +669,28 @@ class WebotsAetherSwarmSupervisor:
                 print(f"  [Webots Spatial Warning] {msg}")
 
     def run(self) -> None:
-        """Execute playback loop driven by authoritative trace steps."""
+        """Execute playback loop driven by authoritative trace steps with smooth visual sub-tick interpolation."""
         log_msg("[Webots Supervisor] Commencing simulation playback and spatial verification...")
 
-        # Switch to Fast simulation mode for high-throughput playback if inside Webots
+        # Optional simulation mode override (e.g. AETHERSWARM_SIM_MODE=fast or realtime)
         if self.supervisor:
-            try:
-                self.supervisor.simulationSetMode(Supervisor.SIMULATION_MODE_FAST)
-            except Exception:
-                pass
+            sim_mode = os.environ.get("AETHERSWARM_SIM_MODE", "").strip().lower()
+            if sim_mode == "fast":
+                try:
+                    self.supervisor.simulationSetMode(Supervisor.SIMULATION_MODE_FAST)
+                except Exception:
+                    pass
+            elif sim_mode in ("realtime", "real_time"):
+                try:
+                    self.supervisor.simulationSetMode(Supervisor.SIMULATION_MODE_REAL_TIME)
+                except Exception:
+                    pass
 
         screenshot_dir = Path(__file__).resolve().parent / ".." / ".." / "data" / "screenshots"
         if self.supervisor:
             screenshot_dir.mkdir(parents=True, exist_ok=True)
 
-        tick_idx = 0
-
-        # Loop function supporting both Webots supervisor step and standalone step
-        def advance_step() -> bool:
-            nonlocal tick_idx
-            if self.supervisor:
-                return self.supervisor.step(self.time_step) != -1
-            else:
-                return tick_idx < self.total_ticks
-
-        while advance_step():
-            if tick_idx >= self.total_ticks:
-                log_msg("[Webots Supervisor] Reached final trace tick.")
-                break
-
+        for tick_idx in range(self.total_ticks):
             step = self.ticks[tick_idx]
             sim_tick = step["tick"]
             sim_time = step["time"]
@@ -708,49 +705,24 @@ class WebotsAetherSwarmSupervisor:
                 if ev_type in ("UAV_FAILED", "TASK_DEFERRED", "TASK_ASSIGNED", "TASK_COMPLETED", "RTH_TRIGGERED", "UAV_LANDED"):
                     log_msg(f"  [Authoritative Event @ Tick {sim_tick} ({sim_time}s)] {ev_type} -> {ev.get('entity_id')} payload={ev.get('payload')}")
 
-            # 1. Update UAV spatial translations, yaw rotations, and appearances
+            # Determine authoritative active positions for spatial verification
             current_active_positions: dict[str, list[float]] = {}
-            all_drone_positions: dict[str, list[float]] = {}
-
             for uid, u_state in uavs.items():
-                pos = u_state["position"]
-                yaw = u_state.get("yaw", 0.0)
-                all_drone_positions[uid] = pos
+                if u_state.get("active", True) and u_state.get("failure_state") != "FAILED":
+                    current_active_positions[uid] = u_state["position"]
 
-                # Set 3D position and orientation if in Webots
-                if self.supervisor:
-                    trans_field = self.drone_trans_fields.get(uid)
-                    if trans_field:
-                        trans_field.setSFVec3f(pos)
-
-                    rot_field = self.drone_rot_fields.get(uid)
-                    if rot_field:
-                        rot_field.setSFRotation([0.0, 0.0, 1.0, yaw])
-
+            # 1. Update discrete domain appearances strictly from authoritative state
+            if self.supervisor:
+                for uid, u_state in uavs.items():
                     self.update_drone_appearance(uid, u_state)
 
-                if u_state.get("active", True) and u_state.get("failure_state") != "FAILED":
-                    current_active_positions[uid] = pos
-
-            # 2. Update POI task appearances
-            if self.supervisor:
                 for tid, t_state in tasks.items():
                     self.update_poi_appearance(tid, t_state)
 
-                # 3. Update communication mesh links and active multihop routes
-                self.update_comm_mesh(
-                    network.get("active_links", []),
-                    network.get("routes_to_gcs", {}),
-                    all_drone_positions,
-                )
-
-                # 4. Update dynamic altitude drop-lines
-                self.update_drop_lines(all_drone_positions)
-
-                # 5. Update in-world HUD
+                # 2. Update in-world HUD telemetry with authoritative tick/time
                 self.update_hud(sim_tick, sim_time, uavs, tasks, events)
 
-            # 6. Perform independent observational spatial verification
+            # 3. Perform independent observational spatial verification on authoritative coordinates
             self.perform_spatial_verification(sim_tick, sim_time, current_active_positions)
 
             # Capture key demonstration screenshots
@@ -764,15 +736,89 @@ class WebotsAetherSwarmSupervisor:
             if sim_tick % 100 == 0 or sim_tick == self.total_ticks - 1:
                 log_msg(f"  [Webots Playback] Progress: tick {sim_tick}/{self.total_ticks} ({sim_time:.1f}s)")
 
-            tick_idx += 1
+            # 4. Visual rendering with sub-tick interpolation across Webots animation frames
+            if self.supervisor:
+                # Target next tick state for interpolation
+                next_step = self.ticks[tick_idx + 1] if tick_idx + 1 < self.total_ticks else step
+                next_uavs = next_step.get("uavs", {})
+
+                # Render intermediate visual states between tick k and k+1
+                sub_count = 1 if tick_idx == self.total_ticks - 1 else self.sub_steps
+                for sub_idx in range(sub_count):
+                    alpha = float(sub_idx) / float(sub_count)
+                    interp_positions: dict[str, list[float]] = {}
+
+                    for uid, u_state in uavs.items():
+                        p0 = u_state["position"]
+                        y0 = u_state.get("yaw", 0.0)
+
+                        if uid in next_uavs:
+                            p1 = next_uavs[uid]["position"]
+                            y1 = next_uavs[uid].get("yaw", 0.0)
+                        else:
+                            p1 = p0
+                            y1 = y0
+
+                        # Linear translation interpolation: p(alpha) = (1 - alpha)*p0 + alpha*p1
+                        p_interp = [
+                            (1.0 - alpha) * p0[0] + alpha * p1[0],
+                            (1.0 - alpha) * p0[1] + alpha * p1[1],
+                            (1.0 - alpha) * p0[2] + alpha * p1[2],
+                        ]
+
+                        # Shortest-path angular heading interpolation with correct [-pi, pi] wraparound
+                        dyaw = ((y1 - y0 + math.pi) % (2.0 * math.pi)) - math.pi
+                        y_interp = y0 + alpha * dyaw
+
+                        interp_positions[uid] = p_interp
+
+                        trans_field = self.drone_trans_fields.get(uid)
+                        if trans_field:
+                            trans_field.setSFVec3f(p_interp)
+
+                        rot_field = self.drone_rot_fields.get(uid)
+                        if rot_field:
+                            rot_field.setSFRotation([0.0, 0.0, 1.0, y_interp])
+
+                    # Smooth visual update for communication links and altitude drop-lines
+                    self.update_comm_mesh(
+                        network.get("active_links", []),
+                        network.get("routes_to_gcs", {}),
+                        interp_positions,
+                    )
+                    self.update_drop_lines(interp_positions)
+
+                    # Advance Webots simulation by one physics time step
+                    step_result = self.supervisor.step(self.time_step)
+                    if step_result == -1:
+                        log_msg("[Webots Supervisor] Simulation window closed by user.")
+                        return
 
         # Final Spatial Verification Report
         self.output_verification_report()
 
-        # Gracefully quit simulation when finished if running inside Webots
+        # Post-mission presentation state: keep world open for presenter inspection
         if self.supervisor:
+            log_msg("[Webots Supervisor] Reached final trace tick. Scenario execution complete.")
+            log_msg("[Webots Supervisor] Mission finished: simulation paused for presenter inspection.")
             try:
-                self.supervisor.simulationQuit(0)
+                self.supervisor.setLabel(
+                    5,
+                    "MISSION COMPLETE - ALL TASKS SERVICED & SWARM SAFELY LANDED",
+                    0.20,
+                    0.015,
+                    0.042,
+                    0x44FF88,
+                    0.0,
+                    "Arial",
+                )
+                auto_quit = os.environ.get("AETHERSWARM_AUTO_QUIT", "").strip().lower() in ("1", "true", "yes")
+                if auto_quit:
+                    self.supervisor.simulationQuit(0)
+                else:
+                    self.supervisor.simulationSetMode(Supervisor.SIMULATION_MODE_PAUSE)
+                    while self.supervisor.step(self.time_step) != -1:
+                        pass
             except Exception:
                 pass
 
