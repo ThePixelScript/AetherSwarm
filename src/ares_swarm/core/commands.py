@@ -2,9 +2,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Tuple
+from typing import Optional, Tuple
 
-from .enums import FailureState
+from .enums import FailureState, Role
 
 
 @dataclass(frozen=True)
@@ -25,6 +25,27 @@ class ReleaseTaskCommand(Command):
     """Release a task from a UAV."""
     task_id: str
     reason: str = "DEFERRED"
+
+
+@dataclass(frozen=True)
+class AssignRelayRoleCommand(Command):
+    """Assign or transition a UAV to dynamic RELAY role."""
+    target_position: Optional[Tuple[float, float]] = None
+    relay_for_uav_id: Optional[str] = None
+
+
+@dataclass(frozen=True)
+class ReleaseRelayRoleCommand(Command):
+    """Release a UAV from RELAY role, transitioning to next operational role."""
+    next_role: Role = Role.SURVEYOR
+
+
+@dataclass(frozen=True)
+class HandoffRelayCommand(Command):
+    """Transfer relay responsibilities from one UAV to an assigned replacement."""
+    replacement_uav_id: str
+    target_position: Optional[Tuple[float, float]] = None
+    relay_for_uav_id: Optional[str] = None
 
 
 @dataclass(frozen=True)

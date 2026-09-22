@@ -68,6 +68,16 @@ class MissionMetricsReport:
     UAVs_landed: int = 0
     UAVs_ready_at_end: int = 0
 
+    # Phase 3: Dynamic Relay Management metrics
+    relay_assignments: int = 0
+    relay_releases: int = 0
+    relay_handoffs: int = 0
+    relay_losses: int = 0
+    relay_recovery_successes: int = 0
+    connected_time_before_handoff: float = 0.0
+    connected_time_after_handoff: float = 0.0
+    network_reconfiguration_time_s: float | None = None
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "mission": {
@@ -137,6 +147,19 @@ class MissionMetricsReport:
                 "UAVs_landed": self.UAVs_landed,
                 "UAVs_ready_at_end": self.UAVs_ready_at_end,
             },
+            "relay_management": {
+                "relay_assignments": self.relay_assignments,
+                "relay_releases": self.relay_releases,
+                "relay_handoffs": self.relay_handoffs,
+                "relay_losses": self.relay_losses,
+                "relay_recovery_successes": self.relay_recovery_successes,
+                "connected_time_before_handoff": round(self.connected_time_before_handoff, 2),
+                "connected_time_after_handoff": round(self.connected_time_after_handoff, 2),
+                "network_reconfiguration_time_s": (
+                    round(self.network_reconfiguration_time_s, 2)
+                    if self.network_reconfiguration_time_s is not None else None
+                ),
+            },
         }
 
 
@@ -149,6 +172,7 @@ def compute_mission_metrics(
     telemetry_manager: Any = None,
     separation_enforcer: Any = None,
     geofence_enforcer: Any = None,
+    relay_manager: Any = None,
 ) -> MissionMetricsReport:
     """Compute official benchmark metrics from simulation step history and snapshots."""
     report = MissionMetricsReport()
@@ -314,5 +338,26 @@ def compute_mission_metrics(
         1 for u in final_uavs.values()
         if getattr(u, "rth_state", None) == RTHState.ACTIVE and getattr(u, "active", False)
     )
+
+    # 7. Dynamic Relay Management Metrics
+    if relay_manager is not None:
+        report.relay_assignments = relay_manager.relay_assignments
+        report.relay_releases = relay_manager.relay_releases
+        report.relay_handoffs = relay_manager.relay_handoffs
+        report.relay_losses = relay_manager.relay_losses
+        report.relay_recovery_successes = relay_manager.relay_recovery_successes
+        report.connected_time_before_handoff = relay_manager.connected_time_before_handoff
+        report.connected_time_after_handoff = relay_manager.connected_time_after_handoff
+        report.network_reconfiguration_time_s = relay_manager.network_reconfiguration_time_s
+    else:
+        report.relay_assignments = sum(1 for e in all_events if getattr(e, "event_type", None) == EventType.RELAY_ASSIGNED)
+        report.relay_releases = sum(1 for e in all_events if getattr(e, "event_type", None) == EventType.RELAY_RELEASED)
+        report.relay_handoffs = sum(1 for e in all_events if getattr(e, "event_type", None) == EventType.RELAY_HANDOFF)
+        report.relay_losses = sum(1 for e in all_events if getattr(e, "event_type", None) == EventType.RELAY_LOST)
+        report.relay_recovery_successes = sum(1 for e in all_events if getattr(e, "event_type", None) == EventType.RELAY_RECOVERY)
+
+    if report.relay_handoffs > 0 or report.relay_assignments > 0 or report.relay_losses > 0:
+        report.relay_reallocations = report.relay_handoffs + report.relay_assignments
+        report.resilience_status = "ACTIVE_M1"
 
     return report

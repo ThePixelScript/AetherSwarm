@@ -5,6 +5,10 @@ from .a1_allocator import (
     A1CommunicationAwareAllocator,
     A1TaskAllocator,
 )
+from .relay_manager import (
+    DynamicRelayManager,
+    RelayManagementConfig,
+)
 from .task_allocator import (
     A0TaskAllocator,
     AllocationResult,
@@ -24,7 +28,9 @@ __all__ = [
     "A1TaskAllocator",
     "AllocationResult",
     "AllocationWeights",
+    "DynamicRelayManager",
     "PositionProtocol",
+    "RelayManagementConfig",
     "TaskActionProposal",
     "TaskAllocator",
     "TaskAllocatorConfig",

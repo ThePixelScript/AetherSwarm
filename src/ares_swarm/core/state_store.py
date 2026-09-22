@@ -6,14 +6,17 @@ from types import MappingProxyType
 from typing import Dict, List, Optional, Sequence, Tuple
 
 from .commands import (
+    AssignRelayRoleCommand,
     AssignTaskCommand,
     BeginLandingCommand,
     Command,
     CompleteRechargeCommand,
     CompleteRTHCommand,
     FailUAVCommand,
+    HandoffRelayCommand,
     RecoverUAVCommand,
     ProgressTaskCommand,
+    ReleaseRelayRoleCommand,
     ReleaseTaskCommand,
     SetTargetPositionCommand,
     StartRechargeCommand,
@@ -118,13 +121,24 @@ class StateStore:
                     was_deferred = (task.status == TaskStatus.DEFERRED)
                     starting_new_sortie = (uav.sortie_state == SortieState.READY or uav.assigned_task_id is None)
                     was_deferred = (task.status == TaskStatus.DEFERRED)
+                    if uav.role == Role.RELAY:
+                        staged_events.append(DomainEvent.create(
+                            simulation_tick=self._simulation_tick,
+                            simulation_time=self._simulation_time,
+                            event_type=EventType.RELAY_RELEASED,
+                            entity_id=uav.id,
+                            payload={"previous_role": Role.RELAY.value, "new_role": Role.SURVEYOR.value, "reason": "TASK_ASSIGNED"},
+                            sequence=len(events) + len(staged_events),
+                        ))
+                    new_role = Role.SURVEYOR if uav.role in (Role.IDLE, Role.RELAY) else uav.role
                     staged_tasks[task.id] = replace(task, status=TaskStatus.ASSIGNED, assigned_uav_id=uav.id)
                     staged_uavs[uav.id] = replace(
                         uav,
                         assigned_task_id=task.id,
                         target_position=task.position_xy,
                         sortie_state=SortieState.ACTIVE,
-                        role=Role.SCOUT,
+                        role=new_role,
+                        relay_target_id=None,
                         active=True,
                     )
                     staged_events.append(DomainEvent.create(
@@ -161,6 +175,137 @@ class StateStore:
                         sequence=len(events) + len(staged_events),
                     ))
 
+            elif isinstance(cmd, AssignRelayRoleCommand):
+                if uav.assigned_task_id and uav.assigned_task_id in self._tasks:
+                    old_task = self._tasks[uav.assigned_task_id]
+                    staged_tasks[old_task.id] = replace(old_task, status=TaskStatus.DEFERRED, assigned_uav_id=None)
+                    staged_events.append(DomainEvent.create(
+                        simulation_tick=self._simulation_tick,
+                        simulation_time=self._simulation_time,
+                        event_type=EventType.TASK_HANDOFF,
+                        entity_id=old_task.id,
+                        payload={"uav_id": uav.id, "reason": "RELAY_ASSIGNMENT"},
+                        sequence=len(events) + len(staged_events),
+                    ))
+                    staged_events.append(DomainEvent.create(
+                        simulation_tick=self._simulation_tick,
+                        simulation_time=self._simulation_time,
+                        event_type=EventType.TASK_DEFERRED,
+                        entity_id=old_task.id,
+                        payload={"uav_id": uav.id, "reason": "RELAY_ASSIGNMENT"},
+                        sequence=len(events) + len(staged_events),
+                    ))
+                target_pos = cmd.target_position if cmd.target_position is not None else uav.position_xy
+                staged_uavs[uav.id] = replace(
+                    uav,
+                    role=Role.RELAY,
+                    relay_target_id=cmd.relay_for_uav_id,
+                    target_position=target_pos,
+                    assigned_task_id=None,
+                    sortie_state=SortieState.ACTIVE if uav.sortie_state == SortieState.READY else uav.sortie_state,
+                    active=True,
+                )
+                staged_events.append(DomainEvent.create(
+                    simulation_tick=self._simulation_tick,
+                    simulation_time=self._simulation_time,
+                    event_type=EventType.RELAY_ASSIGNED,
+                    entity_id=uav.id,
+                    payload={
+                        "relay_for_uav_id": cmd.relay_for_uav_id,
+                        "target_position": target_pos,
+                    },
+                    sequence=len(events) + len(staged_events),
+                ))
+
+            elif isinstance(cmd, ReleaseRelayRoleCommand):
+                if uav.role != Role.RELAY:
+                    rejection = CommandRejection(
+                        cmd,
+                        RejectionCode.ILLEGAL_LIFECYCLE_TRANSITION,
+                        f"UAV {uav.id} is not in RELAY role (current: {uav.role})",
+                    )
+                else:
+                    staged_uavs[uav.id] = replace(
+                        uav,
+                        role=cmd.next_role,
+                        relay_target_id=None,
+                    )
+                    staged_events.append(DomainEvent.create(
+                        simulation_tick=self._simulation_tick,
+                        simulation_time=self._simulation_time,
+                        event_type=EventType.RELAY_RELEASED,
+                        entity_id=uav.id,
+                        payload={
+                            "previous_role": Role.RELAY.value,
+                            "new_role": cmd.next_role.value,
+                        },
+                        sequence=len(events) + len(staged_events),
+                    ))
+
+            elif isinstance(cmd, HandoffRelayCommand):
+                rep_uav = staged_uavs.get(cmd.replacement_uav_id) or self._uavs.get(cmd.replacement_uav_id)
+                if not rep_uav:
+                    rejection = CommandRejection(
+                        cmd,
+                        RejectionCode.ENTITY_NOT_FOUND,
+                        f"Replacement UAV {cmd.replacement_uav_id} not found",
+                    )
+                else:
+                    if rep_uav.assigned_task_id and rep_uav.assigned_task_id in self._tasks:
+                        old_task = self._tasks[rep_uav.assigned_task_id]
+                        staged_tasks[old_task.id] = replace(old_task, status=TaskStatus.DEFERRED, assigned_uav_id=None)
+                        staged_events.append(DomainEvent.create(
+                            simulation_tick=self._simulation_tick,
+                            simulation_time=self._simulation_time,
+                            event_type=EventType.TASK_HANDOFF,
+                            entity_id=old_task.id,
+                            payload={"uav_id": rep_uav.id, "reason": "RELAY_HANDOFF"},
+                            sequence=len(events) + len(staged_events),
+                        ))
+                        staged_events.append(DomainEvent.create(
+                            simulation_tick=self._simulation_tick,
+                            simulation_time=self._simulation_time,
+                            event_type=EventType.TASK_DEFERRED,
+                            entity_id=old_task.id,
+                            payload={"uav_id": rep_uav.id, "reason": "RELAY_HANDOFF"},
+                            sequence=len(events) + len(staged_events),
+                        ))
+
+                    target_pos = cmd.target_position if cmd.target_position is not None else uav.target_position or uav.position_xy
+                    staged_uavs[rep_uav.id] = replace(
+                        rep_uav,
+                        role=Role.RELAY,
+                        relay_target_id=cmd.relay_for_uav_id or uav.relay_target_id,
+                        target_position=target_pos,
+                        assigned_task_id=None,
+                        sortie_state=SortieState.ACTIVE if rep_uav.sortie_state == SortieState.READY else rep_uav.sortie_state,
+                        active=True,
+                    )
+                    staged_events.append(DomainEvent.create(
+                        simulation_tick=self._simulation_tick,
+                        simulation_time=self._simulation_time,
+                        event_type=EventType.RELAY_HANDOFF,
+                        entity_id=uav.id,
+                        payload={
+                            "old_relay_id": uav.id,
+                            "new_relay_id": rep_uav.id,
+                            "relay_for_uav_id": cmd.relay_for_uav_id or uav.relay_target_id,
+                            "target_position": target_pos,
+                        },
+                        sequence=len(events) + len(staged_events),
+                    ))
+                    staged_events.append(DomainEvent.create(
+                        simulation_tick=self._simulation_tick,
+                        simulation_time=self._simulation_time,
+                        event_type=EventType.RELAY_ASSIGNED,
+                        entity_id=rep_uav.id,
+                        payload={
+                            "relay_for_uav_id": cmd.relay_for_uav_id or uav.relay_target_id,
+                            "target_position": target_pos,
+                        },
+                        sequence=len(events) + len(staged_events),
+                    ))
+
             elif isinstance(cmd, StartRTHCommand):
                 if uav.assigned_task_id and uav.assigned_task_id in self._tasks:
                     old_task = self._tasks[uav.assigned_task_id]
@@ -181,13 +326,24 @@ class StateStore:
                         payload={"uav_id": uav.id, "reason": "RTH_HANDOFF"},
                         sequence=len(events) + len(staged_events),
                     ))
+                new_role = Role.IDLE if uav.role == Role.RELAY else uav.role
                 staged_uavs[uav.id] = replace(
                     uav,
                     rth_state=RTHState.ACTIVE,
                     sortie_state=SortieState.RTH,
                     target_position=self._gcs_position,
                     assigned_task_id=None,
+                    role=new_role,
                 )
+                if uav.role == Role.RELAY:
+                    staged_events.append(DomainEvent.create(
+                        simulation_tick=self._simulation_tick,
+                        simulation_time=self._simulation_time,
+                        event_type=EventType.RELAY_RELEASED,
+                        entity_id=uav.id,
+                        payload={"previous_role": Role.RELAY.value, "new_role": Role.IDLE.value, "reason": "RTH"},
+                        sequence=len(events) + len(staged_events),
+                    ))
                 staged_events.append(DomainEvent.create(
                     simulation_tick=self._simulation_tick,
                     simulation_time=self._simulation_time,
@@ -332,6 +488,15 @@ class StateStore:
                         payload={"failure_state": target_failure.value, "reason": cmd.reason},
                         sequence=len(events) + len(staged_events),
                     ))
+                    if uav.role == Role.RELAY:
+                        staged_events.append(DomainEvent.create(
+                            simulation_tick=self._simulation_tick,
+                            simulation_time=self._simulation_time,
+                            event_type=EventType.RELAY_LOST,
+                            entity_id=uav.id,
+                            payload={"reason": cmd.reason or "FAILURE", "position": uav.position_xy},
+                            sequence=len(events) + len(staged_events),
+                        ))
 
             elif isinstance(cmd, RecoverUAVCommand):
                 if uav.failure_state == FailureState.NORMAL and uav.active:

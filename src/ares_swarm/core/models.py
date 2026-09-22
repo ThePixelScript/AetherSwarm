@@ -34,6 +34,7 @@ class UAVState:
     assignment_lock_until: float = 0.0
     cooldown_until: float = 0.0
     last_heartbeat_time: float = 0.0
+    relay_target_id: Optional[str] = None
 
     @property
     def battery_percent(self) -> float:

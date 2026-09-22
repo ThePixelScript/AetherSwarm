@@ -48,7 +48,7 @@ class TaskAllocatorConfig:
     min_battery_pct: float = 15.0         # Minimum battery % required to accept tasks
     min_safety_reserve_wh: float = 10.0   # Fallback reserve energy (Wh) if unspecified
     allow_reassignment: bool = False       # Future-compatible flag; A0 allocates pending tasks without preemption
-    eligible_roles: tuple[str, ...] = ("IDLE", "SCOUT", "EMERGENCY_SCOUT")
+    eligible_roles: tuple[str, ...] = ("IDLE", "SCOUT", "SURVEYOR", "EMERGENCY_SCOUT")
 
 
 @dataclass(frozen=True, slots=True)

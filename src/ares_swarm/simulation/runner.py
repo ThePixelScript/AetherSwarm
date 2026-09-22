@@ -23,6 +23,7 @@ from ..core.commands import (
     StartRechargeCommand,
     StepPhysicsCommand,
 )
+from ..autonomy.relay_manager import DynamicRelayManager, RelayManagementConfig
 from ..core.enums import RTHState, SortieState, TaskStatus
 from ..core.events import CommandRejection, DomainEvent, EventType, StateTransitionResult
 from ..core.models import StateSnapshot, TaskState, UAVState
@@ -64,6 +65,7 @@ class MissionResult:
     telemetry_manager: Any = None
     separation_enforcer: Any = None
     geofence_enforcer: Any = None
+    relay_manager: Any = None
 
     def to_dict(self) -> dict[str, Any]:
         snap = self.final_snapshot
@@ -172,6 +174,20 @@ class MissionResult:
                     else None
                 ),
             }
+        if self.relay_manager is not None:
+            res_dict["relay_management"] = {
+                "relay_assignments": self.relay_manager.relay_assignments,
+                "relay_releases": self.relay_manager.relay_releases,
+                "relay_handoffs": self.relay_manager.relay_handoffs,
+                "relay_losses": self.relay_manager.relay_losses,
+                "relay_recovery_successes": self.relay_manager.relay_recovery_successes,
+                "connected_time_before_handoff": round(self.relay_manager.connected_time_before_handoff, 2),
+                "connected_time_after_handoff": round(self.relay_manager.connected_time_after_handoff, 2),
+                "network_reconfiguration_time_s": (
+                    round(self.relay_manager.network_reconfiguration_time_s, 2)
+                    if self.relay_manager.network_reconfiguration_time_s is not None else None
+                ),
+            }
         return res_dict
 
     def save_json(self, output_path: str | Path) -> Path:
@@ -192,6 +208,7 @@ class MissionRunner:
         enable_task_progress: bool = True,
         safety_hook: Optional[Callable[[StateSnapshot, NetworkAnalysis], Any]] = None,
         autonomy_adapter: Optional[Any] = None,
+        relay_manager: Optional[DynamicRelayManager] = None,
     ):
         if isinstance(scenario, ScenarioConfig):
             self.scenario = scenario
@@ -260,6 +277,12 @@ class MissionRunner:
             enforce_sortie_limit=enforce_sortie,
             enforce_single_sortie=enforce_single,
         )
+        self.relay_manager: Optional[DynamicRelayManager] = None
+        if relay_manager is not None:
+            self.relay_manager = relay_manager
+        elif getattr(self.scenario, "enable_relay_manager", False) or getattr(challenge_profile, "enable_relay_manager", False):
+            self.relay_manager = DynamicRelayManager()
+
         self.history: list[StepResult] = []
         self.all_events: list[DomainEvent] = []
 
@@ -292,6 +315,8 @@ class MissionRunner:
             self.separation_enforcer.reset()
         if self.geofence_enforcer is not None:
             self.geofence_enforcer.reset()
+        if self.relay_manager is not None:
+            self.relay_manager.reset()
         self.history.clear()
         self.all_events.clear()
         return self.state_store.snapshot()
@@ -341,6 +366,29 @@ class MissionRunner:
         # 3. Optional Safety hook (external observer/policy hook)
         if self.safety_hook:
             self.safety_hook(current_snap, net_analysis)
+
+        # 3.5 Dynamic Relay Role Management (Role transitions, handoffs, failure recovery)
+        if self.relay_manager is not None:
+            flight_records = getattr(self.safety_assessor.report, "uav_flight_records", None)
+            challenge_profile = getattr(self.scenario, "challenge_profile", None)
+            max_s = challenge_profile.max_sortie_duration_s if challenge_profile else 1200.0
+            enf_s = challenge_profile.enforce_sortie_limit if challenge_profile else True
+            relay_cmds = self.relay_manager.step(
+                snapshot=self.state_store.snapshot(),
+                network_analysis=net_analysis,
+                flight_records=flight_records,
+                speed_limit=self.scenario.speed_limit,
+                idle_rate=self.scenario.battery_idle_rate,
+                movement_rate=self.scenario.battery_movement_rate,
+                max_sortie_s=max_s,
+                enforce_sortie_limit=enf_s,
+                dt=self.scenario.dt,
+            )
+            if relay_cmds:
+                res_relay = self.state_store.apply(relay_cmds)
+                applied_commands.extend(res_relay.applied_commands)
+                rejected_commands.extend(res_relay.rejected_commands)
+                tick_events.extend(res_relay.emitted_events)
 
         # 4. Beta A0 Autonomy Allocation (Filter dynamically visible tasks)
         snap_for_alloc = self.state_store.snapshot()
@@ -549,6 +597,7 @@ class MissionRunner:
             telemetry_manager=self.detection_manager,
             separation_enforcer=self.separation_enforcer,
             geofence_enforcer=self.geofence_enforcer,
+            relay_manager=self.relay_manager,
         )
         return MissionResult(
             scenario_name=self.scenario.name,
@@ -564,6 +613,7 @@ class MissionRunner:
             telemetry_manager=self.detection_manager,
             separation_enforcer=self.separation_enforcer,
             geofence_enforcer=self.geofence_enforcer,
+            relay_manager=self.relay_manager,
         )
 
 
