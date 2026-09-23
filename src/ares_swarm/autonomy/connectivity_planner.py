@@ -26,36 +26,100 @@ from .a1_allocator import A1TaskAllocator
 from .relay_manager import ChainStatus, DynamicRelayManager, RelayChain
 
 
+def compute_corridor_path(
+    gcs_position: Tuple[float, float],
+    target_position: Tuple[float, float],
+    corridor_bounds_y: Tuple[float, float] = (450.0, 550.0),
+    margin_m: float = 1.0,
+) -> List[Tuple[float, float]]:
+    """Return piecewise linear path waypoints [GCS, (Portal), POI] avoiding corridor boundary clipping."""
+    x_gcs, y_gcs = gcs_position
+    x_tgt, y_tgt = target_position
+    if x_gcs < 0.0 and x_tgt >= 0.0:
+        denom = x_tgt - x_gcs
+        if abs(denom) > 1e-9:
+            y_cross = y_gcs + ((0.0 - x_gcs) / denom) * (y_tgt - y_gcs)
+            y_min_c = corridor_bounds_y[0] + margin_m
+            y_max_c = corridor_bounds_y[1] - margin_m
+            if y_cross < y_min_c or y_cross > y_max_c:
+                return [gcs_position, (0.0, 500.0), target_position]
+    return [gcs_position, target_position]
+
+
+def get_path_point_at_distance(
+    pts: List[Tuple[float, float]],
+    target_distance: float,
+) -> Tuple[float, float]:
+    """Return 2D point at cumulative path distance target_distance along pts."""
+    if not pts:
+        return (0.0, 0.0)
+    if len(pts) == 1 or target_distance <= 0.0:
+        return pts[0]
+
+    total_dist = 0.0
+    seg_lengths = []
+    for i in range(len(pts) - 1):
+        seg_len = math.hypot(pts[i + 1][0] - pts[i][0], pts[i + 1][1] - pts[i][1])
+        seg_lengths.append(seg_len)
+        total_dist += seg_len
+
+    if target_distance >= total_dist:
+        return pts[-1]
+
+    accum_d = 0.0
+    for j in range(len(seg_lengths)):
+        seg_len = seg_lengths[j]
+        if accum_d + seg_len >= target_distance - 1e-9:
+            rem_d = target_distance - accum_d
+            frac = rem_d / seg_len if seg_len > 1e-9 else 0.0
+            p0 = pts[j]
+            p1 = pts[j + 1]
+            sx = round(p0[0] + frac * (p1[0] - p0[0]), 2)
+            sy = round(p0[1] + frac * (p1[1] - p0[1]), 2)
+            return (sx, sy)
+        accum_d += seg_len
+
+    return pts[-1]
+
+
 def compute_multihop_stations(
     gcs_position: Tuple[float, float],
     target_position: Tuple[float, float],
     effective_range: float = 95.0,
+    corridor_bounds_y: Tuple[float, float] = (450.0, 550.0),
+    margin_m: float = 1.0,
 ) -> Tuple[int, int, Tuple[Tuple[float, float], ...]]:
     """Compute minimum hops, intermediate relays, and equal-spaced relay stations (Step 1).
 
-    Returns:
-        (H_min, K_min, stations)
-        where H_min = ceil(D / effective_range)
-              K_min = max(0, H_min - 1)
-              stations is an ordered tuple of coordinates r_1 ... r_K from GCS towards target:
-              r_i = GCS + i/(K+1) * (target - GCS)
+    Corridor-Aware Multi-Hop Geometry (Fix 2):
+    - Determines whether direct GCS->POI path is fully valid under composite geofence.
+    - If valid: retains direct-path geometry.
+    - If invalid: uses piecewise path GCS -> Portal(0, 500) -> POI.
+    - Places relay stations by DISTANCE ALONG PATH, ensuring every station lies
+      inside legal airspace and every hop <= effective_range.
     """
-    dx = target_position[0] - gcs_position[0]
-    dy = target_position[1] - gcs_position[1]
-    dist = math.hypot(dx, dy)
+    pts = compute_corridor_path(gcs_position, target_position, corridor_bounds_y, margin_m)
 
-    if dist <= effective_range:
+    total_dist = 0.0
+    seg_lengths = []
+    for i in range(len(pts) - 1):
+        seg_len = math.hypot(pts[i + 1][0] - pts[i][0], pts[i + 1][1] - pts[i][1])
+        seg_lengths.append(seg_len)
+        total_dist += seg_len
+
+    if total_dist <= effective_range:
         return 1, 0, ()
 
-    h_min = max(1, math.ceil(dist / effective_range))
+    h_min = max(1, math.ceil(total_dist / effective_range))
     k_min = max(0, h_min - 1)
 
     stations: List[Tuple[float, float]] = []
+    step_d = total_dist / h_min
+
     for i in range(1, k_min + 1):
-        frac = i / (k_min + 1)
-        sx = round(gcs_position[0] + frac * dx, 2)
-        sy = round(gcs_position[1] + frac * dy, 2)
-        stations.append((sx, sy))
+        target_d = i * step_d
+        st_pos = get_path_point_at_distance(pts, target_d)
+        stations.append(st_pos)
 
     return h_min, k_min, tuple(stations)
 
@@ -181,7 +245,8 @@ class ConnectivityAwarePlanner:
         d_transit_to = math.hypot(uav.position_xy[0] - task.position_xy[0], uav.position_xy[1] - task.position_xy[1])
         t_transit_to = d_transit_to / v_max
 
-        d_return = math.hypot(task.position_xy[0] - gcs[0], task.position_xy[1] - gcs[1])
+        pts_poi = compute_corridor_path(gcs, task.position_xy)
+        d_return = sum(math.hypot(pts_poi[i + 1][0] - pts_poi[i][0], pts_poi[i + 1][1] - pts_poi[i][1]) for i in range(len(pts_poi) - 1))
         t_transit_ret = d_return / v_max
 
         t_service = max(1.0, task.service_duration)
@@ -357,6 +422,25 @@ class ConnectivityAwarePlanner:
             chain_id = self.relay_manager.surveyor_to_chain.get(surv.id)
             chain = self.relay_manager.chains.get(chain_id) if chain_id else None
 
+            # Fix 1: Evaluate chain readiness for pre-detection holding & release
+            chain_ready = True
+            if chain:
+                relays_in_position = True
+                for rid, st_pos in zip(chain.relay_ids, chain.station_positions):
+                    ruav = snapshot.uavs.get(rid)
+                    if not ruav or not ruav.active or math.hypot(ruav.position_xy[0] - st_pos[0], ruav.position_xy[1] - st_pos[1]) > 5.0:
+                        relays_in_position = False
+                        break
+
+                has_route = bool(network_analysis and network_analysis.routes_to_gcs.get(surv.id) is not None)
+
+                if relays_in_position and has_route:
+                    if chain.status == ChainStatus.FORMING:
+                        chain.status = ChainStatus.ACTIVE
+                    chain_ready = True
+                elif chain.status in (ChainStatus.FORMING, ChainStatus.HANDOFF):
+                    chain_ready = False
+
             relay_lost_unrecovered = False
             if chain:
                 if chain.status == ChainStatus.DEGRADED:
@@ -401,6 +485,47 @@ class ConnectivityAwarePlanner:
                 # Tear down surviving chain components to prevent orphan relays
                 if chain_id:
                     self.relay_manager.teardown_chain(chain_id, commands=commands, tick=tick)
+            elif chain and not chain_ready:
+                # Fix 1: Pre-detection holding control while chain is forming
+                pts = compute_corridor_path(snapshot.gcs_position, task.position_xy)
+                total_d = sum(math.hypot(pts[i + 1][0] - pts[i][0], pts[i + 1][1] - pts[i][1]) for i in range(len(pts) - 1))
+                hold_d = max(0.0, total_d - 45.0)
+                p_hold = get_path_point_at_distance(pts, hold_d)
+
+                desired_target = (0.0, 500.0) if (surv.position_xy[0] < -1.0 and len(pts) > 2) else p_hold
+
+                if surv.target_position != desired_target:
+                    commands.append(
+                        SetTargetPositionCommand(
+                            source_tick=tick,
+                            uav_id=surv.id,
+                            target_position=desired_target,
+                            speed=self.config.speed_limit,
+                        )
+                    )
+            else:
+                # Chain is operational or no chain needed: release surveyor toward task position
+                pts = compute_corridor_path(snapshot.gcs_position, task.position_xy)
+                if surv.position_xy[0] < -1.0 and len(pts) > 2:
+                    if surv.target_position != (0.0, 500.0):
+                        commands.append(
+                            SetTargetPositionCommand(
+                                source_tick=tick,
+                                uav_id=surv.id,
+                                target_position=(0.0, 500.0),
+                                speed=self.config.speed_limit,
+                            )
+                        )
+                else:
+                    if surv.target_position != task.position_xy:
+                        commands.append(
+                            SetTargetPositionCommand(
+                                source_tick=tick,
+                                uav_id=surv.id,
+                                target_position=task.position_xy,
+                                speed=self.config.speed_limit,
+                            )
+                        )
 
         return commands
 
@@ -510,6 +635,7 @@ class ConnectivityAwarePlanner:
                         station_positions=station_positions,
                         created_tick=tick,
                         created_time=sim_time,
+                        status=ChainStatus.FORMING,
                     )
                     self.relay_manager.register_chain(chain)
 
@@ -526,5 +652,34 @@ class ConnectivityAwarePlanner:
                 )
             )
             assigned_uav_ids.add(best_uav.id)
+
+            # Fix 1: Initial target position setup for pre-detection holding if relay chain is required
+            if best_res.relay_needed:
+                pts = compute_corridor_path(snapshot.gcs_position, task.position_xy)
+                total_d = sum(math.hypot(pts[i + 1][0] - pts[i][0], pts[i + 1][1] - pts[i][1]) for i in range(len(pts) - 1))
+                hold_d = max(0.0, total_d - 45.0)
+                p_hold = get_path_point_at_distance(pts, hold_d)
+
+                desired_target = (0.0, 500.0) if (best_uav.position_xy[0] < -1.0 and len(pts) > 2) else p_hold
+
+                commands.append(
+                    SetTargetPositionCommand(
+                        source_tick=tick,
+                        uav_id=best_uav.id,
+                        target_position=desired_target,
+                        speed=self.config.speed_limit,
+                    )
+                )
+            else:
+                pts = compute_corridor_path(snapshot.gcs_position, task.position_xy)
+                if best_uav.position_xy[0] < -1.0 and len(pts) > 2:
+                    commands.append(
+                        SetTargetPositionCommand(
+                            source_tick=tick,
+                            uav_id=best_uav.id,
+                            target_position=(0.0, 500.0),
+                            speed=self.config.speed_limit,
+                        )
+                    )
 
         return commands
