@@ -32,17 +32,26 @@ def compute_corridor_path(
     corridor_bounds_y: Tuple[float, float] = (450.0, 550.0),
     margin_m: float = 1.0,
 ) -> List[Tuple[float, float]]:
-    """Return piecewise linear path waypoints [GCS, (Portal), POI] avoiding corridor boundary clipping."""
-    x_gcs, y_gcs = gcs_position
-    x_tgt, y_tgt = target_position
-    if x_gcs < 0.0 and x_tgt >= 0.0:
-        denom = x_tgt - x_gcs
+    """Return piecewise linear path waypoints [start, (Portal), target] avoiding corridor boundary clipping."""
+    x_start, y_start = gcs_position
+    x_end, y_end = target_position
+
+    # 1. Crossing x = 0 (GCS <-> Arena)
+    if (x_start < 0.0 and x_end >= 0.0) or (x_start >= 0.0 and x_end < 0.0):
+        denom = x_end - x_start
         if abs(denom) > 1e-9:
-            y_cross = y_gcs + ((0.0 - x_gcs) / denom) * (y_tgt - y_gcs)
+            y_cross = y_start + ((0.0 - x_start) / denom) * (y_end - y_start)
             y_min_c = corridor_bounds_y[0] + margin_m
             y_max_c = corridor_bounds_y[1] - margin_m
             if y_cross < y_min_c or y_cross > y_max_c:
                 return [gcs_position, (0.0, 500.0), target_position]
+
+    # 2. Staged near corridor mouth in arena (x < 50, y < 450 or y > 550)
+    y_min_c = corridor_bounds_y[0] + margin_m
+    y_max_c = corridor_bounds_y[1] - margin_m
+    if 0.0 <= x_start < 50.0 and (y_start < y_min_c or y_start > y_max_c):
+        return [gcs_position, (50.0, 500.0), target_position]
+
     return [gcs_position, target_position]
 
 
@@ -471,11 +480,13 @@ class ConnectivityAwarePlanner:
                         reason="COMMUNICATION_LOSS_CHAIN_SEVERED",
                     )
                 )
+                pts_ret = compute_corridor_path(surv.position_xy, snapshot.gcs_position)
+                desired_gcs_target = (0.0, 500.0) if (surv.position_xy[0] >= 0.0 and len(pts_ret) > 2) else snapshot.gcs_position
                 commands.append(
                     SetTargetPositionCommand(
                         source_tick=tick,
                         uav_id=surv.id,
-                        target_position=snapshot.gcs_position,
+                        target_position=desired_gcs_target,
                         speed=self.config.speed_limit,
                     )
                 )

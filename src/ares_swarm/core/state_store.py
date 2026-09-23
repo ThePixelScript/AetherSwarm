@@ -336,11 +336,20 @@ class StateStore:
                         sequence=len(events) + len(staged_events),
                     ))
                 new_role = Role.IDLE if uav.role == Role.RELAY else uav.role
+                x_u, y_u = uav.position_xy
+                x_g, y_g = self._gcs_position
+                tgt = self._gcs_position
+                if x_u >= 0.0 and x_g < 0.0:
+                    denom = x_g - x_u
+                    if abs(denom) > 1e-9:
+                        y_cross = y_u + ((0.0 - x_u) / denom) * (y_g - y_u)
+                        if y_cross < 451.0 or y_cross > 549.0:
+                            tgt = (0.0, 500.0)
                 staged_uavs[uav.id] = replace(
                     uav,
                     rth_state=RTHState.ACTIVE,
                     sortie_state=SortieState.RTH,
-                    target_position=self._gcs_position,
+                    target_position=tgt,
                     assigned_task_id=None,
                     role=new_role,
                 )

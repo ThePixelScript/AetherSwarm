@@ -549,6 +549,12 @@ class MissionRunner:
             dy = uav.position_xy[1] - gcs_pos[1]
             dist_to_gcs = (dx**2 + dy**2) ** 0.5
 
+            # Transition RTH target from corridor portal (0, 500) to GCS once inside corridor
+            if uav.rth_state == RTHState.ACTIVE and uav.target_position == (0.0, 500.0) and uav.position_xy[0] <= 0.5:
+                lifecycle_cmds.append(
+                    SetTargetPositionCommand(source_tick=current_tick, uav_id=uav.id, target_position=gcs_pos)
+                )
+
             # Transition to LANDING when entering final approach (< 25m from GCS)
             if uav.rth_state == RTHState.ACTIVE and dist_to_gcs <= 25.0 and uav.sortie_state == SortieState.RTH:
                 lifecycle_cmds.append(
