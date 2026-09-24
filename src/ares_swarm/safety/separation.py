@@ -180,27 +180,7 @@ class SeparationEnforcer:
         # 2. Sort moving UAVs by deterministic priority
         moving_uavs.sort(key=lambda u: self.get_priority_key(u, tasks))
 
-        # 3. RTH Final Approach Queuing Gate
-        # To avoid mutual deadlocks and separation collapse as UAVs converge onto the single GCS point,
-        # only the highest-priority RTH UAV is cleared into the final landing zone (< min_separation_m from GCS).
-        # Other returning UAVs queue outside at distance >= min_separation_m until the leader lands and is exempt.
-        landing_slot_owner: Optional[str] = None
-        for uav in moving_uavs:
-            if uav.rth_state == RTHState.ACTIVE:
-                d_gcs = math.hypot(
-                    uav.position_xy[0] - self.gcs_position[0],
-                    uav.position_xy[1] - self.gcs_position[1],
-                )
-                if d_gcs < self.min_separation_m:
-                    landing_slot_owner = uav.id
-                    break
-        if landing_slot_owner is None:
-            for uav in moving_uavs:
-                if uav.rth_state == RTHState.ACTIVE:
-                    landing_slot_owner = uav.id
-                    break
-
-        # 4. Sequentially evaluate and approve continuous trajectories
+        # 3. Sequentially evaluate and approve continuous trajectories
         approved_trajectories: List[Tuple[str, Tuple[float, float], Tuple[float, float]]] = []
         committed_steps: Dict[str, StepPhysicsCommand] = {}
         safe_dist_threshold = self.min_separation_m + self.numerical_safety_buffer_m
@@ -232,23 +212,7 @@ class SeparationEnforcer:
                 nominal_pos[1] - uav.position_xy[1],
             )
 
-            # RTH queuing gate check
             max_alpha = 1.0
-            if uav.rth_state == RTHState.ACTIVE and uav.id != landing_slot_owner:
-                curr_d_gcs = math.hypot(
-                    uav.position_xy[0] - self.gcs_position[0],
-                    uav.position_xy[1] - self.gcs_position[1],
-                )
-                nom_d_gcs = math.hypot(
-                    nominal_pos[0] - self.gcs_position[0],
-                    nominal_pos[1] - self.gcs_position[1],
-                )
-                if nom_d_gcs < self.min_separation_m:
-                    if curr_d_gcs <= self.min_separation_m:
-                        max_alpha = 0.0
-                    else:
-                        denom = max(1e-4, curr_d_gcs - nom_d_gcs)
-                        max_alpha = max(0.0, min(1.0, (curr_d_gcs - self.min_separation_m) / denom))
 
             # Obstacles to test against:
             # A. Already approved trajectories over [0, dt]

@@ -252,7 +252,7 @@ def test_multiple_simultaneous_returns_no_deadlock():
         u = snap.uavs[uid]
         assert u.rth_state == RTHState.COMPLETE or u.sortie_state in (SortieState.LANDED, SortieState.RECHARGING, SortieState.READY)
         d_gcs = math.hypot(u.position_xy[0] - gcs[0], u.position_xy[1] - gcs[1])
-        assert d_gcs <= 15.0  # Safely inside staging pad radius
+        assert d_gcs <= 25.0  # Safely inside staging pad area
 
     # Verify zero landing deadlocks
     assert result.metrics_report.landing_deadlocks == 0

@@ -90,10 +90,10 @@ def test_a_seed_2026_corridor_clipping_eliminated():
     assert metrics.min_boundary_clearance_m is not None
     assert metrics.min_boundary_clearance_m >= 0.0, f"Min clearance should be non-negative: {metrics.min_boundary_clearance_m}"
 
-    # All active UAVs return to staging pad
+    # All active UAVs return to staging area
     airspace = runner.safety_assessor.airspace
     for uid, uav in result.final_snapshot.uavs.items():
-        assert airspace.is_in_staging_pad(uav.position_xy), f"UAV {uid} not on staging pad: {uav.position_xy}"
+        assert airspace.is_in_staging_area(uav.position_xy), f"UAV {uid} not in staging area: {uav.position_xy}"
         assert uav.battery_energy > 0.0, f"UAV {uid} depleted battery"
 
 

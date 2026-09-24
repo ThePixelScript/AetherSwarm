@@ -4,6 +4,7 @@ from .safety_assessor import SafetyAssessor, SafetyViolation, SafetyReport
 from .geofence import GeofenceEnforcer
 from .separation import SeparationEnforcer, min_continuous_separation
 from .departure import DepartureSequencer, UAVDeparturePhase, DepartureRecord
+from .rth_router import RTHRouter
 
 __all__ = [
     "ChallengeAirspace",
@@ -17,4 +18,5 @@ __all__ = [
     "DepartureSequencer",
     "UAVDeparturePhase",
     "DepartureRecord",
+    "RTHRouter",
 ]

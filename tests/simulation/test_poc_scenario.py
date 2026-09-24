@@ -3,6 +3,7 @@ from pathlib import Path
 import pytest
 
 from ares_swarm.core.enums import EventType, Role, RTHState, TaskStatus
+from ares_swarm.safety.airspace import ChallengeAirspace
 from ares_swarm.simulation.runner import MissionRunner
 from ares_swarm.simulation.scenario import load_scenario
 
@@ -132,8 +133,8 @@ def test_poc_round1_full_duration_execution():
     for uid, u in result.final_snapshot.uavs.items():
         dx = u.position_xy[0] - result.final_snapshot.gcs_position[0]
         dy = u.position_xy[1] - result.final_snapshot.gcs_position[1]
-        dist_gcs = (dx**2 + dy**2) ** 0.5
-        assert dist_gcs <= 1.0, f"UAV {uid} did not return to GCS: {dist_gcs:.2f}m away"
+        airspace = runner.safety_assessor.airspace or ChallengeAirspace()
+        assert airspace.is_in_staging_area(u.position_xy), f"UAV {uid} not in staging area: {u.position_xy}"
         assert u.battery_energy > 0.0, f"UAV {uid} exhausted battery"
         assert u.rth_state == RTHState.COMPLETE, f"UAV {uid} rth_state is not COMPLETE"
         assert u.active is False, f"UAV {uid} active is not False after landing"

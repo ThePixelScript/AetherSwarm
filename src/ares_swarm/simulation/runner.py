@@ -35,6 +35,7 @@ from ..interfaces.communication import NetworkAnalysis
 from ..safety.airspace import ChallengeAirspace
 from ..safety.departure import DepartureSequencer
 from ..safety.geofence import GeofenceEnforcer
+from ..safety.rth_router import RTHRouter
 from ..safety.safety_assessor import SafetyAssessor, SafetyReport
 from ..safety.separation import SeparationEnforcer
 from ..telemetry.manager import DetectionManager
@@ -334,6 +335,13 @@ class MissionRunner:
                 airspace=airspace,
             )
 
+        cor_y = airspace.corridor_bounds_y if airspace else (400.0, 600.0)
+        self.rth_router = RTHRouter(
+            gcs_position=self.scenario.gcs_position,
+            min_separation_m=self.scenario.min_separation_m,
+            corridor_bounds_y=cor_y,
+        )
+
         self.history: list[StepResult] = []
         self.all_events: list[DomainEvent] = []
 
@@ -372,6 +380,10 @@ class MissionRunner:
             self.connectivity_planner.reset()
         if self.departure_sequencer is not None:
             self.departure_sequencer.reset()
+        if hasattr(self, "rth_router") and self.rth_router is not None:
+            self.rth_router.reset()
+            for u_id, u_item in self.initial_snapshot.uavs.items():
+                self.rth_router.register_uav_lane(u_id, u_item.position_xy[1])
         self.history.clear()
         self.all_events.clear()
         return self.state_store.snapshot()
@@ -588,24 +600,26 @@ class MissionRunner:
             allow_multi_sortie = False
 
         for uav in sorted(snap_post_step.uavs.values(), key=lambda u: u.id):
-            dx = uav.position_xy[0] - gcs_pos[0]
-            dy = uav.position_xy[1] - gcs_pos[1]
-            dist_to_gcs = (dx**2 + dy**2) ** 0.5
+            lane_y = self.rth_router.get_rth_lane_y(uav, snap_post_step)
+            pad_pos = (gcs_pos[0], lane_y)
+            dx = uav.position_xy[0] - pad_pos[0]
+            dy = uav.position_xy[1] - pad_pos[1]
+            dist_to_pad = (dx**2 + dy**2) ** 0.5
 
-            # Transition RTH target from corridor portal (0, 500) to GCS once inside corridor
-            if uav.rth_state == RTHState.ACTIVE and uav.target_position == (0.0, 500.0) and uav.position_xy[0] <= 0.5:
+            # Transition RTH target from corridor portal (0, lane_y) to pad once inside corridor
+            if uav.rth_state == RTHState.ACTIVE and uav.sortie_state == SortieState.RTH and uav.target_position and uav.target_position != pad_pos and uav.position_xy[0] <= 0.5:
                 lifecycle_cmds.append(
-                    SetTargetPositionCommand(source_tick=current_tick, uav_id=uav.id, target_position=gcs_pos)
+                    SetTargetPositionCommand(source_tick=current_tick, uav_id=uav.id, target_position=pad_pos)
                 )
 
-            # Transition to LANDING when entering final approach (< 25m from GCS)
-            if uav.rth_state == RTHState.ACTIVE and dist_to_gcs <= 25.0 and uav.sortie_state == SortieState.RTH:
+            # Transition to LANDING when entering final approach (< 25m from pad or x <= -50m)
+            if uav.rth_state == RTHState.ACTIVE and (dist_to_pad <= 25.0 or uav.position_xy[0] <= -50.0) and uav.sortie_state == SortieState.RTH:
                 lifecycle_cmds.append(
                     BeginLandingCommand(source_tick=current_tick, uav_id=uav.id)
                 )
 
-            # Complete landing when reached GCS landing threshold
-            if uav.rth_state == RTHState.ACTIVE and dist_to_gcs <= 0.05:
+            # Complete landing when reached pad threshold
+            if uav.rth_state == RTHState.ACTIVE and (dist_to_pad <= 0.2 or uav.position_xy[0] <= -74.9):
                 lifecycle_cmds.append(
                     CompleteRTHCommand(source_tick=current_tick, uav_id=uav.id)
                 )

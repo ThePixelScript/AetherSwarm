@@ -39,6 +39,7 @@ class StateStore:
         self._simulation_time: float = 0.0
         self._state_version: int = 0
         self._gcs_position: Tuple[float, float] = (0.0, 0.0)
+        self._initial_uav_positions: Dict[str, Tuple[float, float]] = {}
 
         if initial_snapshot:
             self._uavs = {u.id: u for u in initial_snapshot.uavs.values()}
@@ -47,6 +48,7 @@ class StateStore:
             self._simulation_time = initial_snapshot.simulation_time
             self._state_version = initial_snapshot.state_version
             self._gcs_position = initial_snapshot.gcs_position
+            self._initial_uav_positions = {u.id: u.position_xy for u in initial_snapshot.uavs.values()}
 
     def snapshot(self) -> StateSnapshot:
         """Return an immutable point-in-time snapshot of current state."""
@@ -338,13 +340,23 @@ class StateStore:
                 new_role = Role.IDLE if uav.role == Role.RELAY else uav.role
                 x_u, y_u = uav.position_xy
                 x_g, y_g = self._gcs_position
-                tgt = self._gcs_position
-                if x_u >= 0.0 and x_g < 0.0:
-                    denom = x_g - x_u
-                    if abs(denom) > 1e-9:
-                        y_cross = y_u + ((0.0 - x_u) / denom) * (y_g - y_u)
-                        if y_cross < 451.0 or y_cross > 549.0:
-                            tgt = (0.0, 500.0)
+
+                # Deterministic non-collinear RTH lane calculation
+                lane_y = y_g
+                if uav.id in self._initial_uav_positions:
+                    init_y = self._initial_uav_positions[uav.id][1]
+                    if 405.0 <= init_y <= 595.0:
+                        lane_y = init_y
+                else:
+                    try:
+                        u_idx = int(uav.id.split("_")[-1]) - 1
+                    except Exception:
+                        u_idx = 0
+                    total_uavs = max(len(self._uavs), 8)
+                    y_start = y_g - ((total_uavs - 1) / 2.0) * 20.0
+                    lane_y = max(410.0, min(590.0, y_start + u_idx * 20.0))
+
+                tgt = (0.0, lane_y) if x_u > 0.5 else (x_g, lane_y)
                 staged_uavs[uav.id] = replace(
                     uav,
                     rth_state=RTHState.ACTIVE,
