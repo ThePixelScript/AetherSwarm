@@ -10,6 +10,7 @@ from ..core.enums import EventType, RTHState, TelemetryStatus
 from ..core.events import DomainEvent
 from ..core.models import StateSnapshot, TelemetryReport, UAVState
 from ..interfaces.communication import NetworkAnalysis
+from ..communication.analysis import route_latency_ms
 from ..simulation.scenario import DetectionPipelineConfig
 
 
@@ -151,51 +152,59 @@ class DetectionManager:
             elapsed_s = snapshot.simulation_time - report.t_detect
 
             if route is not None:
-                # Route to GCS exists: delivered at current simulation time + physical transmission latency
-                hop_count = max(0, len(route) - 1)
-                model_latency_s = hop_count * (self.config.comm_base_latency_ms / 1000.0)
-                
-                t_gcs = snapshot.simulation_time + model_latency_s
-                latency_s = max(0.0, t_gcs - report.t_detect)
-
-                if latency_s <= self.config.reporting_deadline_s + EPSILON:
-                    status = TelemetryStatus.DELIVERED
-                    evt_type = EventType.TELEMETRY_DELIVERED
+                # Analytical delivery model: We immediately evaluate transmission success and 
+                # predicted GCS arrival time (t_gcs) using the current topology's canonical route. 
+                # We do not simulate packet-level queuing over future timesteps. Deadline 
+                # compliance is strictly evaluated against this predicted t_gcs.
+                canonical_latency_ms = route_latency_ms(net_analysis, route)
+                if canonical_latency_ms is None:
+                    # Missing or unusable link Canonical Route; treat as unavailable/unknown
+                    pass
                 else:
-                    status = TelemetryStatus.DEADLINE_EXCEEDED
-                    evt_type = EventType.TELEMETRY_DEADLINE_EXCEEDED
+                    hop_count = max(0, len(route) - 1)
+                    model_latency_s = canonical_latency_ms / 1000.0
+                    
+                    t_gcs = snapshot.simulation_time + model_latency_s
+                    latency_s = max(0.0, t_gcs - report.t_detect)
 
-                updated = dataclasses.replace(
-                    report,
-                    t_gcs_received=t_gcs,
-                    hop_count=hop_count,
-                    route=route,
-                    reporting_latency_s=latency_s,
-                    status=status,
-                )
-                self.authoritative_reports[task_id] = updated
-                self.pending_reports.remove(task_id)
+                    if latency_s <= self.config.reporting_deadline_s + EPSILON:
+                        status = TelemetryStatus.DELIVERED
+                        evt_type = EventType.TELEMETRY_DELIVERED
+                    else:
+                        status = TelemetryStatus.DEADLINE_EXCEEDED
+                        evt_type = EventType.TELEMETRY_DEADLINE_EXCEEDED
 
-                self.event_counter += 1
-                events.append(
-                    DomainEvent.create(
-                        simulation_tick=snapshot.simulation_tick,
-                        simulation_time=snapshot.simulation_time,
-                        event_type=evt_type,
-                        entity_id=report.detecting_uav_id,
-                        payload={
-                            "task_id": task_id,
-                            "uav_id": report.detecting_uav_id,
-                            "t_detect": report.t_detect,
-                            "t_gcs": t_gcs,
-                            "latency_s": round(latency_s, 3),
-                            "hop_count": hop_count,
-                            "route": list(route),
-                            "status": status.value,
-                        },
-                        sequence=self.event_counter,
+                    updated = dataclasses.replace(
+                        report,
+                        t_gcs_received=t_gcs,
+                        hop_count=hop_count,
+                        route=route,
+                        reporting_latency_s=latency_s,
+                        status=status,
                     )
-                )
+                    self.authoritative_reports[task_id] = updated
+                    self.pending_reports.remove(task_id)
+
+                    self.event_counter += 1
+                    events.append(
+                        DomainEvent.create(
+                            simulation_tick=snapshot.simulation_tick,
+                            simulation_time=snapshot.simulation_time,
+                            event_type=evt_type,
+                            entity_id=report.detecting_uav_id,
+                            payload={
+                                "task_id": task_id,
+                                "uav_id": report.detecting_uav_id,
+                                "t_detect": report.t_detect,
+                                "t_gcs": t_gcs,
+                                "latency_s": round(latency_s, 3),
+                                "hop_count": hop_count,
+                                "route": list(route),
+                                "status": status.value,
+                            },
+                            sequence=self.event_counter,
+                        )
+                    )
             else:
                 # No route to GCS currently available
                 if elapsed_s > self.config.reporting_deadline_s + EPSILON:

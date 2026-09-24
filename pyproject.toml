@@ -9,11 +9,8 @@ description = "Resilient autonomous multi-UAV coordination for disaster-response
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "numpy",
-    "scipy",
     "networkx",
     "pyyaml",
-    "pandas",
-    "matplotlib",
 ]
 
 [project.optional-dependencies]

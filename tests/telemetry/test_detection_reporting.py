@@ -18,7 +18,7 @@ M. E1 legacy invariance (detection disabled by default)
 from types import MappingProxyType
 import pytest
 
-from ares_swarm.communication.models import NetworkState
+from ares_swarm.communication.models import NetworkState, LinkState
 from ares_swarm.core.enums import EventType, Role, RTHState, TaskStatus, TelemetryStatus
 from ares_swarm.core.events import DomainEvent
 from ares_swarm.core.models import StateSnapshot, TaskState, UAVState
@@ -33,11 +33,29 @@ from ares_swarm.simulation.scenario import (
 from ares_swarm.telemetry.manager import DetectionManager
 
 
-def _make_dummy_net_analysis(routes: dict[str, tuple[str, ...] | None]) -> NetworkAnalysis:
-    """Helper to construct a mock NetworkAnalysis with specific GCS routes."""
+def _make_dummy_net_analysis(routes: dict[str, tuple[str, ...] | None], hop_latency_ms: float = 5.0) -> NetworkAnalysis:
+    """Helper to construct a mock NetworkAnalysis with specific GCS routes and link states."""
+    links = []
+    for route in routes.values():
+        if route is not None and len(route) > 1:
+            for a, b in zip(route, route[1:]):
+                source, target = sorted((a, b))
+                # Only add link if it doesn't already exist
+                if not any(l.source_id == source and l.target_id == target for l in links):
+                    links.append(
+                        LinkState(
+                            source_id=source,
+                            target_id=target,
+                            distance=10.0,
+                            estimated_pdr=1.0,
+                            latency_ms=hop_latency_ms,
+                            active=True,
+                        )
+                    )
+
     return NetworkAnalysis(
         snapshot_revision=0,
-        network=NetworkState(links=()),
+        network=NetworkState(links=tuple(links)),
         connected_uav_ids=tuple(sorted(k for k, v in routes.items() if v is not None)),
         routes_to_gcs=routes,
     )
@@ -208,8 +226,8 @@ def test_d_single_hop_delivery_to_gcs():
     rep = mgr.authoritative_reports["t1"]
     assert rep.status == TelemetryStatus.DELIVERED
     assert rep.hop_count == 1
-    assert rep.t_gcs_received == 3.0
-    assert rep.reporting_latency_s == 0.0
+    assert rep.t_gcs_received == 3.005
+    assert abs(rep.reporting_latency_s - 0.005) < 1e-9
 
 
 def test_e_multi_hop_relay_delivery_to_gcs():

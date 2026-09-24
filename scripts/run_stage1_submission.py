@@ -28,6 +28,7 @@ def main():
     base_scenario = load_scenario(Path(args.scenario))
     
     dp = dataclasses.replace(base_scenario.challenge_profile.detection_pipeline, enabled=True)
+    airspace = dataclasses.replace(base_scenario.challenge_profile.airspace, enabled=True)
     cp = dataclasses.replace(
         base_scenario.challenge_profile,
         enabled=True,
@@ -36,6 +37,7 @@ def main():
         enforce_single_sortie=True,
         enforce_geofence=True,
         detection_pipeline=dp,
+        airspace=airspace,
     )
     
     base_scenario = dataclasses.replace(base_scenario, challenge_profile=cp)
