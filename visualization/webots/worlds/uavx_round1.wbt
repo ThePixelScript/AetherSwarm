@@ -542,9 +542,9 @@ DEF DROPLINES Shape {
   }
 }
 
-# 5 Swarm Drone Instances (DEFs: UAV_1 .. UAV_5)
+# 8 Swarm Drone Instances (DEFs: UAV_1 .. UAV_8)
 DEF UAV_1 Solid {
-  translation 50 420 15
+  translation 50 360 15
   rotation 0 0 1 0
   name "uav_1"
   children [
@@ -580,13 +580,14 @@ DEF UAV_1 Solid {
 }
 
 DEF UAV_2 Solid {
-  translation 50 460 15
+  translation 50 400 15
   rotation 0 0 1 0
   name "uav_2"
   children [
     Transform {
       scale 2.2 2.2 2.2
       children [
+        # Main Fuselage
         Shape {
           appearance Appearance {
             material DEF UAV_2_MAT Material {
@@ -596,13 +597,18 @@ DEF UAV_2 Solid {
           }
           geometry Box { size 0.9 0.9 0.24 }
         }
+        # Avionics Cover
         Transform { translation 0 0 0.13 children [ Shape { appearance Appearance { material Material { diffuseColor 0.12 0.14 0.16 } } geometry Box { size 0.65 0.65 0.04 } } ] }
+        # Forward Heading Nose
         Transform { translation 0.58 0 0 rotation 0 1 0 1.5708 children [ Shape { appearance Appearance { material Material { diffuseColor 0.95 0.75 0.08 emissiveColor 0.4 0.3 0.02 } } geometry Cone { bottomRadius 0.22 height 0.35 } } ] }
+        # Rotor Hubs & Arms
         Transform { translation 0.75 0 0 children [ Shape { appearance Appearance { material Material { diffuseColor 0.18 0.2 0.22 } } geometry Box { size 0.7 0.08 0.07 } } Transform { translation 0.35 0 0.06 children [ Shape { appearance Appearance { material Material { diffuseColor 0.12 0.12 0.12 } } geometry Cylinder { height 0.06 radius 0.42 } } ] } ] }
         Transform { translation -0.75 0 0 children [ Shape { appearance Appearance { material Material { diffuseColor 0.18 0.2 0.22 } } geometry Box { size 0.7 0.08 0.07 } } Transform { translation -0.35 0 0.06 children [ Shape { appearance Appearance { material Material { diffuseColor 0.12 0.12 0.12 } } geometry Cylinder { height 0.06 radius 0.42 } } ] } ] }
         Transform { translation 0 0.75 0 children [ Shape { appearance Appearance { material Material { diffuseColor 0.18 0.2 0.22 } } geometry Box { size 0.08 0.7 0.07 } } Transform { translation 0 0.35 0.06 children [ Shape { appearance Appearance { material Material { diffuseColor 0.12 0.12 0.12 } } geometry Cylinder { height 0.06 radius 0.42 } } ] } ] }
         Transform { translation 0 -0.75 0 children [ Shape { appearance Appearance { material Material { diffuseColor 0.18 0.2 0.22 } } geometry Box { size 0.08 0.7 0.07 } } Transform { translation 0 -0.35 0.06 children [ Shape { appearance Appearance { material Material { diffuseColor 0.12 0.12 0.12 } } geometry Cylinder { height 0.06 radius 0.42 } } ] } ] }
+        # Primary Status Beacon (Top)
         Transform { translation 0 0 0.26 children [ Shape { appearance Appearance { material DEF UAV_2_BEACON Material { diffuseColor 0.1 0.85 0.4 emissiveColor 0.2 0.9 0.5 } } geometry Sphere { radius 0.26 } } ] }
+        # Status Halo Ring
         Transform { translation 0 0 0.26 children [ Shape { appearance Appearance { material DEF UAV_2_HALO Material { diffuseColor 0.1 0.65 0.85 emissiveColor 0.1 0.65 0.85 transparency 0.4 } } geometry Cylinder { height 0.03 radius 0.48 } } ] }
       ]
     }
@@ -610,13 +616,14 @@ DEF UAV_2 Solid {
 }
 
 DEF UAV_3 Solid {
-  translation 50 500 15
+  translation 50 440 15
   rotation 0 0 1 0
   name "uav_3"
   children [
     Transform {
       scale 2.2 2.2 2.2
       children [
+        # Main Fuselage
         Shape {
           appearance Appearance {
             material DEF UAV_3_MAT Material {
@@ -626,13 +633,18 @@ DEF UAV_3 Solid {
           }
           geometry Box { size 0.9 0.9 0.24 }
         }
+        # Avionics Cover
         Transform { translation 0 0 0.13 children [ Shape { appearance Appearance { material Material { diffuseColor 0.12 0.14 0.16 } } geometry Box { size 0.65 0.65 0.04 } } ] }
+        # Forward Heading Nose
         Transform { translation 0.58 0 0 rotation 0 1 0 1.5708 children [ Shape { appearance Appearance { material Material { diffuseColor 0.95 0.75 0.08 emissiveColor 0.4 0.3 0.02 } } geometry Cone { bottomRadius 0.22 height 0.35 } } ] }
+        # Rotor Hubs & Arms
         Transform { translation 0.75 0 0 children [ Shape { appearance Appearance { material Material { diffuseColor 0.18 0.2 0.22 } } geometry Box { size 0.7 0.08 0.07 } } Transform { translation 0.35 0 0.06 children [ Shape { appearance Appearance { material Material { diffuseColor 0.12 0.12 0.12 } } geometry Cylinder { height 0.06 radius 0.42 } } ] } ] }
         Transform { translation -0.75 0 0 children [ Shape { appearance Appearance { material Material { diffuseColor 0.18 0.2 0.22 } } geometry Box { size 0.7 0.08 0.07 } } Transform { translation -0.35 0 0.06 children [ Shape { appearance Appearance { material Material { diffuseColor 0.12 0.12 0.12 } } geometry Cylinder { height 0.06 radius 0.42 } } ] } ] }
         Transform { translation 0 0.75 0 children [ Shape { appearance Appearance { material Material { diffuseColor 0.18 0.2 0.22 } } geometry Box { size 0.08 0.7 0.07 } } Transform { translation 0 0.35 0.06 children [ Shape { appearance Appearance { material Material { diffuseColor 0.12 0.12 0.12 } } geometry Cylinder { height 0.06 radius 0.42 } } ] } ] }
         Transform { translation 0 -0.75 0 children [ Shape { appearance Appearance { material Material { diffuseColor 0.18 0.2 0.22 } } geometry Box { size 0.08 0.7 0.07 } } Transform { translation 0 -0.35 0.06 children [ Shape { appearance Appearance { material Material { diffuseColor 0.12 0.12 0.12 } } geometry Cylinder { height 0.06 radius 0.42 } } ] } ] }
+        # Primary Status Beacon (Top)
         Transform { translation 0 0 0.26 children [ Shape { appearance Appearance { material DEF UAV_3_BEACON Material { diffuseColor 0.1 0.85 0.4 emissiveColor 0.2 0.9 0.5 } } geometry Sphere { radius 0.26 } } ] }
+        # Status Halo Ring
         Transform { translation 0 0 0.26 children [ Shape { appearance Appearance { material DEF UAV_3_HALO Material { diffuseColor 0.1 0.65 0.85 emissiveColor 0.1 0.65 0.85 transparency 0.4 } } geometry Cylinder { height 0.03 radius 0.48 } } ] }
       ]
     }
@@ -640,13 +652,14 @@ DEF UAV_3 Solid {
 }
 
 DEF UAV_4 Solid {
-  translation 50 540 15
+  translation 50 480 15
   rotation 0 0 1 0
   name "uav_4"
   children [
     Transform {
       scale 2.2 2.2 2.2
       children [
+        # Main Fuselage
         Shape {
           appearance Appearance {
             material DEF UAV_4_MAT Material {
@@ -656,13 +669,18 @@ DEF UAV_4 Solid {
           }
           geometry Box { size 0.9 0.9 0.24 }
         }
+        # Avionics Cover
         Transform { translation 0 0 0.13 children [ Shape { appearance Appearance { material Material { diffuseColor 0.12 0.14 0.16 } } geometry Box { size 0.65 0.65 0.04 } } ] }
+        # Forward Heading Nose
         Transform { translation 0.58 0 0 rotation 0 1 0 1.5708 children [ Shape { appearance Appearance { material Material { diffuseColor 0.95 0.75 0.08 emissiveColor 0.4 0.3 0.02 } } geometry Cone { bottomRadius 0.22 height 0.35 } } ] }
+        # Rotor Hubs & Arms
         Transform { translation 0.75 0 0 children [ Shape { appearance Appearance { material Material { diffuseColor 0.18 0.2 0.22 } } geometry Box { size 0.7 0.08 0.07 } } Transform { translation 0.35 0 0.06 children [ Shape { appearance Appearance { material Material { diffuseColor 0.12 0.12 0.12 } } geometry Cylinder { height 0.06 radius 0.42 } } ] } ] }
         Transform { translation -0.75 0 0 children [ Shape { appearance Appearance { material Material { diffuseColor 0.18 0.2 0.22 } } geometry Box { size 0.7 0.08 0.07 } } Transform { translation -0.35 0 0.06 children [ Shape { appearance Appearance { material Material { diffuseColor 0.12 0.12 0.12 } } geometry Cylinder { height 0.06 radius 0.42 } } ] } ] }
         Transform { translation 0 0.75 0 children [ Shape { appearance Appearance { material Material { diffuseColor 0.18 0.2 0.22 } } geometry Box { size 0.08 0.7 0.07 } } Transform { translation 0 0.35 0.06 children [ Shape { appearance Appearance { material Material { diffuseColor 0.12 0.12 0.12 } } geometry Cylinder { height 0.06 radius 0.42 } } ] } ] }
         Transform { translation 0 -0.75 0 children [ Shape { appearance Appearance { material Material { diffuseColor 0.18 0.2 0.22 } } geometry Box { size 0.08 0.7 0.07 } } Transform { translation 0 -0.35 0.06 children [ Shape { appearance Appearance { material Material { diffuseColor 0.12 0.12 0.12 } } geometry Cylinder { height 0.06 radius 0.42 } } ] } ] }
+        # Primary Status Beacon (Top)
         Transform { translation 0 0 0.26 children [ Shape { appearance Appearance { material DEF UAV_4_BEACON Material { diffuseColor 0.1 0.85 0.4 emissiveColor 0.2 0.9 0.5 } } geometry Sphere { radius 0.26 } } ] }
+        # Status Halo Ring
         Transform { translation 0 0 0.26 children [ Shape { appearance Appearance { material DEF UAV_4_HALO Material { diffuseColor 0.1 0.65 0.85 emissiveColor 0.1 0.65 0.85 transparency 0.4 } } geometry Cylinder { height 0.03 radius 0.48 } } ] }
       ]
     }
@@ -670,13 +688,14 @@ DEF UAV_4 Solid {
 }
 
 DEF UAV_5 Solid {
-  translation 50 580 15
+  translation 50 520 15
   rotation 0 0 1 0
   name "uav_5"
   children [
     Transform {
       scale 2.2 2.2 2.2
       children [
+        # Main Fuselage
         Shape {
           appearance Appearance {
             material DEF UAV_5_MAT Material {
@@ -686,19 +705,131 @@ DEF UAV_5 Solid {
           }
           geometry Box { size 0.9 0.9 0.24 }
         }
+        # Avionics Cover
         Transform { translation 0 0 0.13 children [ Shape { appearance Appearance { material Material { diffuseColor 0.12 0.14 0.16 } } geometry Box { size 0.65 0.65 0.04 } } ] }
+        # Forward Heading Nose
         Transform { translation 0.58 0 0 rotation 0 1 0 1.5708 children [ Shape { appearance Appearance { material Material { diffuseColor 0.95 0.75 0.08 emissiveColor 0.4 0.3 0.02 } } geometry Cone { bottomRadius 0.22 height 0.35 } } ] }
+        # Rotor Hubs & Arms
         Transform { translation 0.75 0 0 children [ Shape { appearance Appearance { material Material { diffuseColor 0.18 0.2 0.22 } } geometry Box { size 0.7 0.08 0.07 } } Transform { translation 0.35 0 0.06 children [ Shape { appearance Appearance { material Material { diffuseColor 0.12 0.12 0.12 } } geometry Cylinder { height 0.06 radius 0.42 } } ] } ] }
         Transform { translation -0.75 0 0 children [ Shape { appearance Appearance { material Material { diffuseColor 0.18 0.2 0.22 } } geometry Box { size 0.7 0.08 0.07 } } Transform { translation -0.35 0 0.06 children [ Shape { appearance Appearance { material Material { diffuseColor 0.12 0.12 0.12 } } geometry Cylinder { height 0.06 radius 0.42 } } ] } ] }
         Transform { translation 0 0.75 0 children [ Shape { appearance Appearance { material Material { diffuseColor 0.18 0.2 0.22 } } geometry Box { size 0.08 0.7 0.07 } } Transform { translation 0 0.35 0.06 children [ Shape { appearance Appearance { material Material { diffuseColor 0.12 0.12 0.12 } } geometry Cylinder { height 0.06 radius 0.42 } } ] } ] }
         Transform { translation 0 -0.75 0 children [ Shape { appearance Appearance { material Material { diffuseColor 0.18 0.2 0.22 } } geometry Box { size 0.08 0.7 0.07 } } Transform { translation 0 -0.35 0.06 children [ Shape { appearance Appearance { material Material { diffuseColor 0.12 0.12 0.12 } } geometry Cylinder { height 0.06 radius 0.42 } } ] } ] }
+        # Primary Status Beacon (Top)
         Transform { translation 0 0 0.26 children [ Shape { appearance Appearance { material DEF UAV_5_BEACON Material { diffuseColor 0.1 0.85 0.4 emissiveColor 0.2 0.9 0.5 } } geometry Sphere { radius 0.26 } } ] }
+        # Status Halo Ring
         Transform { translation 0 0 0.26 children [ Shape { appearance Appearance { material DEF UAV_5_HALO Material { diffuseColor 0.1 0.65 0.85 emissiveColor 0.1 0.65 0.85 transparency 0.4 } } geometry Cylinder { height 0.03 radius 0.48 } } ] }
       ]
     }
   ]
 }
 
+DEF UAV_6 Solid {
+  translation 50 560 15
+  rotation 0 0 1 0
+  name "uav_6"
+  children [
+    Transform {
+      scale 2.2 2.2 2.2
+      children [
+        # Main Fuselage
+        Shape {
+          appearance Appearance {
+            material DEF UAV_6_MAT Material {
+              diffuseColor 0.1 0.65 0.85
+              emissiveColor 0.05 0.25 0.40
+            }
+          }
+          geometry Box { size 0.9 0.9 0.24 }
+        }
+        # Avionics Cover
+        Transform { translation 0 0 0.13 children [ Shape { appearance Appearance { material Material { diffuseColor 0.12 0.14 0.16 } } geometry Box { size 0.65 0.65 0.04 } } ] }
+        # Forward Heading Nose
+        Transform { translation 0.58 0 0 rotation 0 1 0 1.5708 children [ Shape { appearance Appearance { material Material { diffuseColor 0.95 0.75 0.08 emissiveColor 0.4 0.3 0.02 } } geometry Cone { bottomRadius 0.22 height 0.35 } } ] }
+        # Rotor Hubs & Arms
+        Transform { translation 0.75 0 0 children [ Shape { appearance Appearance { material Material { diffuseColor 0.18 0.2 0.22 } } geometry Box { size 0.7 0.08 0.07 } } Transform { translation 0.35 0 0.06 children [ Shape { appearance Appearance { material Material { diffuseColor 0.12 0.12 0.12 } } geometry Cylinder { height 0.06 radius 0.42 } } ] } ] }
+        Transform { translation -0.75 0 0 children [ Shape { appearance Appearance { material Material { diffuseColor 0.18 0.2 0.22 } } geometry Box { size 0.7 0.08 0.07 } } Transform { translation -0.35 0 0.06 children [ Shape { appearance Appearance { material Material { diffuseColor 0.12 0.12 0.12 } } geometry Cylinder { height 0.06 radius 0.42 } } ] } ] }
+        Transform { translation 0 0.75 0 children [ Shape { appearance Appearance { material Material { diffuseColor 0.18 0.2 0.22 } } geometry Box { size 0.08 0.7 0.07 } } Transform { translation 0 0.35 0.06 children [ Shape { appearance Appearance { material Material { diffuseColor 0.12 0.12 0.12 } } geometry Cylinder { height 0.06 radius 0.42 } } ] } ] }
+        Transform { translation 0 -0.75 0 children [ Shape { appearance Appearance { material Material { diffuseColor 0.18 0.2 0.22 } } geometry Box { size 0.08 0.7 0.07 } } Transform { translation 0 -0.35 0.06 children [ Shape { appearance Appearance { material Material { diffuseColor 0.12 0.12 0.12 } } geometry Cylinder { height 0.06 radius 0.42 } } ] } ] }
+        # Primary Status Beacon (Top)
+        Transform { translation 0 0 0.26 children [ Shape { appearance Appearance { material DEF UAV_6_BEACON Material { diffuseColor 0.1 0.85 0.4 emissiveColor 0.2 0.9 0.5 } } geometry Sphere { radius 0.26 } } ] }
+        # Status Halo Ring
+        Transform { translation 0 0 0.26 children [ Shape { appearance Appearance { material DEF UAV_6_HALO Material { diffuseColor 0.1 0.65 0.85 emissiveColor 0.1 0.65 0.85 transparency 0.4 } } geometry Cylinder { height 0.03 radius 0.48 } } ] }
+      ]
+    }
+  ]
+}
+
+DEF UAV_7 Solid {
+  translation 50 600 15
+  rotation 0 0 1 0
+  name "uav_7"
+  children [
+    Transform {
+      scale 2.2 2.2 2.2
+      children [
+        # Main Fuselage
+        Shape {
+          appearance Appearance {
+            material DEF UAV_7_MAT Material {
+              diffuseColor 0.1 0.65 0.85
+              emissiveColor 0.05 0.25 0.40
+            }
+          }
+          geometry Box { size 0.9 0.9 0.24 }
+        }
+        # Avionics Cover
+        Transform { translation 0 0 0.13 children [ Shape { appearance Appearance { material Material { diffuseColor 0.12 0.14 0.16 } } geometry Box { size 0.65 0.65 0.04 } } ] }
+        # Forward Heading Nose
+        Transform { translation 0.58 0 0 rotation 0 1 0 1.5708 children [ Shape { appearance Appearance { material Material { diffuseColor 0.95 0.75 0.08 emissiveColor 0.4 0.3 0.02 } } geometry Cone { bottomRadius 0.22 height 0.35 } } ] }
+        # Rotor Hubs & Arms
+        Transform { translation 0.75 0 0 children [ Shape { appearance Appearance { material Material { diffuseColor 0.18 0.2 0.22 } } geometry Box { size 0.7 0.08 0.07 } } Transform { translation 0.35 0 0.06 children [ Shape { appearance Appearance { material Material { diffuseColor 0.12 0.12 0.12 } } geometry Cylinder { height 0.06 radius 0.42 } } ] } ] }
+        Transform { translation -0.75 0 0 children [ Shape { appearance Appearance { material Material { diffuseColor 0.18 0.2 0.22 } } geometry Box { size 0.7 0.08 0.07 } } Transform { translation -0.35 0 0.06 children [ Shape { appearance Appearance { material Material { diffuseColor 0.12 0.12 0.12 } } geometry Cylinder { height 0.06 radius 0.42 } } ] } ] }
+        Transform { translation 0 0.75 0 children [ Shape { appearance Appearance { material Material { diffuseColor 0.18 0.2 0.22 } } geometry Box { size 0.08 0.7 0.07 } } Transform { translation 0 0.35 0.06 children [ Shape { appearance Appearance { material Material { diffuseColor 0.12 0.12 0.12 } } geometry Cylinder { height 0.06 radius 0.42 } } ] } ] }
+        Transform { translation 0 -0.75 0 children [ Shape { appearance Appearance { material Material { diffuseColor 0.18 0.2 0.22 } } geometry Box { size 0.08 0.7 0.07 } } Transform { translation 0 -0.35 0.06 children [ Shape { appearance Appearance { material Material { diffuseColor 0.12 0.12 0.12 } } geometry Cylinder { height 0.06 radius 0.42 } } ] } ] }
+        # Primary Status Beacon (Top)
+        Transform { translation 0 0 0.26 children [ Shape { appearance Appearance { material DEF UAV_7_BEACON Material { diffuseColor 0.1 0.85 0.4 emissiveColor 0.2 0.9 0.5 } } geometry Sphere { radius 0.26 } } ] }
+        # Status Halo Ring
+        Transform { translation 0 0 0.26 children [ Shape { appearance Appearance { material DEF UAV_7_HALO Material { diffuseColor 0.1 0.65 0.85 emissiveColor 0.1 0.65 0.85 transparency 0.4 } } geometry Cylinder { height 0.03 radius 0.48 } } ] }
+      ]
+    }
+  ]
+}
+
+DEF UAV_8 Solid {
+  translation 50 640 15
+  rotation 0 0 1 0
+  name "uav_8"
+  children [
+    Transform {
+      scale 2.2 2.2 2.2
+      children [
+        # Main Fuselage
+        Shape {
+          appearance Appearance {
+            material DEF UAV_8_MAT Material {
+              diffuseColor 0.1 0.65 0.85
+              emissiveColor 0.05 0.25 0.40
+            }
+          }
+          geometry Box { size 0.9 0.9 0.24 }
+        }
+        # Avionics Cover
+        Transform { translation 0 0 0.13 children [ Shape { appearance Appearance { material Material { diffuseColor 0.12 0.14 0.16 } } geometry Box { size 0.65 0.65 0.04 } } ] }
+        # Forward Heading Nose
+        Transform { translation 0.58 0 0 rotation 0 1 0 1.5708 children [ Shape { appearance Appearance { material Material { diffuseColor 0.95 0.75 0.08 emissiveColor 0.4 0.3 0.02 } } geometry Cone { bottomRadius 0.22 height 0.35 } } ] }
+        # Rotor Hubs & Arms
+        Transform { translation 0.75 0 0 children [ Shape { appearance Appearance { material Material { diffuseColor 0.18 0.2 0.22 } } geometry Box { size 0.7 0.08 0.07 } } Transform { translation 0.35 0 0.06 children [ Shape { appearance Appearance { material Material { diffuseColor 0.12 0.12 0.12 } } geometry Cylinder { height 0.06 radius 0.42 } } ] } ] }
+        Transform { translation -0.75 0 0 children [ Shape { appearance Appearance { material Material { diffuseColor 0.18 0.2 0.22 } } geometry Box { size 0.7 0.08 0.07 } } Transform { translation -0.35 0 0.06 children [ Shape { appearance Appearance { material Material { diffuseColor 0.12 0.12 0.12 } } geometry Cylinder { height 0.06 radius 0.42 } } ] } ] }
+        Transform { translation 0 0.75 0 children [ Shape { appearance Appearance { material Material { diffuseColor 0.18 0.2 0.22 } } geometry Box { size 0.08 0.7 0.07 } } Transform { translation 0 0.35 0.06 children [ Shape { appearance Appearance { material Material { diffuseColor 0.12 0.12 0.12 } } geometry Cylinder { height 0.06 radius 0.42 } } ] } ] }
+        Transform { translation 0 -0.75 0 children [ Shape { appearance Appearance { material Material { diffuseColor 0.18 0.2 0.22 } } geometry Box { size 0.08 0.7 0.07 } } Transform { translation 0 -0.35 0.06 children [ Shape { appearance Appearance { material Material { diffuseColor 0.12 0.12 0.12 } } geometry Cylinder { height 0.06 radius 0.42 } } ] } ] }
+        # Primary Status Beacon (Top)
+        Transform { translation 0 0 0.26 children [ Shape { appearance Appearance { material DEF UAV_8_BEACON Material { diffuseColor 0.1 0.85 0.4 emissiveColor 0.2 0.9 0.5 } } geometry Sphere { radius 0.26 } } ] }
+        # Status Halo Ring
+        Transform { translation 0 0 0.26 children [ Shape { appearance Appearance { material DEF UAV_8_HALO Material { diffuseColor 0.1 0.65 0.85 emissiveColor 0.1 0.65 0.85 transparency 0.4 } } geometry Cylinder { height 0.03 radius 0.48 } } ] }
+      ]
+    }
+  ]
+}
 # 10 Point-of-Interest (POI) Sites (DEFs: POI_01 .. POI_10) at exact authoritative positions
 DEF POI_01 Solid { translation 80 420 0 name "poi_01" children [
   Transform { translation 0 0 0.05 children [ Shape { appearance Appearance { material DEF POI_01_MAT Material { diffuseColor 0.90 0.75 0.10 emissiveColor 0.25 0.18 0.0 transparency 0.4 } } geometry Cylinder { height 0.05 radius 2.5 } } ] }

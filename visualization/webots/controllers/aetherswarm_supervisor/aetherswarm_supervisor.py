@@ -213,6 +213,7 @@ class WebotsAetherSwarmSupervisor:
         # Camera Selection ('overview', 'follow', 'gcs', 'recovery')
         initial_cam = str(os.environ.get("AETHERSWARM_CAMERA_MODE", self.pres_cfg.get("camera_mode", "overview"))).strip().lower()
         self.camera_mode = initial_cam if initial_cam in self.CAMERA_MODES else "overview"
+        self.follow_uav_index = 0
 
         # Presentation-Layer Visibility Toggles
         self.show_hud = bool(self.pres_cfg.get("show_hud", True))
@@ -276,6 +277,13 @@ class WebotsAetherSwarmSupervisor:
                     halo_node = self.supervisor.getFromDef(f"{def_name}_HALO")
                     if halo_node:
                         self.drone_halos[uid] = halo_node
+
+            # Set initial 3D UAV world positions from trace to match authoritative initial coordinates
+            initial_uavs = self.ticks[0].get("uavs", {}) if self.ticks else {}
+            for uid, trans_field in self.drone_trans_fields.items():
+                if uid in initial_uavs and "position" in initial_uavs[uid] and trans_field:
+                    u_pos = initial_uavs[uid]["position"]
+                    trans_field.setSFVec3f([float(u_pos[0]), float(u_pos[1]), float(u_pos[2])])
 
         # Lookup POI nodes and materials
         self.poi_nodes: dict[str, Any] = {}
@@ -731,9 +739,14 @@ class WebotsAetherSwarmSupervisor:
         # 2. Playback, Time & Replay State
         mode_str = "⏸ PAUSED" if self.is_paused else "▶ PLAYING"
         mode_color = 0xFFAA22 if self.is_paused else 0x00D0FF
+        cam_display = self.camera_mode.upper()
+        if self.camera_mode == "follow" and self.viewpoint_follow_field:
+            curr_target = self.viewpoint_follow_field.getSFString()
+            if curr_target:
+                cam_display = f"FOLLOW ({curr_target})"
         time_text = (
             f"Scenario: {scenario}  |  Tick: {sim_tick}/{self.total_ticks}  ({sim_time:.1f}s)  |  "
-            f"{mode_str} ({self.playback_speed:.2f}x)  |  Camera: {self.camera_mode.upper()}"
+            f"{mode_str} ({self.playback_speed:.2f}x)  |  Camera: {cam_display}"
         )
         self.supervisor.setLabel(1, time_text, 0.015, 0.050, 0.038, mode_color, 0.0, "Arial")
 
@@ -907,24 +920,42 @@ class WebotsAetherSwarmSupervisor:
             self.speed_idx -= 1
             self.set_playback_speed(self.SPEED_PRESETS[self.speed_idx])
 
-    def set_camera(self, mode: str) -> None:
-        """Switch active camera viewpoint ('overview', 'follow', 'gcs', 'recovery')."""
+    def set_camera(self, mode: str, follow_target: str | None = None) -> None:
+        """Switch active camera viewpoint ('overview', 'follow', 'gcs', 'recovery').
+
+        In 'follow' mode, subsequent calls cycle through following each available UAV.
+        """
         clean_mode = mode.strip().lower()
         if clean_mode not in self.CAMERA_MODES:
             clean_mode = "overview"
-        self.camera_mode = clean_mode
-        log_msg(f"[Webots Camera] Active camera set to: {self.camera_mode.upper()}")
 
         if self.viewpoint_node:
-            cfg = self.CAMERA_PRESETS[self.camera_mode]
-            follow_target = cfg.get("follow", "")
-            if self.viewpoint_follow_field:
-                self.viewpoint_follow_field.setSFString(follow_target)
-            if not follow_target:
-                if self.viewpoint_pos_field and "pos" in cfg:
-                    self.viewpoint_pos_field.setSFVec3f(cfg["pos"])
-                if self.viewpoint_rot_field and "rot" in cfg:
-                    self.viewpoint_rot_field.setSFRotation(cfg["rot"])
+            cfg = self.CAMERA_PRESETS[clean_mode]
+            if clean_mode == "follow":
+                uav_defs = [f"UAV_{uid.split('_')[-1]}" for uid in self.metadata.get("uav_ids", [])]
+                if not uav_defs:
+                    uav_defs = ["UAV_1"]
+                if self.camera_mode == "follow" and follow_target is None:
+                    self.follow_uav_index = (self.follow_uav_index + 1) % len(uav_defs)
+                target = follow_target or uav_defs[self.follow_uav_index % len(uav_defs)]
+                self.camera_mode = "follow"
+                log_msg(f"[Webots Camera] Active camera set to: FOLLOW ({target})")
+                if self.viewpoint_follow_field:
+                    self.viewpoint_follow_field.setSFString(target)
+            else:
+                self.camera_mode = clean_mode
+                log_msg(f"[Webots Camera] Active camera set to: {self.camera_mode.upper()}")
+                follow_target_str = cfg.get("follow", "")
+                if self.viewpoint_follow_field:
+                    self.viewpoint_follow_field.setSFString(follow_target_str)
+                if not follow_target_str:
+                    if self.viewpoint_pos_field and "pos" in cfg:
+                        self.viewpoint_pos_field.setSFVec3f(cfg["pos"])
+                    if self.viewpoint_rot_field and "rot" in cfg:
+                        self.viewpoint_rot_field.setSFRotation(cfg["rot"])
+        else:
+            self.camera_mode = clean_mode
+            log_msg(f"[Webots Camera] Active camera set to: {self.camera_mode.upper()}")
 
         if self.supervisor and self.show_hud and self.playback_cursor < len(self.ticks):
             step = self.ticks[self.playback_cursor]
