@@ -17,7 +17,7 @@ from .airspace import ChallengeAirspace, FlightPhase
 class SafetyViolation:
     tick: int
     simulation_time: float
-    violation_type: str  # "GEOFENCE", "SEPARATION", "BATTERY_EXHAUSTION", "FLIGHT_DURATION", "LANDING_LOCATION", "RELAUNCH_PROHIBITED"
+    violation_type: str  # "GEOFENCE", "SEPARATION", "BATTERY_EXHAUSTION", "FLIGHT_DURATION", "TAKEOFF_LOCATION", "LANDING_LOCATION", "RELAUNCH_PROHIBITED"
     entity_ids: tuple[str, ...]
     details: str
     severity: str = "CRITICAL"  # "WARNING", "CRITICAL"
@@ -32,6 +32,7 @@ class UAVFlightRecord:
     current_sortie_duration_s: float = 0.0
     cumulative_airborne_s: float = 0.0
     is_airborne: bool = False
+    takeoff_position: Optional[Tuple[float, float]] = None
     landing_position: Optional[Tuple[float, float]] = None
     sortie_count: int = 0
     sorties_completed: int = 0
@@ -46,6 +47,7 @@ class SafetyReport:
     separation_violations_count: int = 0
     battery_exhaustions_count: int = 0
     flight_duration_violations_count: int = 0
+    takeoff_violations_count: int = 0
     landing_violations_count: int = 0
     relaunch_violations_count: int = 0
     max_observed_sortie_duration_s: float = 0.0
@@ -65,6 +67,8 @@ class SafetyReport:
             self.battery_exhaustions_count += 1
         elif violation.violation_type == "FLIGHT_DURATION":
             self.flight_duration_violations_count += 1
+        elif violation.violation_type == "TAKEOFF_LOCATION":
+            self.takeoff_violations_count += 1
         elif violation.violation_type == "LANDING_LOCATION":
             self.landing_violations_count += 1
         elif violation.violation_type == "RELAUNCH_PROHIBITED":
@@ -79,7 +83,7 @@ class SafetyAssessor:
         arena_bounds_x: tuple[float, float] = (-500.0, 500.0),
         arena_bounds_y: tuple[float, float] = (-500.0, 500.0),
         min_separation_m: float = 20.0,
-        gcs_position: tuple[float, float] = (0.0, 0.0),
+        gcs_position: tuple[float, float] = (-75.0, 500.0),
         rth_energy_buffer: float = 1.2,
         airspace: Optional[ChallengeAirspace] = None,
         max_sortie_duration_s: float = 1200.0,
@@ -175,8 +179,11 @@ class SafetyAssessor:
                 airborne1 = rec1.is_airborne if rec1 else False
                 airborne2 = rec2.is_airborne if rec2 else False
 
-                if (d1_gcs <= pad_radius and (u1.rth_state == RTHState.COMPLETE or not airborne1 or u1.sortie_state in (SortieState.READY, SortieState.RECHARGING, SortieState.LANDED))) or \
-                   (d2_gcs <= pad_radius and (u2.rth_state == RTHState.COMPLETE or not airborne2 or u2.sortie_state in (SortieState.READY, SortieState.RECHARGING, SortieState.LANDED))):
+                in_staging1 = self.airspace.is_in_staging_area(u1.position_xy) if self.airspace else (d1_gcs <= pad_radius)
+                in_staging2 = self.airspace.is_in_staging_area(u2.position_xy) if self.airspace else (d2_gcs <= pad_radius)
+
+                if (in_staging1 and (u1.rth_state == RTHState.COMPLETE or not airborne1 or u1.sortie_state in (SortieState.READY, SortieState.RECHARGING, SortieState.LANDED))) or \
+                   (in_staging2 and (u2.rth_state == RTHState.COMPLETE or not airborne2 or u2.sortie_state in (SortieState.READY, SortieState.RECHARGING, SortieState.LANDED))):
                     continue
                 if self.airspace is None and (d1_gcs <= 1.0 or d2_gcs <= 1.0):
                     continue
@@ -240,21 +247,37 @@ class SafetyAssessor:
                     violations.append(v)
                     self.report.record_violation(v)
 
-            # Detect takeoff (requires actual physical movement or departure from pad)
-            # A staged UAV that is assigned a task but stationary on pad is NOT airborne
+            # Detect takeoff (requires actual physical movement or departure from staging area)
+            # A staged UAV that is assigned a task but stationary in the staging area is NOT airborne
             if u.active and not rec.is_airborne and (rec.landing_time is None or not self.enforce_single_sortie):
-                if dist_gcs > pad_radius or speed > EPSILON:
+                in_staging = (
+                    self.airspace.is_in_staging_area(u.position_xy)
+                    if self.airspace is not None
+                    else (dist_gcs <= max(1.0, pad_radius))
+                )
+                is_taking_off = (speed > EPSILON) or (not in_staging)
+
+                if is_taking_off:
                     rec.takeoff_time = sim_time
+                    rec.takeoff_position = u.position_xy
                     rec.is_airborne = True
                     rec.landing_time = None
                     rec.current_sortie_duration_s = 0.0
                     rec.sortie_count += 1
-                elif self.airspace is None and dist_gcs > 1.0:
-                    rec.takeoff_time = sim_time
-                    rec.is_airborne = True
-                    rec.landing_time = None
-                    rec.current_sortie_duration_s = 0.0
-                    rec.sortie_count += 1
+
+                    # Verify takeoff origin when challenge airspace is active
+                    if self.airspace is not None:
+                        if not self.airspace.is_in_staging_area(u.position_xy):
+                            v = SafetyViolation(
+                                tick=tick,
+                                simulation_time=sim_time,
+                                violation_type="TAKEOFF_LOCATION",
+                                entity_ids=(u.id,),
+                                details=f"UAV {u.id} took off from ({u.position_xy[0]:.2f}, {u.position_xy[1]:.2f}) outside authorized operational center / staging area",
+                                severity="CRITICAL",
+                            )
+                            violations.append(v)
+                            self.report.record_violation(v)
 
             # Update airborne duration
             if rec.is_airborne:
@@ -273,13 +296,13 @@ class SafetyAssessor:
 
                     # Validate landing position if airspace configured
                     if self.airspace is not None:
-                        if not self.airspace.is_in_staging_pad(u.position_xy):
+                        if not self.airspace.is_in_staging_area(u.position_xy):
                             v = SafetyViolation(
                                 tick=tick,
                                 simulation_time=sim_time,
                                 violation_type="LANDING_LOCATION",
                                 entity_ids=(u.id,),
-                                details=f"UAV {u.id} landed at ({u.position_xy[0]:.2f}, {u.position_xy[1]:.2f}) outside authorized staging pad",
+                                details=f"UAV {u.id} landed at ({u.position_xy[0]:.2f}, {u.position_xy[1]:.2f}) outside authorized staging pad / staging area",
                                 severity="CRITICAL",
                             )
                             violations.append(v)

@@ -66,7 +66,7 @@ class ScenarioConfig:
     speed_limit: float = 5.0
     duration: float = 10.0
     max_ticks: int = 10
-    gcs_position: tuple[float, float] = (0.0, 0.0)
+    gcs_position: tuple[float, float] = (-75.0, 500.0)
     arena_bounds_x: tuple[float, float] = (-100.0, 100.0)
     arena_bounds_y: tuple[float, float] = (-100.0, 100.0)
     max_height: float = 100.0
@@ -112,7 +112,7 @@ def load_scenario(source: str | Path | dict[str, Any]) -> ScenarioConfig:
     duration = float(raw.get("duration", 10.0))
     max_ticks = int(raw.get("max_ticks", int(duration / dt) if dt > 0 else 10))
 
-    gcs_raw = raw.get("gcs_position", (0.0, 0.0))
+    gcs_raw = raw.get("gcs_position", (-75.0, 500.0))
     gcs_position = (float(gcs_raw[0]), float(gcs_raw[1]))
 
     arena_raw = raw.get("arena", {})

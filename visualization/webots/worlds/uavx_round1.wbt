@@ -236,9 +236,9 @@ DEF OPERATIONAL_BOUNDARY Solid {
   ]
 }
 
-# Ground Control Station (GCS) at authoritative coordinate [-50.0, 500.0, 0.0]
+# Ground Control Station (GCS) at authoritative coordinate [-75.0, 500.0, 0.0]
 DEF GCS Solid {
-  translation -50 500 0
+  translation -75 500 0
   name "gcs_base"
   children [
     # Main Operations Apron (38m x 38m heavy foundation)
@@ -283,9 +283,9 @@ DEF GCS Solid {
         }
       ]
     }
-    # Staging Runway Transition Corridor into Arena (x = -32 to 0, y = 485 to 515)
+    # Staging Runway Transition Corridor into Arena (x = -75 to 0, y = 485 to 515)
     Transform {
-      translation 25 0 0.05
+      translation 37.5 0 0.05
       children [
         Shape {
           appearance Appearance {
@@ -294,7 +294,7 @@ DEF GCS Solid {
             }
           }
           geometry Box {
-            size 50 24 0.08
+            size 75 24 0.08
           }
         }
         # Ingress/Egress Guide Lines
@@ -308,9 +308,9 @@ DEF GCS Solid {
           geometry IndexedLineSet {
             coord Coordinate {
               point [
-                -25 -10 0.06, 25 -10 0.06,
-                -25 10 0.06, 25 10 0.06,
-                -25 0 0.06, 25 0 0.06
+                -37.5 -10 0.06, 37.5 -10 0.06,
+                -37.5 10 0.06, 37.5 10 0.06,
+                -37.5 0 0.06, 37.5 0 0.06
               ]
             }
             coordIndex [ 0, 1, -1, 2, 3, -1, 4, 5, -1 ]

@@ -47,6 +47,22 @@ class ChallengeAirspace:
         dy = position_xy[1] - self.staging_pad_center[1]
         return math.hypot(dx, dy) <= self.staging_pad_radius_m + EPSILON
 
+    def is_in_staging_area(self, position_xy: Tuple[float, float]) -> bool:
+        """Check if 2D position is within authorized staging pad or linear staging corridor.
+
+        Accommodates up to 8 UAVs staged with >= 20m separation centered at
+        staging_pad_center, strictly outside the operational arena (x <= 0).
+        """
+        if self.is_in_staging_pad(position_xy):
+            return True
+        x, y = position_xy
+        x_c, y_c = self.staging_pad_center
+        # Staging line along west operational center, strictly outside arena
+        if (x_c - 5.0 <= x <= EPSILON) and abs(y - y_c) <= 80.0:
+            return True
+        y_min_c, y_max_c = self.corridor_bounds_y
+        return (x_c - 5.0 <= x <= EPSILON) and (y_min_c - EPSILON <= y <= y_max_c + EPSILON)
+
     def is_in_corridor(self, position_xy: Tuple[float, float]) -> bool:
         """Check if 2D position is within the transit corridor."""
         x, y = position_xy
@@ -64,7 +80,7 @@ class ChallengeAirspace:
     def is_in_authorized_union(self, position_xy: Tuple[float, float]) -> bool:
         """Check if position is in any authorized airspace zone."""
         return (
-            self.is_in_staging_pad(position_xy)
+            self.is_in_staging_area(position_xy)
             or self.is_in_corridor(position_xy)
             or self.is_in_arena(position_xy)
         )
@@ -85,7 +101,7 @@ class ChallengeAirspace:
 
         # If previous phase was STAGING, LANDED, or initial state
         if prev_phase in (None, FlightPhase.STAGING, FlightPhase.LANDED):
-            if self.is_in_staging_pad(uav.position_xy) and uav.role == Role.IDLE and uav.assigned_task_id is None:
+            if self.is_in_staging_area(uav.position_xy) and uav.role == Role.IDLE and uav.assigned_task_id is None:
                 return FlightPhase.STAGING
             if self.is_in_arena(uav.position_xy):
                 return FlightPhase.MISSION
@@ -118,12 +134,12 @@ class ChallengeAirspace:
 
         # Phase-specific boundary rules
         if flight_phase == FlightPhase.STAGING:
-            if not self.is_in_staging_pad(position_xy):
-                return False, f"UAV in STAGING phase outside staging pad radius ({self.staging_pad_radius_m}m)"
+            if not self.is_in_staging_area(position_xy):
+                return False, f"UAV in STAGING phase outside staging area ({self.staging_pad_radius_m}m / staging line)"
 
         elif flight_phase == FlightPhase.INGRESS:
-            # Ingress may use corridor, staging pad, or enter the arena boundary
-            if not (self.is_in_corridor(position_xy) or self.is_in_staging_pad(position_xy) or self.is_in_arena(position_xy)):
+            # Ingress may use corridor, staging area, or enter the arena boundary
+            if not (self.is_in_corridor(position_xy) or self.is_in_staging_area(position_xy) or self.is_in_arena(position_xy)):
                 return False, "UAV in INGRESS phase outside corridor or staging pad"
 
         elif flight_phase == FlightPhase.MISSION:
@@ -132,13 +148,13 @@ class ChallengeAirspace:
                 return False, f"UAV in MISSION phase departed operational arena: ({position_xy[0]:.2f}, {position_xy[1]:.2f})"
 
         elif flight_phase == FlightPhase.EGRESS:
-            # Egress may transit from arena through corridor to staging pad
-            if not (self.is_in_arena(position_xy) or self.is_in_corridor(position_xy) or self.is_in_staging_pad(position_xy)):
+            # Egress may transit from arena through corridor to staging area
+            if not (self.is_in_arena(position_xy) or self.is_in_corridor(position_xy) or self.is_in_staging_area(position_xy)):
                 return False, "UAV in EGRESS phase outside authorized transit path"
 
         elif flight_phase == FlightPhase.LANDED:
-            # Final landing must occur on the authorized staging pad
-            if not self.is_in_staging_pad(position_xy):
-                return False, f"UAV landed at ({position_xy[0]:.2f}, {position_xy[1]:.2f}) outside staging pad"
+            # Final landing must occur in authorized staging area
+            if not self.is_in_staging_area(position_xy):
+                return False, f"UAV landed at ({position_xy[0]:.2f}, {position_xy[1]:.2f}) outside staging pad / staging area"
 
         return True, None

@@ -192,7 +192,7 @@ class WebotsAetherSwarmSupervisor:
         self.total_ticks = len(self.ticks)
         self.min_separation_m = float(self.metadata.get("min_separation_m", 20.0))
         self.max_altitude_m = float(self.metadata.get("max_altitude", 100.0))
-        self.gcs_pos = self.metadata.get("gcs_position", [-50.0, 500.0, 0.0])
+        self.gcs_pos = self.metadata.get("gcs_position", [-75.0, 500.0, 0.0])
 
         # Visual sub-tick interpolation steps
         default_sub_steps = int(self.pres_cfg.get("sub_steps", 4))
@@ -824,9 +824,9 @@ class WebotsAetherSwarmSupervisor:
                 self.verification_log.append(msg)
                 print(f"  [Webots Spatial Warning] {msg}")
 
-            # Operational area boundary check (1000m x 1000m arena; allow designated GCS corridor [-65, 0] x [400, 600])
+            # Operational area boundary check (1000m x 1000m arena; allow designated GCS corridor [-85, 0] x [400, 600])
             in_arena = (0.0 <= x <= 1000.0) and (0.0 <= y <= 1000.0)
-            in_gcs_corridor = (-65.0 <= x <= 5.0) and (400.0 <= y <= 600.0)
+            in_gcs_corridor = (min(self.gcs_pos[0] - 10.0, -85.0) <= x <= 5.0) and (400.0 <= y <= 600.0)
             if not (in_arena or in_gcs_corridor):
                 self.geofence_violations += 1
                 msg = f"Tick {tick} ({sim_time}s): GEOFENCE VIOLATION for {uid} at ({x:.1f}, {y:.1f})"

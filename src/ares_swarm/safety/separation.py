@@ -110,10 +110,12 @@ class SeparationEnforcer:
             )
         return (3, round(rem_dist, 4), uav.id)
 
-    def is_landed_at_gcs(self, uav: UAVState) -> bool:
+    def is_landed_at_gcs(self, uav: UAVState, airspace: Optional[ChallengeAirspace] = None) -> bool:
         """Determine if UAV is safely landed and parked on the staging pad/GCS."""
         if uav.rth_state != RTHState.COMPLETE:
             return False
+        if airspace is not None and airspace.is_in_staging_area(uav.position_xy):
+            return True
         dist_gcs = math.hypot(
             uav.position_xy[0] - self.gcs_position[0],
             uav.position_xy[1] - self.gcs_position[1],
@@ -146,12 +148,12 @@ class SeparationEnforcer:
             uav = all_uavs[uav_id]
             if not uav.active or uav.failure_state == FailureState.FAILED:
                 # Landed UAVs at GCS are exempt from airborne separation
-                if not self.is_landed_at_gcs(uav):
+                if not self.is_landed_at_gcs(uav, airspace):
                     # Failed in-flight UAV is a static obstacle
                     static_obstacles.append((uav.id, uav.position_xy))
                 continue
 
-            if self.is_landed_at_gcs(uav):
+            if self.is_landed_at_gcs(uav, airspace):
                 continue
 
             if uav.target_position is None:

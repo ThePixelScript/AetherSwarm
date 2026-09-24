@@ -168,16 +168,17 @@ def generate_scenario_dict(
     tasks: list[dict[str, Any]],
     num_uavs: int = 5,
     arena_size: float = 1000.0,
-    gcs_pos: tuple[float, float] = (-50.0, 500.0),
+    gcs_pos: tuple[float, float] = (-75.0, 500.0),
     mission_duration: float = 2700.0,
     speed_limit: float = 5.0,
     comm_range: float = 100.0,
     min_separation: float = 20.0,
 ) -> dict[str, Any]:
     """Build the authoritative scenario configuration dictionary."""
-    # Staging lane: 5 UAVs at x=50.0, spaced 40m apart along Y
-    spacing = max(min_separation * 2.0, 40.0)
+    # Staging lane: UAVs staged at operational center x=gcs_pos[0], spaced along Y
+    spacing = max(min_separation, 20.0)
     y_start = gcs_pos[1] - ((num_uavs - 1) / 2.0) * spacing
+    staging_radius = max(15.0, ((num_uavs - 1) / 2.0) * spacing + 5.0)
 
     uavs_data = []
     battery_cap = 4200.0  # 20 min continuous flight limit
@@ -187,7 +188,7 @@ def generate_scenario_dict(
         pos_y = round(y_start + i * spacing, 2)
         uavs_data.append({
             "id": uid,
-            "position": [50.0, pos_y],
+            "position": [float(gcs_pos[0]), pos_y],
             "battery_capacity": battery_cap,
             "battery_energy": battery_cap,
             "role": "IDLE",
@@ -226,7 +227,7 @@ def generate_scenario_dict(
             "airspace": {
                 "enabled": True,
                 "staging_pad_center": list(gcs_pos),
-                "staging_pad_radius_m": 15.0,
+                "staging_pad_radius_m": staging_radius,
                 "corridor_bounds_x": [float(gcs_pos[0]), 0.0],
                 "corridor_bounds_y": [400.0, 600.0],
                 "arena_bounds_x": [0.0, arena_size],

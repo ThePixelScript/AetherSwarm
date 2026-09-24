@@ -15,11 +15,12 @@ K. Staged assigned-but-not-moving UAV is NOT airborne (takeoff requires motion)
 L. Single-sortie policy rejects relaunch after landing (RELAUNCH_PROHIBITED)
 M. End-to-end integration: takeoff -> flight -> dynamic RTH -> touchdown <= 1200s
 """
+import math
 from types import MappingProxyType
 import pytest
 
 from ares_swarm.core.commands import AssignTaskCommand, SetTargetPositionCommand
-from ares_swarm.core.enums import EventType, Role, RTHState, TaskStatus
+from ares_swarm.core.enums import EventType, Role, RTHState, SortieState, TaskStatus
 from ares_swarm.core.models import StateSnapshot, UAVState
 from ares_swarm.safety.airspace import ChallengeAirspace, FlightPhase
 from ares_swarm.safety.safety_assessor import SafetyAssessor, SafetyReport, UAVFlightRecord
@@ -437,3 +438,158 @@ def test_m_end_to_end_sortie_compliance_integration():
     assert report.flight_duration_violations_count == 0
     assert report.landing_violations_count == 0
     assert report.geofence_violations_count == 0
+    assert report.takeoff_violations_count == 0
+
+
+def test_n_staging_8uav_layout_and_separation():
+    """Test N: 8-UAV staging layout guarantees >= 20m separation outside arena centered at (-75, 500)."""
+    import sys
+    from pathlib import Path
+    repo_root = Path(__file__).resolve().parent.parent.parent
+    if str(repo_root) not in sys.path:
+        sys.path.insert(0, str(repo_root))
+    from scripts.generate_scenario import generate_scenario_dict
+    scen = generate_scenario_dict(seed=2026, tasks=[], num_uavs=8, gcs_pos=(-75.0, 500.0), min_separation=20.0)
+    uavs = scen["uavs"]
+    assert len(uavs) == 8
+
+    # 1. Strictly outside arena (x = -75.0 < 0)
+    for u in uavs:
+        x, y = u["position"]
+        assert x == -75.0, f"UAV {u['id']} x={x} must be -75.0"
+        assert x < 0.0, "UAV must be outside operational arena"
+
+    # 2. Centered on operational center (-75.0, 500.0)
+    avg_y = sum(u["position"][1] for u in uavs) / len(uavs)
+    assert abs(avg_y - 500.0) < 1e-4, f"Centroid y={avg_y} must be 500.0"
+
+    # 3. Pairwise separation >= 20.0 m between all simultaneously staged UAVs
+    for i in range(len(uavs)):
+        for j in range(i + 1, len(uavs)):
+            p1 = uavs[i]["position"]
+            p2 = uavs[j]["position"]
+            dist = math.hypot(p1[0] - p2[0], p1[1] - p2[1])
+            assert dist >= 20.0 - 1e-6, f"Separation between {uavs[i]['id']} and {uavs[j]['id']} is {dist:.2f} < 20m"
+
+    # 4. Validated within ChallengeAirspace staging area
+    airspace = ChallengeAirspace(
+        corridor_bounds_y=(400.0, 600.0),
+        staging_pad_radius_m=scen["challenge_profile"]["airspace"]["staging_pad_radius_m"],
+    )
+    for u in uavs:
+        pos = tuple(u["position"])
+        assert airspace.is_in_staging_area(pos) is True, f"Position {pos} not recognized in staging area"
+
+
+def test_o_takeoff_location_violation_on_unauthorized_origin():
+    """Test O: Takeoff from inside arena or outside staging area triggers TAKEOFF_LOCATION violation."""
+    assessor = SafetyAssessor(
+        gcs_position=(-75.0, 500.0),
+        airspace=ChallengeAirspace(),
+    )
+    # UAV placed inside operational arena at (50.0, 500.0)
+    u_invalid = UAVState(
+        id="uav_1",
+        position_xy=(50.0, 500.0),
+        velocity_xy=(5.0, 0.0),
+        role=Role.SCOUT,
+        active=True,
+    )
+    snap = _make_snapshot({"uav_1": u_invalid}, tick=0, sim_time=0.0)
+    violations = assessor.assess_snapshot(snap)
+
+    takeoff_viols = [v for v in violations if v.violation_type == "TAKEOFF_LOCATION"]
+    assert len(takeoff_viols) == 1
+    assert "outside authorized operational center / staging area" in takeoff_viols[0].details
+    assert assessor.report.takeoff_violations_count == 1
+    rec = assessor.report.uav_flight_records["uav_1"]
+    assert rec.takeoff_position == (50.0, 500.0)
+
+
+def test_p_valid_takeoff_from_operational_center_staging():
+    """Test P: Valid takeoff from staging line (-75, 430) produces zero TAKEOFF_LOCATION violations."""
+    airspace = ChallengeAirspace(corridor_bounds_y=(400.0, 600.0))
+    assessor = SafetyAssessor(
+        gcs_position=(-75.0, 500.0),
+        airspace=airspace,
+    )
+    # 1. Stationary staged at (-75.0, 430.0)
+    u_staged = UAVState(
+        id="uav_1",
+        position_xy=(-75.0, 430.0),
+        velocity_xy=(0.0, 0.0),
+        role=Role.IDLE,
+        active=True,
+    )
+    snap0 = _make_snapshot({"uav_1": u_staged}, tick=0, sim_time=0.0)
+    assessor.assess_snapshot(snap0)
+    rec = assessor.report.uav_flight_records["uav_1"]
+    assert rec.is_airborne is False
+    assert assessor.report.takeoff_violations_count == 0
+
+    # 2. Initiates movement into corridor
+    u_moving = UAVState(
+        id="uav_1",
+        position_xy=(-75.0, 430.0),
+        velocity_xy=(5.0, 0.0),
+        role=Role.SCOUT,
+        active=True,
+    )
+    snap1 = _make_snapshot({"uav_1": u_moving}, tick=1, sim_time=1.0)
+    violations = assessor.assess_snapshot(snap1)
+    takeoff_viols = [v for v in violations if v.violation_type == "TAKEOFF_LOCATION"]
+    assert len(takeoff_viols) == 0
+    assert assessor.report.takeoff_violations_count == 0
+    assert rec.is_airborne is True
+    assert rec.takeoff_position == (-75.0, 430.0)
+    assert rec.takeoff_time == 1.0
+
+
+def test_q_post_recharge_sortie_takeoff_verification():
+    """Test Q: Secondary sortie after recharge validates takeoff origin at GCS."""
+    airspace = ChallengeAirspace()
+    assessor = SafetyAssessor(
+        gcs_position=(-75.0, 500.0),
+        airspace=airspace,
+        enforce_single_sortie=False,
+    )
+    # UAV has landed and completed recharge at GCS (-75.0, 500.0)
+    u_recharged = UAVState(
+        id="uav_1",
+        position_xy=(-75.0, 500.0),
+        velocity_xy=(0.0, 0.0),
+        role=Role.IDLE,
+        active=True,
+        sortie_state=SortieState.READY,
+    )
+    rec = UAVFlightRecord(
+        uav_id="uav_1",
+        is_airborne=False,
+        takeoff_time=None,
+        landing_time=None,
+        sortie_count=1,
+        sorties_completed=1,
+    )
+    assessor.report.uav_flight_records["uav_1"] = rec
+    snap0 = _make_snapshot({"uav_1": u_recharged}, tick=500, sim_time=500.0)
+    assessor.assess_snapshot(snap0)
+    assert rec.is_airborne is False
+
+    # Takeoff for second sortie
+    u_sortie2 = UAVState(
+        id="uav_1",
+        position_xy=(-75.0, 500.0),
+        velocity_xy=(5.0, 0.0),
+        role=Role.SCOUT,
+        active=True,
+        sortie_state=SortieState.ACTIVE,
+    )
+    snap1 = _make_snapshot({"uav_1": u_sortie2}, tick=501, sim_time=501.0)
+    violations = assessor.assess_snapshot(snap1)
+    takeoff_viols = [v for v in violations if v.violation_type == "TAKEOFF_LOCATION"]
+    assert len(takeoff_viols) == 0
+    assert assessor.report.takeoff_violations_count == 0
+    assert rec.is_airborne is True
+    assert rec.sortie_count == 2
+    assert rec.takeoff_position == (-75.0, 500.0)
+    assert rec.takeoff_time == 501.0
