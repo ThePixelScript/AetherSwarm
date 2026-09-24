@@ -502,7 +502,11 @@ class MissionRunner:
         limit = max_ticks if max_ticks is not None else self.scenario.max_ticks
 
         for _ in range(limit):
-            self.step()
+            step_res = self.step()
+            # Early termination if all UAVs are successfully landed and mission requires return
+            if self.scenario.return_by_mission_end:
+                if all(not u.active and u.rth_state == RTHState.COMPLETE for u in step_res.snapshot.uavs.values() if u.failure_state.name != "FAILED"):
+                    break
 
         final_snap = self.state_store.snapshot()
         metrics_report = compute_mission_metrics(

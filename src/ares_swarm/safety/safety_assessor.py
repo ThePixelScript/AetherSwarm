@@ -320,11 +320,11 @@ class SafetyAssessor:
             return_energy = (idle_rate * return_time_s + movement_rate * dist_to_gcs) * self.rth_energy_buffer
 
             # 1. Battery Trigger
-            battery_trigger = enable_battery_rth and (u.battery_energy <= return_energy + EPSILON)
-
-            # 2. Mission Overtime Trigger (stagger return by UAV index)
             uav_idx = sorted_uav_ids.index(u.id)
             stagger_time = uav_idx * 8.0
+            battery_trigger = enable_battery_rth and (u.battery_energy <= return_energy + (idle_rate * stagger_time * self.rth_energy_buffer) + EPSILON)
+
+            # 2. Mission Overtime Trigger (stagger return by UAV index)
             time_left = max(0.0, mission_duration - sim_time)
             time_trigger = enable_time_rth and (time_left <= (return_time_s * self.rth_energy_buffer + stagger_time) + EPSILON)
 
@@ -334,8 +334,8 @@ class SafetyAssessor:
                 rec = self.report.uav_flight_records.get(u.id)
                 current_sortie = rec.current_sortie_duration_s if rec and rec.is_airborne else 0.0
                 remaining_sortie = max(0.0, self.max_sortie_duration_s - current_sortie)
-                # Transit time to GCS plus safety margin
-                required_rth_time = return_time_s + self.rth_safety_margin_s
+                # Transit time to GCS plus safety margin AND stagger time for landing queue
+                required_rth_time = return_time_s + self.rth_safety_margin_s + stagger_time
                 if remaining_sortie <= required_rth_time + EPSILON:
                     sortie_trigger = True
 

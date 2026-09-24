@@ -151,10 +151,12 @@ class DetectionManager:
             elapsed_s = snapshot.simulation_time - report.t_detect
 
             if route is not None:
-                # Route to GCS exists: delivered at current simulation time
-                t_gcs = snapshot.simulation_time
-                latency_s = max(0.0, t_gcs - report.t_detect)
+                # Route to GCS exists: delivered at current simulation time + physical transmission latency
                 hop_count = max(0, len(route) - 1)
+                model_latency_s = hop_count * (self.config.comm_base_latency_ms / 1000.0)
+                
+                t_gcs = snapshot.simulation_time + model_latency_s
+                latency_s = max(0.0, t_gcs - report.t_detect)
 
                 if latency_s <= self.config.reporting_deadline_s + EPSILON:
                     status = TelemetryStatus.DELIVERED

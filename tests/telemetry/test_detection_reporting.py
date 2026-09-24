@@ -203,7 +203,7 @@ def test_d_single_hop_delivery_to_gcs():
     assert events[0].event_type == EventType.TELEMETRY_DELIVERED
     assert events[0].payload["hop_count"] == 1
     assert events[0].payload["route"] == ["u1", "GCS"]
-    assert events[0].payload["latency_s"] == 0.0
+    assert events[0].payload["latency_s"] == 0.005
 
     rep = mgr.authoritative_reports["t1"]
     assert rep.status == TelemetryStatus.DELIVERED
@@ -292,7 +292,7 @@ def test_f_delivery_within_deadline():
 
     assert len(events) == 1
     assert events[0].event_type == EventType.TELEMETRY_DELIVERED
-    assert events[0].payload["latency_s"] == 8.0
+    assert events[0].payload["latency_s"] == 8.005
     assert mgr.authoritative_reports["t1"].status == TelemetryStatus.DELIVERED
 
 
@@ -367,7 +367,7 @@ def test_h_reconnect_before_deadline():
     events = mgr.step_telemetry(snap_16, _make_dummy_net_analysis({"u1": ("u1", "GCS")}))
     assert len(events) == 1
     assert events[0].event_type == EventType.TELEMETRY_DELIVERED
-    assert events[0].payload["latency_s"] == 6.0
+    assert events[0].payload["latency_s"] == 6.005
     assert mgr.authoritative_reports["t1"].status == TelemetryStatus.DELIVERED
     assert "t1" not in mgr.pending_reports
 

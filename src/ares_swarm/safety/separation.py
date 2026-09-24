@@ -181,15 +181,17 @@ class SeparationEnforcer:
         # 3. RTH Final Approach Queuing Gate
         # To avoid mutual deadlocks and separation collapse as UAVs converge onto the single GCS point,
         # only the highest-priority RTH UAV is cleared into the final landing zone (< min_separation_m from GCS).
-        # Other returning UAVs queue outside at distance >= min_separation_m until the leader lands and is exempt.
+        # Other returning UAVs queue outside at distance >= 2.0 * min_separation_m until the leader lands and is exempt.
         landing_slot_owner: Optional[str] = None
+        queue_radius = 2.0 * self.min_separation_m
+
         for uav in moving_uavs:
             if uav.rth_state == RTHState.ACTIVE:
                 d_gcs = math.hypot(
                     uav.position_xy[0] - self.gcs_position[0],
                     uav.position_xy[1] - self.gcs_position[1],
                 )
-                if d_gcs < self.min_separation_m:
+                if d_gcs < queue_radius:
                     landing_slot_owner = uav.id
                     break
         if landing_slot_owner is None:
@@ -241,12 +243,12 @@ class SeparationEnforcer:
                     nominal_pos[0] - self.gcs_position[0],
                     nominal_pos[1] - self.gcs_position[1],
                 )
-                if nom_d_gcs < self.min_separation_m:
-                    if curr_d_gcs <= self.min_separation_m:
+                if nom_d_gcs < queue_radius:
+                    if curr_d_gcs <= queue_radius:
                         max_alpha = 0.0
                     else:
                         denom = max(1e-4, curr_d_gcs - nom_d_gcs)
-                        max_alpha = max(0.0, min(1.0, (curr_d_gcs - self.min_separation_m) / denom))
+                        max_alpha = max(0.0, min(1.0, (curr_d_gcs - queue_radius) / denom))
 
             # Obstacles to test against:
             # A. Already approved trajectories over [0, dt]
