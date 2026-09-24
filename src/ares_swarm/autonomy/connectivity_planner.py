@@ -572,6 +572,8 @@ class ConnectivityAwarePlanner:
                 and u.failure_state == FailureState.NORMAL
                 and u.sortie_state in (SortieState.READY, SortieState.ACTIVE)
                 and u.id not in assigned_uav_ids
+                and u.assigned_task_id is None
+                and u.role != Role.RELAY
             ]
 
             if not remaining_candidates:

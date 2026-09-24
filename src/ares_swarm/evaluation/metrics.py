@@ -67,6 +67,15 @@ class MissionMetricsReport:
     landing_deadlocks: int = 0
     UAVs_landed: int = 0
     UAVs_ready_at_end: int = 0
+    per_uav_initial_battery: dict[str, float] = field(default_factory=dict)
+    per_uav_min_battery: dict[str, float] = field(default_factory=dict)
+    per_uav_rth_trigger_times: dict[str, list[float]] = field(default_factory=dict)
+    per_uav_landing_times: dict[str, list[float]] = field(default_factory=dict)
+    per_uav_recharge_start_times: dict[str, list[float]] = field(default_factory=dict)
+    per_uav_recharge_completion_times: dict[str, list[float]] = field(default_factory=dict)
+    per_uav_recharge_counts: dict[str, int] = field(default_factory=dict)
+    total_recharge_duration_s: float = 0.0
+    relay_handoffs_caused_by_rth: int = 0
 
     # Phase 3: Dynamic Relay Management metrics
     relay_assignments: int = 0
@@ -167,6 +176,15 @@ class MissionMetricsReport:
                 "landing_deadlocks": self.landing_deadlocks,
                 "UAVs_landed": self.UAVs_landed,
                 "UAVs_ready_at_end": self.UAVs_ready_at_end,
+                "per_uav_initial_battery": dict(self.per_uav_initial_battery),
+                "per_uav_min_battery": dict(self.per_uav_min_battery),
+                "per_uav_rth_trigger_times": dict(self.per_uav_rth_trigger_times),
+                "per_uav_landing_times": dict(self.per_uav_landing_times),
+                "per_uav_recharge_start_times": dict(self.per_uav_recharge_start_times),
+                "per_uav_recharge_completion_times": dict(self.per_uav_recharge_completion_times),
+                "per_uav_recharge_counts": dict(self.per_uav_recharge_counts),
+                "total_recharge_duration_s": round(self.total_recharge_duration_s, 2),
+                "relay_handoffs_caused_by_rth": self.relay_handoffs_caused_by_rth,
             },
             "relay_management": {
                 "relay_assignments": self.relay_assignments,
@@ -379,6 +397,60 @@ def compute_mission_metrics(
         1 for u in final_uavs.values()
         if getattr(u, "rth_state", None) == RTHState.ACTIVE and getattr(u, "active", False)
     )
+
+    # Battery & Recharge tracking per UAV
+    report.per_uav_initial_battery = {uid: round(u.battery_energy, 2) for uid, u in initial_snapshot.uavs.items()}
+    min_bat: dict[str, float] = {uid: u.battery_energy for uid, u in initial_snapshot.uavs.items()}
+    for step in step_history:
+        for uid, u in step.snapshot.uavs.items():
+            if uid in min_bat:
+                min_bat[uid] = min(min_bat[uid], u.battery_energy)
+            else:
+                min_bat[uid] = u.battery_energy
+    report.per_uav_min_battery = {uid: round(val, 2) for uid, val in min_bat.items()}
+
+    rth_triggers: dict[str, list[float]] = {}
+    landing_times: dict[str, list[float]] = {}
+    recharge_starts: dict[str, list[float]] = {}
+    recharge_ends: dict[str, list[float]] = {}
+    recharge_counts: dict[str, int] = {uid: 0 for uid in initial_snapshot.uavs}
+    relay_rth_handoffs = 0
+
+    for e in all_events:
+        etype = getattr(e, "event_type", None)
+        uid = getattr(e, "entity_id", None)
+        t = round(float(getattr(e, "simulation_time", 0.0)), 2)
+        if etype == EventType.RTH_TRIGGERED and uid:
+            rth_triggers.setdefault(uid, []).append(t)
+        elif etype == EventType.UAV_LANDED and uid:
+            landing_times.setdefault(uid, []).append(t)
+        elif etype == EventType.UAV_RECHARGING and uid:
+            recharge_starts.setdefault(uid, []).append(t)
+        elif etype == EventType.UAV_RECHARGED and uid:
+            recharge_ends.setdefault(uid, []).append(t)
+            recharge_counts[uid] = recharge_counts.get(uid, 0) + 1
+        elif etype == EventType.RELAY_HANDOFF:
+            payload = getattr(e, "payload", {})
+            if "RTH" in str(payload).upper() or "RTH" in str(getattr(e, "reason", "")).upper():
+                relay_rth_handoffs += 1
+
+    report.per_uav_rth_trigger_times = rth_triggers
+    report.per_uav_landing_times = landing_times
+    report.per_uav_recharge_start_times = recharge_starts
+    report.per_uav_recharge_completion_times = recharge_ends
+    report.per_uav_recharge_counts = recharge_counts
+    report.relay_handoffs_caused_by_rth = relay_rth_handoffs
+
+    total_rech_s = 0.0
+    for uid in initial_snapshot.uavs:
+        starts = recharge_starts.get(uid, [])
+        ends = recharge_ends.get(uid, [])
+        for i, s in enumerate(starts):
+            if i < len(ends):
+                total_rech_s += max(0.0, ends[i] - s)
+            else:
+                total_rech_s += max(0.0, sim_time - s)
+    report.total_recharge_duration_s = total_rech_s
 
     # 7. Dynamic Relay Management Metrics
     if relay_manager is not None:

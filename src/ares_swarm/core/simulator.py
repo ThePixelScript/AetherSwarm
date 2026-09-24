@@ -11,7 +11,7 @@ from ares_swarm.core.event_scheduler import (
     EventScheduler,
     ScheduledEventType,
 )
-from ares_swarm.core.enums import FailureState, RTHState
+from ares_swarm.core.enums import FailureState, RTHState, SortieState
 from ares_swarm.core.kinematics import move_towards
 from ares_swarm.core.state_store import StateStore
 from ares_swarm.energy.battery import calculate_energy_cost

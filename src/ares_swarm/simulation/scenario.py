@@ -76,6 +76,8 @@ class ScenarioConfig:
     battery_movement_rate: float = 0.5
     enable_auto_rth: bool = True
     return_by_mission_end: bool = False
+    recharge_duration_s: float = 300.0
+    enforce_single_sortie: bool = False
     enable_relay_manager: bool = False
     enable_connectivity_aware_planning: bool = False
     uavs: tuple[dict[str, Any], ...] = ()
@@ -138,6 +140,8 @@ def load_scenario(source: str | Path | dict[str, Any]) -> ScenarioConfig:
     battery_movement_rate = float(battery_raw.get("movement_rate", 0.5))
     enable_auto_rth = bool(raw.get("enable_auto_rth", True))
     return_by_mission_end = bool(raw.get("return_by_mission_end", False))
+    recharge_duration_s = float(raw.get("recharge_duration_s", raw.get("challenge_profile", {}).get("recharge_duration_s", 300.0)))
+    enforce_single_sortie = bool(raw.get("enforce_single_sortie", raw.get("challenge_profile", {}).get("enforce_single_sortie", raw.get("challenge_profile", {}).get("enabled", False))))
 
     uavs_raw = tuple(raw.get("uavs", []))
     tasks_raw = tuple(raw.get("tasks", []))
@@ -246,6 +250,8 @@ def load_scenario(source: str | Path | dict[str, Any]) -> ScenarioConfig:
         battery_movement_rate=battery_movement_rate,
         enable_auto_rth=enable_auto_rth,
         return_by_mission_end=return_by_mission_end,
+        recharge_duration_s=recharge_duration_s,
+        enforce_single_sortie=enforce_single_sortie,
         uavs=uavs_raw,
         tasks=tasks_raw,
         challenge_profile=challenge_profile,

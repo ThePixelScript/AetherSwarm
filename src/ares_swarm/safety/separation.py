@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
 from ..core.commands import StepPhysicsCommand
 from ..core.constants import EPSILON
-from ..core.enums import EventType, FailureState, RTHState
+from ..core.enums import EventType, FailureState, RTHState, SortieState
 from ..core.events import DomainEvent
 from ..core.kinematics import move_towards
 from ..core.models import StateSnapshot, TaskState, UAVState

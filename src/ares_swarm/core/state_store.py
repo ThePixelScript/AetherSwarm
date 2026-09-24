@@ -543,7 +543,7 @@ class StateStore:
                 staged_uavs[uav.id] = replace(uav, target_position=cmd.target_position)
 
             elif isinstance(cmd, StepPhysicsCommand):
-                new_energy = max(0.0, uav.battery_energy - cmd.delta_energy)
+                new_energy = min(uav.battery_capacity, max(0.0, uav.battery_energy - cmd.delta_energy))
                 staged_uavs[uav.id] = replace(
                     uav,
                     position_xy=cmd.new_position_xy,

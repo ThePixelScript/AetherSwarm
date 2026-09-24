@@ -539,10 +539,18 @@ class MissionRunner:
         gcs_pos = self.scenario.gcs_position
         challenge_prof = getattr(self.scenario, "challenge_profile", None)
         recharge_duration_s = float(
-            getattr(challenge_prof, "recharge_duration_s",
-            getattr(getattr(self.scenario.config, "challenge", None), "recharge_duration_s", 300.0))
+            getattr(self.scenario, "recharge_duration_s",
+                getattr(challenge_prof, "recharge_duration_s",
+                    getattr(getattr(self.scenario.config, "challenge", None), "recharge_duration_s", 300.0)
+                )
+            )
         )
-        allow_multi_sortie = not getattr(challenge_prof, "enforce_single_sortie", True)
+        if challenge_prof and challenge_prof.enabled:
+            allow_multi_sortie = not challenge_prof.enforce_single_sortie
+        elif getattr(self.scenario, "allow_multi_sortie", False):
+            allow_multi_sortie = True
+        else:
+            allow_multi_sortie = False
 
         for uav in sorted(snap_post_step.uavs.values(), key=lambda u: u.id):
             dx = uav.position_xy[0] - gcs_pos[0]
@@ -580,7 +588,7 @@ class MissionRunner:
             elif uav.sortie_state == SortieState.RECHARGING:
                 r_start = uav.recharge_start_time if uav.recharge_start_time is not None else snap_post_step.simulation_time
                 r_dur = uav.recharge_duration_s if uav.recharge_duration_s > 0 else recharge_duration_s
-                if snap_post_step.simulation_time >= r_start + r_dur:
+                if snap_post_step.simulation_time >= r_start + r_dur - 1e-6:
                     lifecycle_cmds.append(
                         CompleteRechargeCommand(source_tick=current_tick, uav_id=uav.id)
                     )
@@ -591,6 +599,19 @@ class MissionRunner:
                         rec.landing_time = None
                         rec.current_sortie_duration_s = 0.0
                         rec.takeoff_time = None
+                else:
+                    # Ground linear recharge: increment battery energy across time
+                    recharge_rate = uav.battery_capacity / max(r_dur, 1.0)
+                    delta_e = -recharge_rate * self.scenario.dt
+                    lifecycle_cmds.append(
+                        StepPhysicsCommand(
+                            source_tick=current_tick,
+                            uav_id=uav.id,
+                            new_position_xy=uav.position_xy,
+                            new_velocity_xy=(0.0, 0.0),
+                            delta_energy=delta_e,
+                        )
+                    )
 
         if lifecycle_cmds:
             res_lifecycle = self.state_store.apply(lifecycle_cmds)
