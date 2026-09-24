@@ -33,6 +33,7 @@ from ..core.state_store import StateStore
 from ..evaluation.metrics import MissionMetricsReport, compute_mission_metrics
 from ..interfaces.communication import NetworkAnalysis
 from ..safety.airspace import ChallengeAirspace
+from ..safety.departure import DepartureSequencer
 from ..safety.geofence import GeofenceEnforcer
 from ..safety.safety_assessor import SafetyAssessor, SafetyReport
 from ..safety.separation import SeparationEnforcer
@@ -68,6 +69,7 @@ class MissionResult:
     geofence_enforcer: Any = None
     relay_manager: Any = None
     connectivity_planner: Any = None
+    departure_sequencer: Any = None
 
     def to_dict(self) -> dict[str, Any]:
         snap = self.final_snapshot
@@ -200,6 +202,17 @@ class MissionResult:
                 "connectivity_preserved_during_task": round(self.connectivity_planner.connectivity_preserved_during_task, 2),
                 "communication_induced_replans": self.connectivity_planner.communication_induced_replans,
             }
+        if self.departure_sequencer is not None:
+            res_dict["departure_sequencing"] = {
+                "total_departures_started": self.departure_sequencer.total_departures_started,
+                "total_departures_completed": self.departure_sequencer.total_departures_completed,
+                "departure_deadlock_count": self.departure_sequencer.departure_deadlock_count,
+                "min_observed_departure_separation_m": (
+                    round(self.departure_sequencer.min_observed_departure_separation_m, 2)
+                    if self.departure_sequencer.min_observed_departure_separation_m != float("inf")
+                    else None
+                ),
+            }
         return res_dict
 
     def save_json(self, output_path: str | Path) -> Path:
@@ -314,6 +327,13 @@ class MissionRunner:
                 enforce_sortie_limit=enforce_sortie,
             )
 
+        self.departure_sequencer: Optional[DepartureSequencer] = None
+        if getattr(self.scenario, "enable_departure_sequencing", True) or (challenge_profile and getattr(challenge_profile, "enable_departure_sequencing", True)):
+            self.departure_sequencer = DepartureSequencer(
+                min_separation_m=self.scenario.min_separation_m,
+                airspace=airspace,
+            )
+
         self.history: list[StepResult] = []
         self.all_events: list[DomainEvent] = []
 
@@ -350,6 +370,8 @@ class MissionRunner:
             self.relay_manager.reset()
         if self.connectivity_planner is not None:
             self.connectivity_planner.reset()
+        if self.departure_sequencer is not None:
+            self.departure_sequencer.reset()
         self.history.clear()
         self.all_events.clear()
         return self.state_store.snapshot()
@@ -522,6 +544,19 @@ class MissionRunner:
                     applied_commands.extend(res_clear.applied_commands)
                     rejected_commands.extend(res_clear.rejected_commands)
                     tick_events.extend(res_clear.emitted_events)
+
+        # 5.5 Ground Departure Sequencing (deterministic taxi / clearance)
+        if self.departure_sequencer is not None:
+            dep_cmds, dep_events = self.departure_sequencer.step(
+                snapshot=self.state_store.snapshot(),
+                dt=self.scenario.dt,
+            )
+            if dep_cmds:
+                res_dep = self.state_store.apply(dep_cmds)
+                applied_commands.extend(res_dep.applied_commands)
+                rejected_commands.extend(res_dep.rejected_commands)
+                tick_events.extend(res_dep.emitted_events)
+            tick_events.extend(dep_events)
 
         # 6. Delta Physics Simulation Swarm Stepping (Batched transaction)
         step_res = self.sim_engine.step_swarm(

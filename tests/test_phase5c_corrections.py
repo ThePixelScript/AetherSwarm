@@ -161,8 +161,8 @@ def test_surveyor_releases_after_chain_ready():
     )
     
     runner = MissionRunner(scenario=scenario, seed=42)
-    # Step simulation 80 ticks to allow relays to arrive, chain to activate, surveyor to enter FOV
-    for _ in range(80):
+    # Step simulation 90 ticks to allow sequential departure, relays to arrive, chain to activate, surveyor to enter FOV
+    for _ in range(90):
         runner.step()
         
     poi_detected_events = [e for e in runner.all_events if e.event_type == EventType.POI_DETECTED]

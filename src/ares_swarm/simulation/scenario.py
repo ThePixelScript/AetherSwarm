@@ -56,6 +56,7 @@ class ChallengeProfileConfig:
     detection_pipeline: DetectionPipelineConfig = field(default_factory=DetectionPipelineConfig)
     enable_relay_manager: bool = False
     enable_connectivity_aware_planning: bool = False
+    enable_departure_sequencing: bool = True
 
 
 @dataclass(frozen=True)
@@ -80,6 +81,7 @@ class ScenarioConfig:
     enforce_single_sortie: bool = False
     enable_relay_manager: bool = False
     enable_connectivity_aware_planning: bool = False
+    enable_departure_sequencing: bool = True
     uavs: tuple[dict[str, Any], ...] = ()
     tasks: tuple[dict[str, Any], ...] = ()
     challenge_profile: ChallengeProfileConfig = field(default_factory=ChallengeProfileConfig)
@@ -175,6 +177,7 @@ def load_scenario(source: str | Path | dict[str, Any]) -> ScenarioConfig:
             reporting_deadline_s=float(challenge_raw.get("detection_pipeline", {}).get("reporting_deadline_s", 10.0)),
             processing_delay_s=float(challenge_raw.get("detection_pipeline", {}).get("processing_delay_s", 0.0)),
         ),
+        enable_departure_sequencing=bool(challenge_raw.get("enable_departure_sequencing", True)),
     )
 
     # Build typed AetherSwarmConfig
@@ -252,6 +255,7 @@ def load_scenario(source: str | Path | dict[str, Any]) -> ScenarioConfig:
         return_by_mission_end=return_by_mission_end,
         recharge_duration_s=recharge_duration_s,
         enforce_single_sortie=enforce_single_sortie,
+        enable_departure_sequencing=bool(raw.get("enable_departure_sequencing", challenge_profile.enable_departure_sequencing)),
         uavs=uavs_raw,
         tasks=tasks_raw,
         challenge_profile=challenge_profile,
