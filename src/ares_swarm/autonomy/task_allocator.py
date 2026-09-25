@@ -399,6 +399,8 @@ class A0TaskAllocator:
             scored_candidates: list[tuple[float, str, Any, UtilityScore]] = []
             for u_id, uav in available_uavs.items():
                 score = self.compute_utility(uav, task)
+                if score.total == float("-inf"):
+                    continue
                 # Round score to 8 decimals to prevent platform floating-point epsilon noise
                 scored_candidates.append((round(score.total, 8), u_id, uav, score))
 
