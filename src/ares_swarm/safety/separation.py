@@ -206,6 +206,7 @@ class SeparationEnforcer:
         safe_dist_threshold = self.min_separation_m + self.numerical_safety_buffer_m
 
         for idx, uav in enumerate(moving_uavs):
+            phase = flight_phases.get(uav.id) if flight_phases else None
             if geofence_enforcer is not None:
                 nominal_pos, nominal_vel, geo_event = geofence_enforcer.compute_effective_movement(
                     uav=uav,
@@ -268,6 +269,9 @@ class SeparationEnforcer:
                 worst_partner = None
 
                 for obs_id, obs_p, obs_v in obstacles_to_check:
+                    phase_obs = flight_phases.get(obs_id) if flight_phases else None
+                    if phase is not None and phase.name == 'EGRESS' and phase_obs is not None and phase_obs.name == 'EGRESS':
+                        continue
                     sep = min_continuous_separation(
                         uav.position_xy, cand_v,
                         obs_p, obs_v,

@@ -1,32 +1,35 @@
 {
   "scenario_name": "poc_round1_mission",
   "seed": 2026,
-  "total_ticks": 1186,
-  "final_simulation_time": 1186.0,
+  "total_ticks": 2700,
+  "final_simulation_time": 2700.0,
   "metrics": {
     "tasks_total": 10,
     "tasks_spawned": 10,
     "tasks_assigned": 0,
-    "tasks_completed": 10,
-    "tasks_expired": 0,
-    "mission_completion_rate": 1.0,
-    "total_energy_consumed": 6433.584,
-    "final_connected_uav_count": 0,
-    "final_connected_uavs": [],
-    "total_events_generated": 64
+    "tasks_completed": 0,
+    "tasks_expired": 10,
+    "mission_completion_rate": 0.0,
+    "total_energy_consumed": 9314.5424,
+    "final_connected_uav_count": 2,
+    "final_connected_uavs": [
+      "uav_3",
+      "uav_4"
+    ],
+    "total_events_generated": 4506
   },
   "uavs": {
     "uav_1": {
       "position": [
-        -50.0,
-        500.0
+        -61.66441437328347,
+        504.44519520890543
       ],
       "velocity": [
         0.0,
         0.0
       ],
-      "battery_energy": 2871.6788,
-      "battery_percent": 68.37,
+      "battery_energy": 2968.8301,
+      "battery_percent": 70.69,
       "role": "IDLE",
       "rth_state": "COMPLETE",
       "active": false,
@@ -34,15 +37,15 @@
     },
     "uav_2": {
       "position": [
-        -50.0,
-        500.0
+        -63.09514933650011,
+        498.01585822274996
       ],
       "velocity": [
         0.0,
         0.0
       ],
-      "battery_energy": 2882.0,
-      "battery_percent": 68.62,
+      "battery_energy": 3010.9058,
+      "battery_percent": 71.69,
       "role": "IDLE",
       "rth_state": "COMPLETE",
       "active": false,
@@ -50,47 +53,47 @@
     },
     "uav_3": {
       "position": [
-        -50.0,
-        500.0
+        -35.24465061305523,
+        504.41726104299374
       ],
       "velocity": [
-        0.0,
-        0.0
+        -0.0,
+        -0.0
       ],
-      "battery_energy": 2980.0,
-      "battery_percent": 70.95,
-      "role": "IDLE",
-      "rth_state": "COMPLETE",
-      "active": false,
+      "battery_energy": 1344.3077,
+      "battery_percent": 32.01,
+      "role": "RELAY",
+      "rth_state": "ACTIVE",
+      "active": true,
       "assigned_task_id": null
     },
     "uav_4": {
       "position": [
-        -49.99999999999999,
-        500.0
+        -35.22064528516178,
+        504.1955855933443
       ],
       "velocity": [
-        0.0,
-        0.0
+        -0.0,
+        -0.0
       ],
-      "battery_energy": 2915.6788,
-      "battery_percent": 69.42,
-      "role": "IDLE",
-      "rth_state": "COMPLETE",
-      "active": false,
+      "battery_energy": 1375.6182,
+      "battery_percent": 32.75,
+      "role": "RELAY",
+      "rth_state": "ACTIVE",
+      "active": true,
       "assigned_task_id": null
     },
     "uav_5": {
       "position": [
-        -50.0,
-        500.0
+        -66.57728599338489,
+        505.3905369642337
       ],
       "velocity": [
         0.0,
         0.0
       ],
-      "battery_energy": 2917.0585,
-      "battery_percent": 69.45,
+      "battery_energy": 2985.7959,
+      "battery_percent": 71.09,
       "role": "IDLE",
       "rth_state": "COMPLETE",
       "active": false,
@@ -99,62 +102,62 @@
   },
   "tasks": {
     "poi_01": {
-      "status": "COMPLETE",
-      "service_progress": 2.0,
+      "status": "PENDING",
+      "service_progress": 0.0,
       "service_duration": 2.0,
       "assigned_uav_id": null
     },
     "poi_02": {
-      "status": "COMPLETE",
-      "service_progress": 2.0,
+      "status": "PENDING",
+      "service_progress": 0.0,
       "service_duration": 2.0,
       "assigned_uav_id": null
     },
     "poi_03": {
-      "status": "COMPLETE",
-      "service_progress": 2.0,
+      "status": "PENDING",
+      "service_progress": 0.0,
       "service_duration": 2.0,
       "assigned_uav_id": null
     },
     "poi_04": {
-      "status": "COMPLETE",
-      "service_progress": 2.0,
+      "status": "PENDING",
+      "service_progress": 0.0,
       "service_duration": 2.0,
       "assigned_uav_id": null
     },
     "poi_05": {
-      "status": "COMPLETE",
-      "service_progress": 2.0,
+      "status": "PENDING",
+      "service_progress": 0.0,
       "service_duration": 2.0,
       "assigned_uav_id": null
     },
     "poi_06": {
-      "status": "COMPLETE",
-      "service_progress": 2.0,
+      "status": "PENDING",
+      "service_progress": 0.0,
       "service_duration": 2.0,
       "assigned_uav_id": null
     },
     "poi_07": {
-      "status": "COMPLETE",
-      "service_progress": 2.0,
+      "status": "PENDING",
+      "service_progress": 0.0,
       "service_duration": 2.0,
       "assigned_uav_id": null
     },
     "poi_08": {
-      "status": "COMPLETE",
-      "service_progress": 2.0,
+      "status": "PENDING",
+      "service_progress": 0.0,
       "service_duration": 2.0,
       "assigned_uav_id": null
     },
     "poi_09": {
-      "status": "COMPLETE",
-      "service_progress": 2.0,
+      "status": "PENDING",
+      "service_progress": 0.0,
       "service_duration": 2.0,
       "assigned_uav_id": null
     },
     "poi_10": {
-      "status": "COMPLETE",
-      "service_progress": 2.0,
+      "status": "PENDING",
+      "service_progress": 0.0,
       "service_duration": 2.0,
       "assigned_uav_id": null
     }
@@ -164,18 +167,18 @@
       "tasks_total": 10,
       "tasks_spawned": 10,
       "tasks_assigned": 0,
-      "tasks_completed": 10,
-      "tasks_expired": 0,
-      "mission_completion_rate": 1.0,
-      "completion_time_s": 429.0,
-      "priority_weighted_score": 1.0,
-      "total_energy_consumed_wh": 6433.584
+      "tasks_completed": 0,
+      "tasks_expired": 10,
+      "mission_completion_rate": 0.0,
+      "completion_time_s": 2700.0,
+      "priority_weighted_score": 0.0,
+      "total_energy_consumed_wh": 9314.5424
     },
     "communication": {
-      "model_estimated_route_pdr": 0.3252,
-      "model_estimated_route_latency_ms": 17.83,
-      "connectivity_availability": 1.0,
-      "downtime_s": 0.0
+      "model_estimated_route_pdr": 0.4717,
+      "model_estimated_route_latency_ms": 14.31,
+      "connectivity_availability": 0.9937,
+      "downtime_s": 11.0
     },
     "resilience": {
       "status": "NOT_APPLICABLE_M0",
@@ -186,56 +189,62 @@
       "performance_after_failure": null
     },
     "safety": {
-      "separation_violation_count": 0,
-      "min_inter_uav_separation_m": 23.02,
+      "separation_violation_count": 1740,
+      "min_inter_uav_separation_m": 0.22,
       "battery_exhaustion_count": 0,
       "geofence_violation_count": 0,
-      "min_boundary_clearance_m": null,
-      "separation_interventions": 4,
+      "min_boundary_clearance_m": 2.34,
+      "separation_interventions": 4484,
       "per_uav_intervention_counts": {
-        "uav_4": 1,
-        "uav_3": 1,
-        "uav_2": 1,
+        "uav_4": 2589,
+        "uav_5": 219,
+        "uav_3": 1675,
         "uav_1": 1
       },
       "geofence_interventions": 0,
       "per_uav_geofence_intervention_counts": {}
     },
     "telemetry": {
-      "total_detections": 10,
-      "reports_delivered": 10,
-      "reports_deadline_exceeded": 0,
-      "reporting_compliance_ratio": 1.0,
-      "mean_reporting_latency_s": 0.01,
-      "max_reporting_latency_s": 0.015,
+      "total_detections": 7,
+      "reports_delivered": 6,
+      "reports_deadline_exceeded": 1,
+      "reporting_compliance_ratio": 0.8571,
+      "mean_reporting_latency_s": 0.023,
+      "max_reporting_latency_s": 0.028,
       "per_uav_detection_counts": {
-        "uav_1": 5,
-        "uav_2": 3,
-        "uav_4": 2
+        "uav_1": 1,
+        "uav_2": 2,
+        "uav_5": 1,
+        "uav_3": 2,
+        "uav_4": 1
       },
       "per_uav_delivered_counts": {
-        "uav_1": 5,
-        "uav_2": 3,
-        "uav_4": 2
+        "uav_2": 2,
+        "uav_5": 1,
+        "uav_3": 2,
+        "uav_4": 1
       }
     }
   },
   "telemetry": {
-    "total_detections": 10,
-    "reports_delivered": 10,
-    "reports_deadline_exceeded": 0,
-    "reporting_compliance_ratio": 1.0,
-    "mean_reporting_latency_s": 0.01,
-    "max_reporting_latency_s": 0.015,
+    "total_detections": 7,
+    "reports_delivered": 6,
+    "reports_deadline_exceeded": 1,
+    "reporting_compliance_ratio": 0.8571,
+    "mean_reporting_latency_s": 0.023,
+    "max_reporting_latency_s": 0.028,
     "per_uav_detection_counts": {
-      "uav_1": 5,
-      "uav_2": 3,
-      "uav_4": 2
+      "uav_1": 1,
+      "uav_2": 2,
+      "uav_5": 1,
+      "uav_3": 2,
+      "uav_4": 1
     },
     "per_uav_delivered_counts": {
-      "uav_1": 5,
-      "uav_2": 3,
-      "uav_4": 2
+      "uav_2": 2,
+      "uav_5": 1,
+      "uav_3": 2,
+      "uav_4": 1
     }
   },
   "telemetry_reports": {
@@ -244,29 +253,28 @@
       "detecting_uav_id": "uav_1",
       "t_detect": 0.0,
       "t_report_generated": 0.0,
-      "t_gcs_received": 0.01,
-      "hop_count": 2,
+      "t_gcs_received": 11.009882169646147,
+      "hop_count": 1,
       "route": [
         "uav_1",
-        "uav_3",
         "gcs"
       ],
-      "reporting_latency_s": 0.01,
-      "status": "DELIVERED"
+      "reporting_latency_s": 11.009882169646147,
+      "status": "DEADLINE_EXCEEDED"
     },
     "poi_02": {
       "task_id": "poi_02",
-      "detecting_uav_id": "uav_1",
+      "detecting_uav_id": "uav_2",
       "t_detect": 30.0,
       "t_report_generated": 30.0,
-      "t_gcs_received": 30.01,
+      "t_gcs_received": 30.01780855842553,
       "hop_count": 2,
       "route": [
+        "uav_2",
         "uav_1",
-        "uav_3",
         "gcs"
       ],
-      "reporting_latency_s": 0.010000000000001563,
+      "reporting_latency_s": 0.01780855842552853,
       "status": "DELIVERED"
     },
     "poi_03": {
@@ -274,130 +282,92 @@
       "detecting_uav_id": "uav_2",
       "t_detect": 60.0,
       "t_report_generated": 60.0,
-      "t_gcs_received": 60.01,
+      "t_gcs_received": 60.018459786169544,
       "hop_count": 2,
       "route": [
         "uav_2",
-        "uav_3",
+        "uav_1",
         "gcs"
       ],
-      "reporting_latency_s": 0.00999999999999801,
+      "reporting_latency_s": 0.01845978616954369,
       "status": "DELIVERED"
     },
     "poi_04": {
       "task_id": "poi_04",
-      "detecting_uav_id": "uav_2",
-      "t_detect": 90.0,
-      "t_report_generated": 90.0,
-      "t_gcs_received": 90.01,
-      "hop_count": 2,
+      "detecting_uav_id": "uav_4",
+      "t_detect": 943.0,
+      "t_report_generated": 943.0,
+      "t_gcs_received": 943.026304634674,
+      "hop_count": 3,
       "route": [
+        "uav_4",
         "uav_2",
-        "uav_3",
+        "uav_1",
         "gcs"
       ],
-      "reporting_latency_s": 0.010000000000005116,
+      "reporting_latency_s": 0.026304634674033878,
       "status": "DELIVERED"
     },
     "poi_05": {
       "task_id": "poi_05",
-      "detecting_uav_id": "uav_4",
+      "detecting_uav_id": "uav_5",
       "t_detect": 120.0,
       "t_report_generated": 120.0,
-      "t_gcs_received": 120.01,
+      "t_gcs_received": 120.01766936426203,
       "hop_count": 2,
       "route": [
-        "uav_4",
-        "uav_3",
-        "gcs"
-      ],
-      "reporting_latency_s": 0.010000000000005116,
-      "status": "DELIVERED"
-    },
-    "poi_06": {
-      "task_id": "poi_06",
-      "detecting_uav_id": "uav_1",
-      "t_detect": 180.0,
-      "t_report_generated": 180.0,
-      "t_gcs_received": 180.01,
-      "hop_count": 2,
-      "route": [
+        "uav_5",
         "uav_1",
-        "uav_3",
         "gcs"
       ],
-      "reporting_latency_s": 0.009999999999990905,
-      "status": "DELIVERED"
-    },
-    "poi_07": {
-      "task_id": "poi_07",
-      "detecting_uav_id": "uav_1",
-      "t_detect": 240.0,
-      "t_report_generated": 240.0,
-      "t_gcs_received": 240.015,
-      "hop_count": 3,
-      "route": [
-        "uav_1",
-        "uav_2",
-        "uav_3",
-        "gcs"
-      ],
-      "reporting_latency_s": 0.014999999999986358,
+      "reporting_latency_s": 0.017669364262033582,
       "status": "DELIVERED"
     },
     "poi_08": {
       "task_id": "poi_08",
-      "detecting_uav_id": "uav_1",
+      "detecting_uav_id": "uav_3",
       "t_detect": 300.0,
       "t_report_generated": 300.0,
-      "t_gcs_received": 300.01,
-      "hop_count": 2,
+      "t_gcs_received": 300.02796672526387,
+      "hop_count": 3,
       "route": [
-        "uav_1",
         "uav_3",
+        "uav_2",
+        "uav_1",
         "gcs"
       ],
-      "reporting_latency_s": 0.009999999999990905,
+      "reporting_latency_s": 0.02796672526386601,
       "status": "DELIVERED"
     },
     "poi_09": {
       "task_id": "poi_09",
-      "detecting_uav_id": "uav_2",
+      "detecting_uav_id": "uav_3",
       "t_detect": 360.0,
       "t_report_generated": 360.0,
-      "t_gcs_received": 360.01,
-      "hop_count": 2,
+      "t_gcs_received": 360.02796672526387,
+      "hop_count": 3,
       "route": [
+        "uav_3",
         "uav_2",
-        "uav_3",
+        "uav_1",
         "gcs"
       ],
-      "reporting_latency_s": 0.009999999999990905,
-      "status": "DELIVERED"
-    },
-    "poi_10": {
-      "task_id": "poi_10",
-      "detecting_uav_id": "uav_4",
-      "t_detect": 420.0,
-      "t_report_generated": 420.0,
-      "t_gcs_received": 420.01,
-      "hop_count": 2,
-      "route": [
-        "uav_4",
-        "uav_3",
-        "gcs"
-      ],
-      "reporting_latency_s": 0.009999999999990905,
+      "reporting_latency_s": 0.02796672526386601,
       "status": "DELIVERED"
     }
   },
   "safety_interventions": {
-    "total_interventions": 4,
+    "total_interventions": 4484,
     "per_uav_interventions": {
-      "uav_4": 1,
-      "uav_3": 1,
-      "uav_2": 1,
+      "uav_4": 2589,
+      "uav_5": 219,
+      "uav_3": 1675,
       "uav_1": 1
     }
+  },
+  "geofence_interventions": {
+    "total_interventions": 0,
+    "per_uav_interventions": {},
+    "min_observed_clearance_m": 2.34
   }
 }

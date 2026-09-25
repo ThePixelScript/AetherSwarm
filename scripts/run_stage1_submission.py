@@ -43,9 +43,11 @@ def main():
     base_scenario = dataclasses.replace(base_scenario, challenge_profile=cp)
     
     # 2. Setup A1 Autonomy
+    from ares_swarm.autonomy.ingress_coordinator import IngressCoordinator
     comm_analyzer = BaselineCommunicationAnalyzer(config=base_scenario.communication)
     allocator = A1TaskAllocator(comm_analyzer=comm_analyzer)
-    adapter = A0AutonomyAdapter(allocator=allocator)
+    ingress_coordinator = IngressCoordinator(comm_analyzer=comm_analyzer, gcs_position=base_scenario.gcs_position, d_safe=85.0)
+    adapter = A0AutonomyAdapter(allocator=allocator, ingress_coordinator=ingress_coordinator)
 
     # 3. Setup Runner
     runner = MissionRunner(

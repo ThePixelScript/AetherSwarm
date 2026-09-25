@@ -72,3 +72,8 @@ class StepPhysicsCommand(Command):
     new_position_xy: Tuple[float, float]
     new_velocity_xy: Tuple[float, float]
     delta_energy: float
+
+@dataclass(frozen=True)
+class AssignRelayRoleCommand(Command):
+    """Assign the RELAY role to a UAV."""
+    pass

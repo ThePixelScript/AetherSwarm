@@ -426,10 +426,13 @@ class MissionRunner:
                     tick_events.extend(res_clear.emitted_events)
 
         # 6. Delta Physics Simulation Swarm Stepping (Batched transaction)
+        flight_phases = self.safety_assessor._uav_flight_phases
         step_res = self.sim_engine.step_swarm(
             speed=self.scenario.speed_limit,
             separation_enforcer=self.separation_enforcer,
             geofence_enforcer=self.geofence_enforcer,
+            airspace=self.safety_assessor.airspace,
+            flight_phases=flight_phases,
         )
         applied_commands.extend(step_res.applied_commands)
         rejected_commands.extend(step_res.rejected_commands)
@@ -444,7 +447,8 @@ class MissionRunner:
                 dx = uav.position_xy[0] - gcs_pos[0]
                 dy = uav.position_xy[1] - gcs_pos[1]
                 dist_to_gcs = (dx**2 + dy**2) ** 0.5
-                if dist_to_gcs <= 0.05:  # Arrived at GCS landing threshold
+                pad_radius = self.safety_assessor.airspace.staging_pad_radius_m if self.safety_assessor.airspace else 0.05
+                if dist_to_gcs <= pad_radius:  # Staging pad arrival radius
                     complete_rth_cmds.append(
                         CompleteRTHCommand(
                             source_tick=current_tick,
