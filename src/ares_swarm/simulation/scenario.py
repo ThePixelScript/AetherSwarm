@@ -59,6 +59,10 @@ class ChallengeProfileConfig:
 
 @dataclass(frozen=True)
 class ScenarioConfig:
+    def __post_init__(self):
+        if getattr(self, "challenge_profile", None) and self.challenge_profile.enabled and self.challenge_profile.airspace.enabled:
+            object.__setattr__(self, "gcs_position", self.challenge_profile.airspace.staging_pad_center)
+
     name: str = "default_mission"
     seed: int = 42
     dt: float = 1.0
