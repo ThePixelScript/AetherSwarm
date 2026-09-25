@@ -78,11 +78,11 @@ def test_destination_aware_utility_scoring():
     # uav_leaf should score higher than uav_gateway because uav_gateway becomes disconnected at destination
     assert score_leaf_dest.total > score_gateway_dest.total
     # uav_gateway should receive a network penalty
-    assert score_gateway_dest.network_risk_term > score_leaf_dest.network_risk_term
+    assert score_gateway_dest.total == float("-inf")
 
 
-def test_destination_aware_preserves_disconnected_candidate_feasibility():
-    """Verify that even when destination is disconnected, candidate is demoted rather than rejected."""
+def test_destination_aware_rejects_disconnected_candidate_feasibility():
+    """Verify that when destination is disconnected, candidate is rejected."""
     uav = UAVState(id="uav_single", position_xy=(50.0, 500.0))
     task_far = TaskState(id="task_far", position_xy=(500.0, 500.0), priority=5)
 
@@ -94,9 +94,8 @@ def test_destination_aware_preserves_disconnected_candidate_feasibility():
     allocator = A1TaskAllocator(comm_analyzer=analyzer)
     res = allocator.allocate(snap, network_analysis=net, snapshot=snap)
 
-    # Task is still assigned (no deadlock!), with comm_factor = min_comm_factor
-    assert len(res.assignments) == 1
-    assert res.assignments[0].uav_id == "uav_single"
+    assert len(res.assignments) == 0
+    assert "task_far" in res.unassigned_tasks
 
 
 def test_a0_adapter_explicit_capability_detection():

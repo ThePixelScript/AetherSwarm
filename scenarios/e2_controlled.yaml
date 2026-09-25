@@ -1,0 +1,166 @@
+name: e2_controlled
+seed: 2026
+dt: 1.0
+speed_limit: 5.0
+duration: 400.0
+max_ticks: 400
+gcs_position:
+- 0.0
+- 500.0
+arena_bounds_x:
+- 0.0
+- 1000.0
+arena_bounds_y:
+- 0.0
+- 1000.0
+max_height: 100.0
+min_separation_m: 20.0
+communication:
+  max_range: 100.0
+  base_latency: 5.0
+  packet_loss: 0.0
+  degradation_multiplier: 1.0
+battery_idle_rate: 1.0
+battery_movement_rate: 0.5
+enable_auto_rth: false
+return_by_mission_end: false
+uavs:
+- id: uav_1
+  position:
+  - 80.0
+  - 560.0
+  battery_capacity: 50000.0
+  battery_energy: 50000.0
+  role: IDLE
+- id: uav_2
+  position:
+  - 80.0
+  - 440.0
+  battery_capacity: 50000.0
+  battery_energy: 50000.0
+  role: IDLE
+- id: uav_3
+  position:
+  - 140.0
+  - 560.0
+  battery_capacity: 50000.0
+  battery_energy: 50000.0
+  role: IDLE
+- id: uav_4
+  position:
+  - 140.0
+  - 440.0
+  battery_capacity: 50000.0
+  battery_energy: 50000.0
+  role: IDLE
+tasks:
+- id: poi_01
+  position:
+  - 160.0
+  - 500.0
+  priority: 1
+  spawn_time: 260.0
+  deadline_offset: 10.0
+  service_duration: 60.0
+challenge_profile:
+  enabled: true
+  max_sortie_duration_s: 1200.0
+  rth_safety_margin_s: 15.0
+  enforce_sortie_limit: true
+  enforce_single_sortie: true
+  enforce_separation: true
+  enforce_geofence: true
+  airspace:
+    enabled: true
+    staging_pad_center:
+    - 0.0
+    - 500.0
+    staging_pad_radius_m: 15.0
+    corridor_bounds_x:
+    - 0.0
+    - 10.0
+    corridor_bounds_y:
+    - 450.0
+    - 550.0
+    arena_bounds_x:
+    - 0.0
+    - 1000.0
+    arena_bounds_y:
+    - 0.0
+    - 1000.0
+    max_height: 100.0
+  detection_pipeline:
+    enabled: true
+    sensor_fov_radius_m: 40.0
+    reporting_deadline_s: 10.0
+    processing_delay_s: 0.0
+    comm_base_latency_ms: 5.0
+config:
+  challenge:
+    arena_bounds_x:
+    - 0.0
+    - 1000.0
+    arena_bounds_y:
+    - 0.0
+    - 1000.0
+    max_altitude_m: 100.0
+    speed_limit_mps: 5.0
+    min_separation_m: 20.0
+    comm_range_m: 100.0
+    comm_base_latency_ms: 5.0
+    staging_pad_center:
+    - -75.0
+    - 500.0
+    staging_pad_radius_m: 15.0
+    corridor_bounds_x:
+    - -75.0
+    - 0.0
+    corridor_bounds_y:
+    - 450.0
+    - 550.0
+    mission_duration_s: 2700.0
+    max_sortie_duration_s: 1200.0
+    rth_safety_margin_s: 15.0
+    reporting_deadline_s: 10.0
+    detection_fov_radius_m: 40.0
+    processing_delay_s: 0.0
+  features:
+    enforce_separation: false
+    enforce_geofence: false
+    enforce_sortie_limit: true
+    enforce_single_sortie: true
+    enable_detection_pipeline: false
+    enable_auto_rth: true
+    return_by_mission_end: true
+  scenario:
+    seed: 42
+    scenario_type: random
+    num_pois: 10
+    x_range:
+    - 5.0
+    - 995.0
+    y_range:
+    - 5.0
+    - 995.0
+    min_spacing_m: 0.0
+    margin_m: 0.0
+    spawn_window_s:
+    - 0.0
+    - 300.0
+    service_duration_s: 2.0
+    deadline_offset_s: 10.0
+  presentation:
+    sub_steps: 4
+    sim_mode: default
+    default_camera: demo_presentation_cam
+    show_comm_mesh: true
+    show_routes: true
+    show_drop_lines: true
+    show_hud: true
+    show_event_banner: true
+    auto_quit: false
+    playback_speed: 1.0
+    camera_mode: overview
+    show_pois: true
+    show_grid: true
+    header_title: AETHERSWARM UAV-X AUTONOMOUS WORKING MODEL

@@ -11,6 +11,7 @@ from ..core.events import DomainEvent
 from ..core.models import StateSnapshot, TelemetryReport, UAVState
 from ..interfaces.communication import NetworkAnalysis
 from ..simulation.scenario import DetectionPipelineConfig
+from ..communication.analysis import route_latency_ms
 
 
 class DetectionManager:
@@ -151,10 +152,20 @@ class DetectionManager:
             elapsed_s = snapshot.simulation_time - report.t_detect
 
             if route is not None:
-                # Route to GCS exists: delivered at current simulation time
-                t_gcs = snapshot.simulation_time
+                # Analytical delivery model: We immediately evaluate transmission success and 
+                # predicted GCS arrival time (t_gcs) using the current topology's canonical route. 
+                # We do not simulate packet-level queuing over future timesteps. Deadline 
+                # compliance is strictly evaluated against this predicted t_gcs.
+                canonical_latency_ms = route_latency_ms(net_analysis, route)
+                if canonical_latency_ms is None:
+                    hop_count = max(0, len(route) - 1)
+                    model_latency_s = hop_count * (self.config.comm_base_latency_ms / 1000.0)
+                else:
+                    hop_count = max(0, len(route) - 1)
+                    model_latency_s = canonical_latency_ms / 1000.0
+                    
+                t_gcs = snapshot.simulation_time + model_latency_s
                 latency_s = max(0.0, t_gcs - report.t_detect)
-                hop_count = max(0, len(route) - 1)
 
                 if latency_s <= self.config.reporting_deadline_s + EPSILON:
                     status = TelemetryStatus.DELIVERED

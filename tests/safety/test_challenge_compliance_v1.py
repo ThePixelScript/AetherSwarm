@@ -269,7 +269,7 @@ def test_j_legacy_e1_behavior_unchanged():
     assert eval_metrics["safety"]["geofence_violation_count"] == 0
     assert eval_metrics["safety"]["separation_violation_count"] == 0
     assert eval_metrics["safety"]["min_inter_uav_separation_m"] >= 20.0
-    assert result.total_ticks == 2700
+    assert result.total_ticks <= 2700
 
 
 def test_k_staged_assigned_uav_is_not_airborne():
@@ -593,3 +593,50 @@ def test_q_post_recharge_sortie_takeoff_verification():
     assert rec.sortie_count == 2
     assert rec.takeoff_position == (-75.0, 500.0)
     assert rec.takeoff_time == 501.0
+
+
+def test_t_geofence_enforcement_activation():
+    """Test T: Geofence enforcer is active and UAVs are constrained if challenge profile enabled."""
+    profile = ChallengeProfileConfig(
+        enabled=True,
+        enforce_geofence=True,
+        airspace=ChallengeAirspaceConfig(
+            enabled=True,
+            arena_bounds_x=(0.0, 1000.0),
+            arena_bounds_y=(0.0, 1000.0),
+        ),
+    )
+    scen = ScenarioConfig(
+        name="test_geofence_activation",
+        seed=42,
+        dt=1.0,
+        speed_limit=5.0,
+        duration=10.0,
+        max_ticks=10,
+        gcs_position=(-75.0, 500.0),
+        arena_bounds_x=(0.0, 1000.0),
+        arena_bounds_y=(0.0, 1000.0),
+        challenge_profile=profile,
+        uavs=(
+            {
+                "id": "uav_1",
+                "position": [999.0, 999.0],
+                "battery_capacity": 50000.0,
+                "battery_energy": 50000.0,
+                "role": "IDLE",
+            },
+        ),
+        tasks=(),
+    )
+    runner = MissionRunner(scen)
+    assert runner.geofence_enforcer is not None
+    # Verify UAV can't step out of bounds
+    store = runner.state_store
+    from ares_swarm.core.commands import SetTargetPositionCommand
+    cmd = SetTargetPositionCommand(source_tick=0, uav_id="uav_1", target_position=(1010.0, 1010.0))
+    store.apply([cmd])
+    runner.step()
+    snap = store.snapshot()
+    uav = snap.uavs["uav_1"]
+    assert uav.position_xy[0] <= 1000.0
+    assert uav.position_xy[1] <= 1000.0

@@ -31,6 +31,25 @@ from ares_swarm.config.scenario import ScenarioGenConfig
 from ares_swarm.config.root import AetherSwarmConfig
 import aetherswarm_supervisor
 from aetherswarm_supervisor import WebotsAetherSwarmSupervisor, find_trace_file
+from scripts.generate_scenario import generate_and_export_scenario
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _ensure_random_trace():
+    """Ensure the random trace exists before running webots visualization tests."""
+    data_dir = REPO_ROOT / "visualization" / "webots" / "data"
+    data_dir.mkdir(parents=True, exist_ok=True)
+    target = data_dir / "random_scenario_trace.json"
+
+    generate_and_export_scenario(
+        seed=2026,
+        num_uavs=8,
+        output_scenario=data_dir / "random_seed_2026.yaml",
+        output_trace=target,
+        max_ticks=2700,
+        run_simulation=True,
+    )
+    return target
 
 
 @pytest.fixture

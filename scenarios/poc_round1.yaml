@@ -7,7 +7,7 @@ duration: 2700.0
 max_ticks: 2700
 
 # GCS located outside the 1000x1000 arena
-gcs_position: [-50.0, 500.0]
+gcs_position: [-75.0, 500.0]
 
 # 1000x1000m arena
 arena:

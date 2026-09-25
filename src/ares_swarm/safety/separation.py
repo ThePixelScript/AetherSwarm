@@ -112,15 +112,25 @@ class SeparationEnforcer:
 
     def is_landed_at_gcs(self, uav: UAVState, airspace: Optional[ChallengeAirspace] = None) -> bool:
         """Determine if UAV is safely landed and parked on the staging pad/GCS."""
-        if uav.rth_state != RTHState.COMPLETE:
-            return False
-        if airspace is not None and airspace.is_in_staging_area(uav.position_xy):
+        if uav.failure_state == FailureState.FAILED:
+            # A failed UAV at GCS is parked; a failed UAV elsewhere is an in-flight obstacle
+            if airspace is not None:
+                return airspace.is_in_staging_area(uav.position_xy)
+            dx = abs(uav.position_xy[0] - self.gcs_position[0])
+            dy = abs(uav.position_xy[1] - self.gcs_position[1])
+            return dx <= 5.0 and dy <= 150.0
+
+        if uav.rth_state == RTHState.COMPLETE or uav.sortie_state in (SortieState.LANDED, SortieState.RECHARGING):
             return True
-        dist_gcs = math.hypot(
-            uav.position_xy[0] - self.gcs_position[0],
-            uav.position_xy[1] - self.gcs_position[1],
-        )
-        return dist_gcs <= self.staging_pad_radius_m + EPSILON
+
+        if not uav.active:
+            if airspace is not None:
+                return airspace.is_in_staging_area(uav.position_xy)
+            dx = abs(uav.position_xy[0] - self.gcs_position[0])
+            dy = abs(uav.position_xy[1] - self.gcs_position[1])
+            return dx <= 5.0 and dy <= 150.0
+
+        return False
 
     def enforce_step(
         self,
@@ -238,7 +248,7 @@ class SeparationEnforcer:
                         dt,
                     )
                     d_init = math.hypot(uav.position_xy[0] - obs_p[0], uav.position_xy[1] - obs_p[1])
-                    pair_thresh = safe_dist_threshold if d_init >= safe_dist_threshold else self.min_separation_m
+                    pair_thresh = safe_dist_threshold if d_init >= safe_dist_threshold else (self.min_separation_m if d_init >= self.min_separation_m else d_init)
                     if sep < pair_thresh - EPSILON:
                         return False, obs_id, sep
                     if sep < worst_min_sep:

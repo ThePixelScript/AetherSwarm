@@ -161,31 +161,32 @@ class GeofenceEnforcer:
                 relevant_boundary = "arena_y_min"
 
         elif curr_x < x_interface and eff_target[0] <= x_interface:
-            # Intra-corridor / staging pad movement: check corridor bounds
-            x_min_c, x_max_c = self.airspace.corridor_bounds_x
-            y_min_c, y_max_c = self.airspace.corridor_bounds_y
-            dx = p1[0] - p0[0]
-            dy = p1[1] - p0[1]
+            # Intra-corridor / staging pad movement: check corridor bounds and staging area
+            if not self.airspace.is_in_staging_area(p1):
+                x_min_c, x_max_c = self.airspace.corridor_bounds_x
+                y_min_c, y_max_c = self.airspace.corridor_bounds_y
+                dx = p1[0] - p0[0]
+                dy = p1[1] - p0[1]
 
-            if p1[1] > y_max_c and abs(dy) > 1e-9:
-                t_max = min(t_max, max(0.0, (y_max_c - p0[1]) / dy))
-                interv_type = "BOUNDARY_TRUNCATE"
-                relevant_boundary = "corridor_y_max"
-            elif p1[1] < y_min_c and abs(dy) > 1e-9:
-                t_max = min(t_max, max(0.0, (y_min_c - p0[1]) / dy))
-                interv_type = "BOUNDARY_TRUNCATE"
-                relevant_boundary = "corridor_y_min"
-
-            # Check western boundary and staging pad
-            if p1[0] < x_min_c and abs(dx) > 1e-9:
-                dist_pad_target = math.hypot(
-                    p1[0] - self.airspace.staging_pad_center[0],
-                    p1[1] - self.airspace.staging_pad_center[1],
-                )
-                if dist_pad_target > self.airspace.staging_pad_radius_m:
-                    t_max = min(t_max, max(0.0, (x_min_c - p0[0]) / dx))
+                if p1[1] > y_max_c and abs(dy) > 1e-9:
+                    t_max = min(t_max, max(0.0, (y_max_c - p0[1]) / dy))
                     interv_type = "BOUNDARY_TRUNCATE"
-                    relevant_boundary = "corridor_x_min"
+                    relevant_boundary = "corridor_y_max"
+                elif p1[1] < y_min_c and abs(dy) > 1e-9:
+                    t_max = min(t_max, max(0.0, (y_min_c - p0[1]) / dy))
+                    interv_type = "BOUNDARY_TRUNCATE"
+                    relevant_boundary = "corridor_y_min"
+
+                # Check western boundary and staging pad
+                if p1[0] < x_min_c and abs(dx) > 1e-9:
+                    dist_pad_target = math.hypot(
+                        p1[0] - self.airspace.staging_pad_center[0],
+                        p1[1] - self.airspace.staging_pad_center[1],
+                    )
+                    if dist_pad_target > self.airspace.staging_pad_radius_m:
+                        t_max = min(t_max, max(0.0, (x_min_c - p0[0]) / dx))
+                        interv_type = "BOUNDARY_TRUNCATE"
+                        relevant_boundary = "corridor_x_min"
 
         # Apply truncation if required
         if t_max < 1.0:

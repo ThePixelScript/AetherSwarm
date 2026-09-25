@@ -594,6 +594,13 @@ class StateStore:
                             sequence=len(events) + len(staged_events),
                         ))
 
+            else:
+                rejection = CommandRejection(
+                    cmd,
+                    RejectionCode.UNSUPPORTED_COMMAND,
+                    f"Unsupported command type: {type(cmd).__name__}",
+                )
+
             if rejection:
                 rejected.append(rejection)
             else:

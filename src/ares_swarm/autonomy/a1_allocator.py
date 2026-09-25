@@ -204,18 +204,18 @@ class A1TaskAllocator(A0TaskAllocator):
         config, conditions = self._infer_comm_config_and_conditions(net)
         return BaselineCommunicationAnalyzer(config=config, conditions=conditions)
 
-    def _compute_destination_comm_factor(
+    def _evaluate_swarm_connectivity_preservation(
         self,
         uav: Any,
         task: Any,
         snapshot: Any,
         net: Any,
-    ) -> float:
-        """Compute communication factor if UAV were positioned at task destination."""
+    ) -> tuple[bool, Any]:
+        """Evaluate if moving the candidate to the task destination preserves GCS connectivity."""
         u_id = str(getattr(uav, "id", ""))
         task_pos = getattr(task, "position_xy", getattr(task, "position", None))
         if task_pos is None or not hasattr(snapshot, "uavs") or u_id not in snapshot.uavs:
-            return self.compute_communication_factor(uav, net)
+            return True, net
 
         analyzer = self._get_comm_analyzer(net)
         dest_uavs = dict(snapshot.uavs)
@@ -224,6 +224,34 @@ class A1TaskAllocator(A0TaskAllocator):
         dest_snap = dataclasses.replace(snapshot, uavs=dest_uavs)
 
         dest_net = analyzer.analyze(dest_snap)
+
+        before_connected = set(getattr(net, "connected_uav_ids", ()))
+        after_connected = set(getattr(dest_net, "connected_uav_ids", ()))
+
+        # CASE A: Candidate has no route to GCS at destination
+        if u_id not in after_connected:
+            return False, dest_net
+
+        # CASE B: Candidate move disconnects previously-connected peers
+        protected_peers = before_connected - {u_id}
+        lost_peers = protected_peers - after_connected
+
+        if lost_peers:
+            return False, dest_net
+
+        return True, dest_net
+
+    def _compute_destination_comm_factor(
+        self,
+        uav: Any,
+        task: Any,
+        snapshot: Any,
+        net: Any,
+    ) -> float:
+        """Compute communication factor if UAV were positioned at task destination."""
+        feasible, dest_net = self._evaluate_swarm_connectivity_preservation(uav, task, snapshot, net)
+        if not feasible:
+            return 0.0
         return self.compute_communication_factor(uav, dest_net)
 
     def compute_utility(
@@ -250,7 +278,10 @@ class A1TaskAllocator(A0TaskAllocator):
         dest_aware = getattr(self.config, "destination_aware", True)
 
         if dest_aware and snap is not None and hasattr(snap, "uavs") and hasattr(snap, "gcs_position"):
-            comm_factor = self._compute_destination_comm_factor(uav, task, snap, net)
+            feasible, dest_net = self._evaluate_swarm_connectivity_preservation(uav, task, snap, net)
+            if not feasible:
+                return dataclasses.replace(base_score, total=float("-inf"))
+            comm_factor = self.compute_communication_factor(uav, dest_net)
         else:
             comm_factor = self.compute_communication_factor(uav, net)
 

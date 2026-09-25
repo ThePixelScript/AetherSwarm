@@ -42,20 +42,17 @@ class RTHRouter:
         self.uav_rth_lanes.clear()
 
     def register_uav_lane(self, uav_id: str, staging_y: float) -> None:
-        """Register explicit Y-lane for a UAV based on its staging position."""
-        self.uav_rth_lanes[uav_id] = staging_y
+        """Register explicit Y-lane for a UAV based on its staging position, clamped within corridor bounds if present."""
+        if self.corridor_bounds_y[0] <= self.gcs_position[1] <= self.corridor_bounds_y[1]:
+            clamped_y = max(self.corridor_bounds_y[0] + 10.0, min(self.corridor_bounds_y[1] - 10.0, staging_y))
+        else:
+            clamped_y = staging_y
+        self.uav_rth_lanes[uav_id] = clamped_y
 
     def get_rth_lane_y(self, uav: UAVState, snapshot: Optional[StateSnapshot] = None) -> float:
         """Get or compute deterministic RTH Y-lane for a UAV."""
         if uav.id in self.uav_rth_lanes:
             return self.uav_rth_lanes[uav.id]
-
-        if snapshot is not None and uav.id in snapshot.uavs:
-            init_uav = snapshot.uavs[uav.id]
-            init_y = init_uav.position_xy[1]
-            if self.corridor_bounds_y[0] + 5.0 <= init_y <= self.corridor_bounds_y[1] - 5.0:
-                self.uav_rth_lanes[uav.id] = init_y
-                return init_y
 
         # Deterministic fallback based on UAV index
         try:
@@ -63,13 +60,16 @@ class RTHRouter:
         except Exception:
             u_idx = 0
 
-        total_uavs = max(len(snapshot.uavs) if snapshot else 8, 8)
+        total_uavs = len(snapshot.uavs) if snapshot and len(snapshot.uavs) > 0 else 5
         y_center = self.gcs_position[1]
         y_start = y_center - ((total_uavs - 1) / 2.0) * self.min_separation_m
         lane_y = y_start + u_idx * self.min_separation_m
 
-        # Clamp within corridor bounds
-        lane_y = max(self.corridor_bounds_y[0] + 10.0, min(self.corridor_bounds_y[1] - 10.0, lane_y))
+        # Clamp within corridor bounds if GCS is in corridor
+        if self.corridor_bounds_y[0] <= self.gcs_position[1] <= self.corridor_bounds_y[1]:
+            lane_y = max(self.corridor_bounds_y[0] + 10.0, min(self.corridor_bounds_y[1] - 10.0, lane_y))
+        else:
+            lane_y = self.gcs_position[1]
         self.uav_rth_lanes[uav.id] = lane_y
         return lane_y
 
@@ -78,11 +78,11 @@ class RTHRouter:
         lane_y = self.get_rth_lane_y(uav, snapshot)
         x_curr = uav.position_xy[0]
 
-        if x_curr > 0.5:
+        if self.gcs_position[0] < -1.0 and x_curr > 0.5:
             # Phase 1: In arena, target corridor portal entry at x = 0.0 on dedicated Y lane
             return (0.0, lane_y)
         else:
-            # Phase 2: In corridor or staging area, target staging pad at x = -75.0 on dedicated Y lane
+            # Phase 2: In corridor or staging area, target staging pad at x = gcs_x on dedicated Y lane
             return (self.gcs_position[0], lane_y)
 
     def step(
@@ -122,7 +122,7 @@ class RTHRouter:
                         BeginLandingCommand(source_tick=tick, uav_id=uav.id)
                     )
 
-            if dist_to_pad <= 0.2 or curr_x <= -74.9:
+            if dist_to_pad <= 0.2 or (self.gcs_position[0] < -1.0 and curr_x <= self.gcs_position[0] + 0.1):
                 commands.append(
                     CompleteRTHCommand(source_tick=tick, uav_id=uav.id)
                 )

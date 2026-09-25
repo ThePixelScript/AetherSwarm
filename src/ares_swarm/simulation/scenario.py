@@ -39,6 +39,7 @@ class DetectionPipelineConfig:
     sensor_fov_radius_m: float = 40.0
     reporting_deadline_s: float = 10.0
     processing_delay_s: float = 0.0
+    comm_base_latency_ms: float = 5.0
 
 
 @dataclass(frozen=True)
@@ -61,6 +62,10 @@ class ChallengeProfileConfig:
 
 @dataclass(frozen=True)
 class ScenarioConfig:
+    def __post_init__(self):
+        if getattr(self, "challenge_profile", None) and self.challenge_profile.enabled and self.challenge_profile.airspace.enabled:
+            object.__setattr__(self, "gcs_position", self.challenge_profile.airspace.staging_pad_center)
+
     name: str = "default_mission"
     seed: int = 42
     dt: float = 1.0
@@ -176,6 +181,7 @@ def load_scenario(source: str | Path | dict[str, Any]) -> ScenarioConfig:
             sensor_fov_radius_m=float(challenge_raw.get("detection_pipeline", {}).get("sensor_fov_radius_m", 40.0)),
             reporting_deadline_s=float(challenge_raw.get("detection_pipeline", {}).get("reporting_deadline_s", 10.0)),
             processing_delay_s=float(challenge_raw.get("detection_pipeline", {}).get("processing_delay_s", 0.0)),
+            comm_base_latency_ms=float(challenge_raw.get("detection_pipeline", {}).get("comm_base_latency_ms", 5.0)),
         ),
         enable_departure_sequencing=bool(challenge_raw.get("enable_departure_sequencing", True)),
     )

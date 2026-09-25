@@ -39,7 +39,7 @@ class ChallengeAirspace:
     staging_pad_center: Tuple[float, float] = (-75.0, 500.0)
     staging_pad_radius_m: float = 15.0
     corridor_bounds_x: Tuple[float, float] = (-75.0, 0.0)
-    corridor_bounds_y: Tuple[float, float] = (450.0, 550.0)
+    corridor_bounds_y: Tuple[float, float] = (400.0, 600.0)
 
     def is_in_staging_pad(self, position_xy: Tuple[float, float]) -> bool:
         """Check if 2D position is within the authorized staging pad radius."""
@@ -57,8 +57,8 @@ class ChallengeAirspace:
             return True
         x, y = position_xy
         x_c, y_c = self.staging_pad_center
-        # Staging line along west operational center, strictly outside arena
-        if (x_c - 5.0 <= x <= EPSILON) and abs(y - y_c) <= 80.0:
+        # Staging line strictly along west operational center x_c (e.g. -75.0)
+        if abs(x - x_c) <= 5.0 and abs(y - y_c) <= 150.0:
             return True
         y_min_c, y_max_c = self.corridor_bounds_y
         return (x_c - 5.0 <= x <= EPSILON) and (y_min_c - EPSILON <= y <= y_max_c + EPSILON)

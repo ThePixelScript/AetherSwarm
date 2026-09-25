@@ -234,6 +234,7 @@ class MissionRunner:
         enable_task_progress: bool = True,
         safety_hook: Optional[Callable[[StateSnapshot, NetworkAnalysis], Any]] = None,
         autonomy_adapter: Optional[Any] = None,
+        comm_analyzer: Optional[Any] = None,
         relay_manager: Optional[DynamicRelayManager] = None,
         connectivity_planner: Optional[ConnectivityAwarePlanner] = None,
     ):
@@ -246,6 +247,7 @@ class MissionRunner:
         self.enable_task_progress = enable_task_progress
         self.safety_hook = safety_hook
         self._custom_autonomy_adapter = autonomy_adapter
+        self._custom_comm_analyzer = comm_analyzer
 
         self.initial_snapshot: StateSnapshot
         self.state_store: StateStore
@@ -293,6 +295,7 @@ class MissionRunner:
                     airspace=airspace,
                 )
 
+        self.airspace = airspace
         self.safety_assessor = SafetyAssessor(
             arena_bounds_x=self.scenario.arena_bounds_x,
             arena_bounds_y=self.scenario.arena_bounds_y,
@@ -355,7 +358,10 @@ class MissionRunner:
 
         self.initial_snapshot = create_initial_snapshot(self.scenario)
         self.state_store = StateStore(self.initial_snapshot)
-        self.comm_analyzer = BaselineCommunicationAnalyzer(config=self.scenario.communication)
+        if self._custom_comm_analyzer is not None:
+            self.comm_analyzer = self._custom_comm_analyzer
+        else:
+            self.comm_analyzer = BaselineCommunicationAnalyzer(config=self.scenario.communication)
         if self._custom_autonomy_adapter is not None:
             self.autonomy_adapter = self._custom_autonomy_adapter
         else:
@@ -575,6 +581,7 @@ class MissionRunner:
             speed=self.scenario.speed_limit,
             separation_enforcer=self.separation_enforcer,
             geofence_enforcer=self.geofence_enforcer,
+            airspace=self.airspace,
         )
         applied_commands.extend(step_res.applied_commands)
         rejected_commands.extend(step_res.rejected_commands)
@@ -599,33 +606,16 @@ class MissionRunner:
         else:
             allow_multi_sortie = False
 
+        if hasattr(self, "rth_router") and self.rth_router is not None:
+            rth_router_cmds, _ = self.rth_router.step(snap_post_step)
+            lifecycle_cmds.extend(rth_router_cmds)
+
         for uav in sorted(snap_post_step.uavs.values(), key=lambda u: u.id):
             lane_y = self.rth_router.get_rth_lane_y(uav, snap_post_step)
             pad_pos = (gcs_pos[0], lane_y)
-            dx = uav.position_xy[0] - pad_pos[0]
-            dy = uav.position_xy[1] - pad_pos[1]
-            dist_to_pad = (dx**2 + dy**2) ** 0.5
-
-            # Transition RTH target from corridor portal (0, lane_y) to pad once inside corridor
-            if uav.rth_state == RTHState.ACTIVE and uav.sortie_state == SortieState.RTH and uav.target_position and uav.target_position != pad_pos and uav.position_xy[0] <= 0.5:
-                lifecycle_cmds.append(
-                    SetTargetPositionCommand(source_tick=current_tick, uav_id=uav.id, target_position=pad_pos)
-                )
-
-            # Transition to LANDING when entering final approach (< 25m from pad or x <= -50m)
-            if uav.rth_state == RTHState.ACTIVE and (dist_to_pad <= 25.0 or uav.position_xy[0] <= -50.0) and uav.sortie_state == SortieState.RTH:
-                lifecycle_cmds.append(
-                    BeginLandingCommand(source_tick=current_tick, uav_id=uav.id)
-                )
-
-            # Complete landing when reached pad threshold
-            if uav.rth_state == RTHState.ACTIVE and (dist_to_pad <= 0.2 or uav.position_xy[0] <= -74.9):
-                lifecycle_cmds.append(
-                    CompleteRTHCommand(source_tick=current_tick, uav_id=uav.id)
-                )
 
             # Recharging lifecycle management
-            elif uav.sortie_state == SortieState.LANDED and allow_multi_sortie:
+            if uav.sortie_state == SortieState.LANDED and allow_multi_sortie:
                 lifecycle_cmds.append(
                     StartRechargeCommand(
                         source_tick=current_tick,
@@ -713,7 +703,11 @@ class MissionRunner:
         limit = max_ticks if max_ticks is not None else self.scenario.max_ticks
 
         for _ in range(limit):
-            self.step()
+            step_res = self.step()
+            # Early termination if all UAVs are successfully landed and mission requires return
+            if self.scenario.return_by_mission_end:
+                if all(not u.active and u.rth_state == RTHState.COMPLETE for u in step_res.snapshot.uavs.values() if u.failure_state.name != "FAILED"):
+                    break
 
         final_snap = self.state_store.snapshot()
         metrics_report = compute_mission_metrics(

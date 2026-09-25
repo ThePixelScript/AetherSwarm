@@ -294,6 +294,7 @@ def compute_poi_metrics(tasks: list[dict[str, Any]]) -> dict[str, Any]:
 def generate_and_export_scenario(
     seed: int = 2026,
     num_pois: int = 10,
+    num_uavs: int = 8,
     min_spacing: float = 0.0,
     margin: float = 0.0,
     spawn_start: float = 0.0,
@@ -339,6 +340,7 @@ def generate_and_export_scenario(
     scen_dict = generate_scenario_dict(
         seed=seed,
         tasks=tasks,
+        num_uavs=num_uavs,
         min_separation=20.0,
     )
 

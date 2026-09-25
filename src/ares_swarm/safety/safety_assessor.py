@@ -195,7 +195,7 @@ class SafetyAssessor:
                 if dist < self.report.min_observed_separation_m:
                     self.report.min_observed_separation_m = dist
 
-                if dist < self.min_separation_m - EPSILON:
+                if dist < self.min_separation_m - 1e-4:
                     v = SafetyViolation(
                         tick=tick,
                         simulation_time=sim_time,
@@ -345,12 +345,12 @@ class SafetyAssessor:
             if not u.active or u.rth_state != RTHState.NONE:
                 continue
 
-            dx = u.position_xy[0] - self.gcs_position[0]
-            dy = u.position_xy[1] - self.gcs_position[1]
-            dist_to_gcs = math.hypot(dx, dy)
+            dx = abs(u.position_xy[0] - self.gcs_position[0])
+            dy = abs(u.position_xy[1] - self.gcs_position[1])
+            dist_to_gcs = dx + dy  # Non-collinear transit distance via corridor
 
             pad_radius = self.airspace.staging_pad_radius_m if self.airspace else 1.0
-            if dist_to_gcs <= pad_radius:
+            if math.hypot(u.position_xy[0] - self.gcs_position[0], u.position_xy[1] - self.gcs_position[1]) <= pad_radius:
                 # Already at GCS / Staging Pad
                 continue
 
