@@ -355,28 +355,27 @@ class MissionRunner:
             t for t in visible_tasks.values()
             if t.status in (TaskStatus.PENDING, TaskStatus.DEFERRED)
         ]
-        if unassigned_visible:
-            alloc_snap = replace(snap_for_alloc, tasks=MappingProxyType(visible_tasks))
-            accepts_net = getattr(
-                self.autonomy_adapter,
-                "accepts_network_analysis",
-                getattr(getattr(self.autonomy_adapter, "allocator", None), "accepts_network_analysis", None),
-            )
-            if accepts_net is True:
+        alloc_snap = replace(snap_for_alloc, tasks=MappingProxyType(visible_tasks))
+        accepts_net = getattr(
+            self.autonomy_adapter,
+            "accepts_network_analysis",
+            getattr(getattr(self.autonomy_adapter, "allocator", None), "accepts_network_analysis", None),
+        )
+        if accepts_net is True:
+            assign_cmds = self.autonomy_adapter.plan(alloc_snap, net_analysis)
+        elif accepts_net is False:
+            assign_cmds = self.autonomy_adapter.plan(alloc_snap)
+        else:
+            sig = inspect.signature(self.autonomy_adapter.plan)
+            if "network_analysis" in sig.parameters:
                 assign_cmds = self.autonomy_adapter.plan(alloc_snap, net_analysis)
-            elif accepts_net is False:
-                assign_cmds = self.autonomy_adapter.plan(alloc_snap)
             else:
-                sig = inspect.signature(self.autonomy_adapter.plan)
-                if "network_analysis" in sig.parameters:
-                    assign_cmds = self.autonomy_adapter.plan(alloc_snap, net_analysis)
-                else:
-                    assign_cmds = self.autonomy_adapter.plan(alloc_snap)
-            if assign_cmds:
-                res_assign = self.state_store.apply(assign_cmds)
-                applied_commands.extend(res_assign.applied_commands)
-                rejected_commands.extend(res_assign.rejected_commands)
-                tick_events.extend(res_assign.emitted_events)
+                assign_cmds = self.autonomy_adapter.plan(alloc_snap)
+        if assign_cmds:
+            res_assign = self.state_store.apply(assign_cmds)
+            applied_commands.extend(res_assign.applied_commands)
+            rejected_commands.extend(res_assign.rejected_commands)
+            tick_events.extend(res_assign.emitted_events)
 
         # 5. Task Service Progress (Simulation domain progression upon arrival)
         if self.enable_task_progress:
@@ -438,8 +437,10 @@ class MissionRunner:
         rejected_commands.extend(step_res.rejected_commands)
         tick_events.extend(step_res.emitted_events)
 
-        # 7. RTH Arrival Completion (Canonical CompleteRTHCommand on GCS arrival)
+        # 7. (Removed custom queue)
         snap_post_step = self.state_store.snapshot()
+
+        # 8. RTH Arrival Completion (Canonical CompleteRTHCommand on GCS arrival)
         complete_rth_cmds = []
         gcs_pos = self.scenario.gcs_position
         for uav in sorted(snap_post_step.uavs.values(), key=lambda u: u.id):

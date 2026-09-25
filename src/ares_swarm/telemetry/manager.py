@@ -173,6 +173,7 @@ class DetectionManager:
                     else:
                         status = TelemetryStatus.DEADLINE_EXCEEDED
                         evt_type = EventType.TELEMETRY_DEADLINE_EXCEEDED
+                        print(f"[{snapshot.simulation_time}] Deadline Exceeded for {task_id}: route={route}, latency={latency_s}")
 
                     updated = dataclasses.replace(
                         report,
@@ -210,6 +211,7 @@ class DetectionManager:
                 if elapsed_s > self.config.reporting_deadline_s + EPSILON:
                     # Deadline expired while waiting for route in buffer
                     status = TelemetryStatus.DEADLINE_EXCEEDED
+                    print(f"[{snapshot.simulation_time}] Deadline Exceeded (Timeout) for {task_id}: elapsed_s={elapsed_s}")
                     updated = dataclasses.replace(
                         report,
                         status=status,

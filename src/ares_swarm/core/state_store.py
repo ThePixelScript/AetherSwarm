@@ -14,6 +14,7 @@ from .commands import (
     ProgressTaskCommand,
     ReleaseTaskCommand,
     SetTargetPositionCommand,
+    AssignRelayRoleCommand,
     StartRTHCommand,
     StepPhysicsCommand,
 )
@@ -283,6 +284,27 @@ class StateStore:
                             payload={"progress": new_progress, "duration": task.service_duration},
                             sequence=len(events) + len(staged_events),
                         ))
+
+            elif isinstance(cmd, AssignRelayRoleCommand):
+                staged_uavs[uav.id] = replace(
+                    uav,
+                    role=Role.RELAY,
+                )
+                staged_events.append(DomainEvent.create(
+                    simulation_tick=self._simulation_tick,
+                    simulation_time=self._simulation_time,
+                    event_type=EventType.UAV_ACTIVATED,
+                    entity_id=uav.id,
+                    payload={"role": "RELAY"},
+                    sequence=len(events) + len(staged_events),
+                ))
+
+            else:
+                rejection = CommandRejection(
+                    cmd,
+                    RejectionCode.UNSUPPORTED_COMMAND,
+                    f"Unsupported command type: {type(cmd).__name__}"
+                )
 
             if rejection:
                 rejected.append(rejection)

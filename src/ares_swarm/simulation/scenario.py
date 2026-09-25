@@ -285,13 +285,13 @@ def create_initial_snapshot(scenario: ScenarioConfig) -> StateSnapshot:
         service_duration = float(item.get("service_duration", item.get("required_progress", 1.0)))
 
         created_time = float(item.get("created_time", item.get("spawn_time", 0.0)))
-        deadline_raw = float(item.get("deadline", item.get("deadline_offset", 0.0)))
-        if deadline_raw > 0.0 and deadline_raw < created_time:
-            deadline = created_time + deadline_raw
-        elif deadline_raw > 0.0:
-            deadline = deadline_raw
+        
+        # V0 compat: deadline_offset was meant for reporting, not task service deadline
+        if "deadline" in item:
+            deadline = float(item["deadline"])
         else:
-            deadline = 0.0
+            # Fallback for V0 scenarios where tasks do not expire
+            deadline = 27000.0
 
         tasks[t_id] = TaskState(
             id=t_id,

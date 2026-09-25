@@ -27,7 +27,9 @@ def test_canonical_landing_compliance():
     
     comm = BaselineCommunicationAnalyzer(config=scenario.communication)
     allocator = A1TaskAllocator(comm_analyzer=comm)
-    adapter = A0AutonomyAdapter(allocator=allocator)
+    from ares_swarm.autonomy.ingress_coordinator import IngressCoordinator
+    ingress_coordinator = IngressCoordinator(comm_analyzer=comm, gcs_position=scenario.gcs_position, d_safe=85.0)
+    adapter = A0AutonomyAdapter(allocator=allocator, ingress_coordinator=ingress_coordinator)
     
     runner = MissionRunner(
         scenario=scenario,

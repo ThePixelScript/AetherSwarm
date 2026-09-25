@@ -11,7 +11,11 @@ from ares_swarm.core.enums import FailureState
 
 def get_mission_runner(name: str, a1: bool) -> MissionRunner:
     allocator = A1TaskAllocator() if a1 else A0TaskAllocator()
-    adapter = A0AutonomyAdapter(allocator=allocator)
+    from ares_swarm.autonomy.ingress_coordinator import IngressCoordinator
+    from ares_swarm.communication.analysis import BaselineCommunicationAnalyzer
+    from ares_swarm.communication.config import CommunicationConfig
+    ingress_coordinator = IngressCoordinator(comm_analyzer=BaselineCommunicationAnalyzer(CommunicationConfig(max_range=100.0)), gcs_position=(-75.0, 500.0), d_safe=85.0)
+    adapter = A0AutonomyAdapter(allocator=allocator, ingress_coordinator=ingress_coordinator)
 
     # Load base scenario
     base_scenario = load_scenario(Path("scenarios/poc_round1.yaml"))
