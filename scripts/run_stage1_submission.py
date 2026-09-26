@@ -8,6 +8,7 @@ from ares_swarm.autonomy.a1_allocator import A1TaskAllocator
 from ares_swarm.autonomy.a0_adapter import A0AutonomyAdapter
 from ares_swarm.communication.analysis import BaselineCommunicationAnalyzer
 import dataclasses
+from release_evidence import mission_evidence, write_json
 
 def main():
     parser = argparse.ArgumentParser(description="AetherSwarm IIT Bombay Pushpak Stage-1 Submission Runner")
@@ -91,7 +92,8 @@ def main():
         print(f"  {u_id}: Airborne: {rec.cumulative_airborne_s:.1f}s | Landed at: {rec.landing_time}s")
         
     print("\nExporting Evidence...")
-    res.save_json(outdir / "stage1_submission_report.json")
+    summary['execution_evidence'] = mission_evidence(res)
+    write_json(outdir / "stage1_submission_report.json", summary)
     print(f"Evidence saved to {outdir.absolute()}")
     print("=" * 60)
 

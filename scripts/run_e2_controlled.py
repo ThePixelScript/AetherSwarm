@@ -3,6 +3,7 @@ import json
 import dataclasses
 from pathlib import Path
 import math
+from release_evidence import mission_evidence, write_json
 
 from ares_swarm.simulation.scenario import load_scenario, ScenarioConfig, ChallengeProfileConfig, ChallengeAirspaceConfig, DetectionPipelineConfig
 from ares_swarm.communication.config import CommunicationConfig
@@ -14,7 +15,7 @@ from ares_swarm.communication.analysis import BaselineCommunicationAnalyzer
 from ares_swarm.communication.scenario import CommunicationCondition
 from ares_swarm.core.enums import FailureState, Role, RTHState, TaskStatus
 
-def generate_e2_yaml():
+def generate_e2_yaml(out_path=Path('scenarios/e2_controlled.yaml')):
     tasks = [
         {
             'id': 'poi_01',
@@ -70,7 +71,7 @@ def generate_e2_yaml():
         tasks=tuple(tasks)
     )
     import yaml
-    out_path = Path('scenarios/e2_controlled.yaml')
+    out_path = Path(out_path)
     
     # We will use json.loads(json.dumps()) to strip dataclass types and turn tuples to lists
     scen_dict = dataclasses.asdict(scen)
@@ -166,7 +167,7 @@ def main():
     outdir = Path(args.outdir)
     outdir.mkdir(parents=True, exist_ok=True)
 
-    yaml_path = generate_e2_yaml()
+    yaml_path = generate_e2_yaml(outdir / 'e2_controlled.yaml')
     base_scenario = load_scenario(yaml_path)
 
     conds = [
@@ -199,6 +200,7 @@ def main():
 
         res = runner.run()
         summary = res.to_dict()
+        summary['execution_evidence'] = mission_evidence(res)
         metrics = summary["metrics"]
         
         print(f"Tasks Completed: {metrics['tasks_completed']}/{metrics['tasks_total']}")

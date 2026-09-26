@@ -288,7 +288,9 @@ def main():
     parser.add_argument("--output-dir", type=str, default=None, help="Output directory for replay and timeline")
     args = parser.parse_args()
 
-    run_in_flight_recovery_demo(seed=args.seed, output_dir=args.output_dir)
+    summary = run_in_flight_recovery_demo(seed=args.seed, output_dir=args.output_dir)
+    from release_evidence import write_json
+    write_json(Path(summary['replay_path']).parent / 'failure_summary.json', summary)
 
 
 if __name__ == "__main__":
