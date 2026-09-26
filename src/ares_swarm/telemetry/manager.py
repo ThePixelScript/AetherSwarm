@@ -42,6 +42,7 @@ class DetectionManager:
         self,
         snapshot: StateSnapshot,
         flight_records: Optional[Mapping[str, Any]] = None,
+        net_analysis: Optional[NetworkAnalysis] = None,
     ) -> list[DomainEvent]:
         """Evaluate sensor FOV intersections for eligible airborne UAVs against eligible POIs."""
         if not self.config.enabled:
@@ -74,6 +75,13 @@ class DetectionManager:
         candidates: list[Tuple[str, str, Any, float]] = []
         for t in eligible_tasks:
             for uav in airborne_uavs:
+                # A UAV qualifies for perception detection if it is assigned to the task
+                # OR if it currently has a valid communication route to GCS.
+                # Unassigned, disconnected UAVs in transit do not trigger authoritative reports.
+                is_assigned = (uav.assigned_task_id == t.id)
+                has_route = bool(net_analysis and net_analysis.routes_to_gcs.get(uav.id) is not None)
+                if not is_assigned and not has_route and net_analysis is not None:
+                    continue
                 dx = uav.position_xy[0] - t.position_xy[0]
                 dy = uav.position_xy[1] - t.position_xy[1]
                 dist = math.hypot(dx, dy)

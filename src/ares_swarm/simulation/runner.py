@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 from dataclasses import dataclass, field, replace
 import json
+import math
 from pathlib import Path
 import random
 from types import MappingProxyType
@@ -19,6 +20,7 @@ from ..core.commands import (
     CompleteRechargeCommand,
     CompleteRTHCommand,
     ProgressTaskCommand,
+    ReleaseRelayRoleCommand,
     SetTargetPositionCommand,
     StartRechargeCommand,
     StartRTHCommand,
@@ -26,7 +28,7 @@ from ..core.commands import (
 )
 from ..autonomy.connectivity_planner import ConnectivityAwarePlanner, ConnectivityAwarePlannerConfig
 from ..autonomy.relay_manager import DynamicRelayManager, RelayManagementConfig
-from ..core.enums import RTHState, SortieState, TaskStatus
+from ..core.enums import Role, RTHState, SortieState, TaskStatus
 from ..core.events import CommandRejection, DomainEvent, EventType, StateTransitionResult
 from ..core.models import StateSnapshot, TaskState, UAVState
 from ..core.simulator import SimulationEngine
@@ -322,6 +324,11 @@ class MissionRunner:
         elif getattr(self.scenario, "enable_connectivity_aware_planning", False) or getattr(challenge_profile, "enable_connectivity_aware_planning", False):
             if self.relay_manager is None:
                 self.relay_manager = DynamicRelayManager()
+            sensor_fov = 0.0
+            if challenge_profile and challenge_profile.detection_pipeline and challenge_profile.detection_pipeline.enabled:
+                sensor_fov = getattr(challenge_profile.detection_pipeline, "sensor_radius_m", 0.0)
+            elif hasattr(self.scenario, "detection_pipeline") and getattr(self.scenario.detection_pipeline, "enabled", False):
+                sensor_fov = getattr(self.scenario.detection_pipeline, "sensor_radius_m", 0.0)
             self.connectivity_planner = ConnectivityAwarePlanner(
                 relay_manager=self.relay_manager,
                 comm_range=self.scenario.communication.max_range,
@@ -330,6 +337,8 @@ class MissionRunner:
                 movement_rate=self.scenario.battery_movement_rate,
                 max_sortie_duration_s=max_sortie_s,
                 enforce_sortie_limit=enforce_sortie,
+                allow_partial_chains=True,
+                sensor_fov_radius_m=sensor_fov,
             )
 
         self.departure_sequencer: Optional[DepartureSequencer] = None
@@ -545,28 +554,46 @@ class MissionRunner:
                 rejected_commands.extend(res_prog.rejected_commands)
                 tick_events.extend(res_prog.emitted_events)
 
-                # Clear stale target_position for any UAV whose task completed
+                # Tear down relay chains and release surveyor/relays to IDLE upon task completion
                 clear_cmds = []
                 for ev in res_prog.emitted_events:
                     if ev.event_type == EventType.TASK_COMPLETED:
                         completed_uav_id = ev.payload.get("uav_id")
+                        completed_task_id = ev.payload.get("task_id")
                         if completed_uav_id:
+                            # Release surveyor to IDLE
                             clear_cmds.append(
-                                SetTargetPositionCommand(
+                                ReleaseRelayRoleCommand(
                                     source_tick=current_tick,
                                     uav_id=completed_uav_id,
-                                    target_position=None,
+                                    next_role=Role.IDLE,
                                 )
                             )
-                            all_done = all(
-                                t.status in (TaskStatus.COMPLETE, TaskStatus.UNREACHABLE)
-                                for t in snap_mid.tasks.values()
-                            )
-                            if all_done and getattr(self.scenario, "enable_auto_rth", False):
+                            # In connectivity-aware relay scenarios, direct completed surveyor to (0, 500) staging area;
+                            # in baseline A0 scenarios (relay_manager is None), clear target_position to preserve A0 behavior.
+                            if self.relay_manager is not None:
                                 clear_cmds.append(
-                                    StartRTHCommand(
+                                    SetTargetPositionCommand(
                                         source_tick=current_tick,
                                         uav_id=completed_uav_id,
+                                        target_position=(0.0, 500.0),
+                                        speed=self.scenario.speed_limit,
+                                    )
+                                )
+                                chain_id = (
+                                    self.relay_manager.surveyor_to_chain.get(completed_uav_id)
+                                    or (f"chain_{completed_task_id}" if completed_task_id else None)
+                                )
+                                if chain_id:
+                                    self.relay_manager.teardown_chain(
+                                        chain_id, commands=clear_cmds, tick=current_tick
+                                    )
+                            else:
+                                clear_cmds.append(
+                                    SetTargetPositionCommand(
+                                        source_tick=current_tick,
+                                        uav_id=completed_uav_id,
+                                        target_position=None,
                                     )
                                 )
                 if clear_cmds:
@@ -574,6 +601,38 @@ class MissionRunner:
                     applied_commands.extend(res_clear.applied_commands)
                     rejected_commands.extend(res_clear.rejected_commands)
                     tick_events.extend(res_clear.emitted_events)
+
+            # Auto-RTH when all actionable tasks are complete, unreachable, or expired
+            if getattr(self.scenario, "enable_auto_rth", False):
+                snap_post_prog = self.state_store.snapshot()
+                sim_time = snap_post_prog.simulation_time
+                all_done = (
+                    len(snap_post_prog.tasks) > 0
+                    and all(
+                        t.status in (TaskStatus.COMPLETE, TaskStatus.UNREACHABLE)
+                        or (
+                            t.status in (TaskStatus.PENDING, TaskStatus.DEFERRED)
+                            and t.deadline > 0.0
+                            and sim_time >= t.deadline
+                        )
+                        for t in snap_post_prog.tasks.values()
+                    )
+                )
+                if all_done:
+                    auto_rth_cmds = []
+                    for u in sorted(snap_post_prog.uavs.values(), key=lambda x: x.id):
+                        if u.active and u.rth_state == RTHState.NONE and u.sortie_state not in (SortieState.LANDED, SortieState.RECHARGING):
+                            auto_rth_cmds.append(
+                                StartRTHCommand(
+                                    source_tick=current_tick,
+                                    uav_id=u.id,
+                                )
+                            )
+                    if auto_rth_cmds:
+                        res_auto_rth = self.state_store.apply(auto_rth_cmds)
+                        applied_commands.extend(res_auto_rth.applied_commands)
+                        rejected_commands.extend(res_auto_rth.rejected_commands)
+                        tick_events.extend(res_auto_rth.emitted_events)
 
         # 5.5 Ground Departure Sequencing (deterministic taxi / clearance)
         if self.departure_sequencer is not None:
@@ -613,10 +672,24 @@ class MissionRunner:
         )
         if challenge_prof and challenge_prof.enabled:
             allow_multi_sortie = not challenge_prof.enforce_single_sortie
-        elif getattr(self.scenario, "allow_multi_sortie", False):
+        elif getattr(self.scenario, "allow_multi_sortie", False) or getattr(self.scenario, "enable_recharge", False):
             allow_multi_sortie = True
         else:
             allow_multi_sortie = False
+
+        sim_time_now = snap_post_step.simulation_time
+        all_done_final = (
+            len(snap_post_step.tasks) > 0
+            and all(
+                t.status in (TaskStatus.COMPLETE, TaskStatus.UNREACHABLE)
+                or (
+                    t.status in (TaskStatus.PENDING, TaskStatus.DEFERRED)
+                    and t.deadline > 0.0
+                    and sim_time_now >= t.deadline
+                )
+                for t in snap_post_step.tasks.values()
+            )
+        )
 
         if hasattr(self, "rth_router") and self.rth_router is not None:
             rth_router_cmds, _ = self.rth_router.step(snap_post_step)
@@ -677,6 +750,7 @@ class MissionRunner:
             detect_events = self.detection_manager.step_perception(
                 post_physics_snap,
                 self.safety_assessor.report.uav_flight_records,
+                post_physics_net,
             )
             telem_events = self.detection_manager.step_telemetry(
                 post_physics_snap,

@@ -73,6 +73,8 @@ class DynamicRelayManager:
         self.chains: Dict[str, RelayChain] = {}
         self.surveyor_to_chain: Dict[str, str] = {}
         self.relay_to_chain: Dict[str, str] = {}
+        # Shared Relay Trunk Reference Counting: relay_id -> Set[surveyor_id]
+        self.relay_dependent_surveyors: Dict[str, Set[str]] = {}
 
         # Metrics (Phase 3 & 4)
         self.relay_assignments: int = 0
@@ -105,6 +107,7 @@ class DynamicRelayManager:
         self.chains.clear()
         self.surveyor_to_chain.clear()
         self.relay_to_chain.clear()
+        self.relay_dependent_surveyors.clear()
         self.relay_assignments = 0
         self.relay_releases = 0
         self.relay_handoffs = 0
@@ -151,6 +154,9 @@ class DynamicRelayManager:
             self.relay_to_chain[rid] = chain.chain_id
             self.relay_to_surveyor[rid] = chain.surveyor_id
             self.relay_positions[rid] = pos
+            if rid not in self.relay_dependent_surveyors:
+                self.relay_dependent_surveyors[rid] = set()
+            self.relay_dependent_surveyors[rid].add(chain.surveyor_id)
         if chain.relay_ids:
             # Backward-compatible scalar mapping: closest relay to surveyor is terminal relay R_K
             self.surveyor_to_relay[chain.surveyor_id] = chain.relay_ids[-1]
@@ -159,7 +165,7 @@ class DynamicRelayManager:
         return chain
 
     def teardown_chain(self, chain_id: str, commands: Optional[List[Command]] = None, tick: int = 0) -> List[Command]:
-        """Tear down an active or degraded relay chain, releasing all assigned relays."""
+        """Tear down an active or degraded relay chain, releasing relays no longer needed by any surveyor."""
         cmds: List[Command] = []
         chain = self.chains.get(chain_id)
         if not chain:
@@ -169,33 +175,50 @@ class DynamicRelayManager:
         for h in list(chain.pending_handoffs.values()):
             rep_id = h.get("replacement_id")
             if rep_id:
-                release_cmd = ReleaseRelayRoleCommand(source_tick=tick, uav_id=rep_id, next_role=Role.IDLE)
+                if rep_id in self.relay_dependent_surveyors:
+                    self.relay_dependent_surveyors[rep_id].discard(chain.surveyor_id)
+                deps = self.relay_dependent_surveyors.get(rep_id, set())
+                if not deps:
+                    release_cmd = ReleaseRelayRoleCommand(source_tick=tick, uav_id=rep_id, next_role=Role.IDLE)
+                    if commands is not None:
+                        commands.append(release_cmd)
+                    cmds.append(release_cmd)
+                    self.relay_releases += 1
+                    self.relay_to_chain.pop(rep_id, None)
+                    self.relay_to_surveyor.pop(rep_id, None)
+                    self.relay_positions.pop(rep_id, None)
+                    self.relay_dependent_surveyors.pop(rep_id, None)
+                    ret_cmd = SetTargetPositionCommand(source_tick=tick, uav_id=rep_id, target_position=(0.0, 500.0))
+                    if commands is not None:
+                        commands.append(ret_cmd)
+                    cmds.append(ret_cmd)
+        chain.pending_handoffs.clear()
+
+        for rid in chain.relay_ids:
+            if rid in self.relay_dependent_surveyors:
+                self.relay_dependent_surveyors[rid].discard(chain.surveyor_id)
+            deps = self.relay_dependent_surveyors.get(rid, set())
+            if not deps:
+                release_cmd = ReleaseRelayRoleCommand(source_tick=tick, uav_id=rid, next_role=Role.IDLE)
                 if commands is not None:
                     commands.append(release_cmd)
                 cmds.append(release_cmd)
                 self.relay_releases += 1
-                self.relay_to_chain.pop(rep_id, None)
-                self.relay_to_surveyor.pop(rep_id, None)
-                self.relay_positions.pop(rep_id, None)
-                rth_cmd = StartRTHCommand(source_tick=tick, uav_id=rep_id)
+                self.relay_to_chain.pop(rid, None)
+                self.relay_to_surveyor.pop(rid, None)
+                self.relay_positions.pop(rid, None)
+                self.relay_dependent_surveyors.pop(rid, None)
+                ret_cmd = SetTargetPositionCommand(source_tick=tick, uav_id=rid, target_position=(0.0, 500.0))
                 if commands is not None:
-                    commands.append(rth_cmd)
-                cmds.append(rth_cmd)
-        chain.pending_handoffs.clear()
-
-        for rid in chain.relay_ids:
-            release_cmd = ReleaseRelayRoleCommand(source_tick=tick, uav_id=rid, next_role=Role.IDLE)
-            if commands is not None:
-                commands.append(release_cmd)
-            cmds.append(release_cmd)
-            self.relay_releases += 1
-            self.relay_to_chain.pop(rid, None)
-            self.relay_to_surveyor.pop(rid, None)
-            self.relay_positions.pop(rid, None)
-            rth_cmd = StartRTHCommand(source_tick=tick, uav_id=rid)
-            if commands is not None:
-                commands.append(rth_cmd)
-            cmds.append(rth_cmd)
+                    commands.append(ret_cmd)
+                cmds.append(ret_cmd)
+            else:
+                # Other surveyor(s) still depend on this shared trunk relay!
+                next_surv = next(iter(deps))
+                self.relay_to_surveyor[rid] = next_surv
+                next_chain = self.surveyor_to_chain.get(next_surv)
+                if next_chain:
+                    self.relay_to_chain[rid] = next_chain
         self.surveyor_to_chain.pop(chain.surveyor_id, None)
         self.surveyor_to_relay.pop(chain.surveyor_id, None)
         self.chains.pop(chain_id, None)
@@ -980,12 +1003,20 @@ class DynamicRelayManager:
         for relay_id, surv_id in list(self.relay_to_surveyor.items()):
             surv = snapshot.uavs.get(surv_id)
             if not surv or not surv.active or surv.rth_state != RTHState.NONE or surv.sortie_state in (SortieState.LANDED, SortieState.RECHARGING):
-                relay_uav = snapshot.uavs.get(relay_id)
-                if relay_uav and relay_uav.role == Role.RELAY:
-                    commands.append(ReleaseRelayRoleCommand(source_tick=tick, uav_id=relay_id, next_role=Role.SURVEYOR))
-                    self.relay_releases += 1
-                self.relay_to_surveyor.pop(relay_id, None)
-                self.surveyor_to_relay.pop(surv_id, None)
-                self.relay_positions.pop(relay_id, None)
+                if relay_id in self.relay_dependent_surveyors:
+                    self.relay_dependent_surveyors[relay_id].discard(surv_id)
+                deps = self.relay_dependent_surveyors.get(relay_id, set())
+                if not deps:
+                    relay_uav = snapshot.uavs.get(relay_id)
+                    if relay_uav and relay_uav.role == Role.RELAY:
+                        commands.append(ReleaseRelayRoleCommand(source_tick=tick, uav_id=relay_id, next_role=Role.SURVEYOR))
+                        self.relay_releases += 1
+                    self.relay_to_surveyor.pop(relay_id, None)
+                    self.surveyor_to_relay.pop(surv_id, None)
+                    self.relay_positions.pop(relay_id, None)
+                    self.relay_dependent_surveyors.pop(relay_id, None)
+                else:
+                    next_surv = next(iter(deps))
+                    self.relay_to_surveyor[relay_id] = next_surv
 
         return commands

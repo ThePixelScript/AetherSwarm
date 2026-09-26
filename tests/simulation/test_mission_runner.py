@@ -65,6 +65,7 @@ def test_mission_runner_deterministic_execution():
             {"id": "t1", "position": [0.0, 10.0], "priority": 2, "service_duration": 2.0},
             {"id": "t2", "position": [10.0, 0.0], "priority": 1, "service_duration": 2.0},
         ),
+        enable_auto_rth=False,
     )
 
     runner = MissionRunner(config)

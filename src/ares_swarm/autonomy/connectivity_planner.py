@@ -15,6 +15,7 @@ from ..core.commands import (
     AssignRelayRoleCommand,
     AssignTaskCommand,
     Command,
+    MarkTaskUnreachableCommand,
     ReleaseTaskCommand,
     SetTargetPositionCommand,
     StartRTHCommand,
@@ -97,13 +98,14 @@ def compute_multihop_stations(
     effective_range: float = 95.0,
     corridor_bounds_y: Tuple[float, float] = (450.0, 550.0),
     margin_m: float = 1.0,
+    sensor_fov_radius_m: float = 0.0,
 ) -> Tuple[int, int, Tuple[Tuple[float, float], ...]]:
     """Compute minimum hops, intermediate relays, and equal-spaced relay stations (Step 1).
 
-    Corridor-Aware Multi-Hop Geometry (Fix 2):
+    Corridor-Aware Multi-Hop Geometry:
+    - Accounts for surveyor sensor FOV radius (40m): surveyor only needs to reach
+      target_dist = max(0, total_dist - sensor_fov_radius_m) to inspect the POI.
     - Determines whether direct GCS->POI path is fully valid under composite geofence.
-    - If valid: retains direct-path geometry.
-    - If invalid: uses piecewise path GCS -> Portal(0, 500) -> POI.
     - Places relay stations by DISTANCE ALONG PATH, ensuring every station lies
       inside legal airspace and every hop <= effective_range.
     """
@@ -116,14 +118,16 @@ def compute_multihop_stations(
         seg_lengths.append(seg_len)
         total_dist += seg_len
 
-    if total_dist <= effective_range:
+    surveyor_dist = max(0.0, total_dist - sensor_fov_radius_m)
+
+    if surveyor_dist <= effective_range:
         return 1, 0, ()
 
-    h_min = max(1, math.ceil(total_dist / effective_range))
+    h_min = max(1, math.ceil(surveyor_dist / effective_range))
     k_min = max(0, h_min - 1)
 
     stations: List[Tuple[float, float]] = []
-    step_d = total_dist / h_min
+    step_d = surveyor_dist / h_min
 
     for i in range(1, k_min + 1):
         target_d = i * step_d
@@ -166,6 +170,8 @@ class ConnectivityAwarePlannerConfig:
     disconnected_replan_tolerance_s: float = 10.0
     enable_multihop_chains: bool = True
     max_chain_relays: int = 12
+    allow_partial_chains: bool = False  # Enabled in runner for large scenarios
+    sensor_fov_radius_m: float = 0.0
 
 
 class ConnectivityAwarePlanner:
@@ -189,6 +195,8 @@ class ConnectivityAwarePlanner:
         movement_rate: float = 0.5,
         max_sortie_duration_s: float = 1200.0,
         enforce_sortie_limit: bool = True,
+        allow_partial_chains: bool = False,
+        sensor_fov_radius_m: float = 0.0,
     ) -> None:
         if config is not None:
             self.config = config
@@ -200,6 +208,8 @@ class ConnectivityAwarePlanner:
                 movement_rate=movement_rate,
                 max_sortie_duration_s=max_sortie_duration_s,
                 enforce_sortie_limit=enforce_sortie_limit,
+                allow_partial_chains=allow_partial_chains,
+                sensor_fov_radius_m=sensor_fov_radius_m,
             )
 
         self.allocator = allocator or A1TaskAllocator()
@@ -341,7 +351,9 @@ class ConnectivityAwarePlanner:
                     reason=f"POI distance {d_gcs:.1f}m exceeds single-relay coverage ({comm_limit * 2:.1f}m)",
                 )
 
-        h_min, k_min, stations = compute_multihop_stations(gcs, task.position_xy, effective_range=comm_limit)
+        h_min, k_min, stations = compute_multihop_stations(
+            gcs, task.position_xy, effective_range=comm_limit, sensor_fov_radius_m=self.config.sensor_fov_radius_m
+        )
 
         if k_min > self.config.max_chain_relays:
             return ConnectivityFeasibilityResult(
@@ -355,6 +367,10 @@ class ConnectivityAwarePlanner:
 
         excluded = set(exclude_uav_ids or set())
         excluded.add(uav.id)
+        # Protect active surveyors working on other tasks from being stolen as relays
+        for u in snapshot.uavs.values():
+            if u.assigned_task_id is not None:
+                excluded.add(u.id)
 
         cand_ids = self.relay_manager.select_relay_chain_candidates(
             snapshot=snapshot,
@@ -387,6 +403,72 @@ class ConnectivityAwarePlanner:
                 hop_count=h_min,
                 min_relay_count=k_min,
             )
+
+        # --- Partial chain fallback ---
+        if self.config.allow_partial_chains:
+            # Full chain cannot be staffed (insufficient available UAVs).
+            # Deploy as many relay stations as possible from GCS outward so the
+            # surveyor can at least advance toward the POI up to the coverage
+            # boundary of the outermost deployed relay.
+            available_for_relay = [
+                u for u in snapshot.uavs.values()
+                if u.active
+                and u.failure_state == FailureState.NORMAL
+                and u.rth_state == RTHState.NONE
+                and u.sortie_state in (SortieState.READY, SortieState.ACTIVE)
+                and u.id not in (exclude_uav_ids or set())
+                and u.id != uav.id
+                and u.role != Role.RELAY
+                and u.assigned_task_id is None
+            ]
+            # Leave at least 2 UAVs free (1 relay + 1 surveyor for another task)
+            max_partial_depth = max(1, len(available_for_relay) - 2)
+
+            partial_excluded = set(exclude_uav_ids or set())
+            partial_excluded.add(uav.id)
+            for u in snapshot.uavs.values():
+                if u.assigned_task_id is not None:
+                    partial_excluded.add(u.id)
+            partial_cand_ids: List[str] = []
+            for st_pos in stations[:max_partial_depth]:
+                cand_id = self.relay_manager.select_relay_candidate(
+                    snapshot=snapshot,
+                    target_uav_id=uav.id,
+                    relay_position=st_pos,
+                    network_analysis=network_analysis,
+                    exclude_uav_ids=partial_excluded,
+                    speed_limit=v_max,
+                    idle_rate=idle,
+                    movement_rate=mov,
+                    max_sortie_s=self.config.max_sortie_duration_s,
+                    enforce_sortie_limit=self.config.enforce_sortie_limit,
+                    flight_records=flight_records,
+                )
+                if cand_id is None:
+                    break
+                partial_cand_ids.append(cand_id)
+                partial_excluded.add(cand_id)
+
+            if partial_cand_ids:
+                partial_stations = stations[: len(partial_cand_ids)]
+                first_relay_id = partial_cand_ids[0]
+                first_station = partial_stations[0]
+                return ConnectivityFeasibilityResult(
+                    feasible=True,
+                    reason=(
+                        f"Partial relay chain {len(partial_cand_ids)}/{k_min} deployed "
+                        f"(surveyor holds at outermost relay comm boundary)"
+                    ),
+                    relay_needed=True,
+                    relay_uav_id=first_relay_id,
+                    relay_position=first_station,
+                    relay_uav_ids=tuple(partial_cand_ids),
+                    relay_positions=tuple(partial_stations),
+                    estimated_return_time_s=t_transit_ret,
+                    estimated_total_energy_wh=e_total_req,
+                    hop_count=len(partial_cand_ids) + 1,
+                    min_relay_count=k_min,
+                )
 
         return ConnectivityFeasibilityResult(
             feasible=False,
@@ -431,7 +513,11 @@ class ConnectivityAwarePlanner:
             chain_id = self.relay_manager.surveyor_to_chain.get(surv.id)
             chain = self.relay_manager.chains.get(chain_id) if chain_id else None
 
-            # Fix 1: Evaluate chain readiness for pre-detection holding & release
+            # Evaluate chain readiness for pre-detection holding & release.
+            # For partial chains (fewer relays than k_min), we only require
+            # that the deployed relays have reached their stations — a full
+            # GCS route is NOT required so partial chains transition to ACTIVE
+            # and the surveyor advances toward the POI.
             chain_ready = True
             if chain:
                 relays_in_position = True
@@ -441,9 +527,9 @@ class ConnectivityAwarePlanner:
                         relays_in_position = False
                         break
 
-                has_route = bool(network_analysis and network_analysis.routes_to_gcs.get(surv.id) is not None)
-
-                if relays_in_position and has_route:
+                # Transition FORMING → ACTIVE once deployed relays are in position.
+                # No GCS-route requirement: partial chains need this relaxation.
+                if relays_in_position:
                     if chain.status == ChainStatus.FORMING:
                         chain.status = ChainStatus.ACTIVE
                     chain_ready = True
@@ -494,13 +580,51 @@ class ConnectivityAwarePlanner:
                 if chain_id:
                     self.relay_manager.teardown_chain(chain_id, commands=commands, tick=tick)
             elif chain and not chain_ready:
-                # Fix 1: Pre-detection holding control while chain is forming
-                pts = compute_corridor_path(snapshot.gcs_position, task.position_xy)
-                total_d = sum(math.hypot(pts[i + 1][0] - pts[i][0], pts[i + 1][1] - pts[i][1]) for i in range(len(pts) - 1))
-                hold_d = max(0.0, total_d - 45.0)
-                p_hold = get_path_point_at_distance(pts, hold_d)
+                # Pre-detection holding while chain relays are still in transit.
+                # For partial chains: hold at comm_range ahead of the outermost
+                # planned relay station so the surveyor stays connected.
+                # For full chains (or when outermost station is unknown): hold
+                # 45 m before the POI (original safe-approach behaviour).
+                comm_limit = self.config.comm_range_m * self.config.effective_range_factor
+                outermost_station = (
+                    chain.station_positions[-1] if chain.station_positions else None
+                )
+                if outermost_station is not None:
+                    dx = task.position_xy[0] - outermost_station[0]
+                    dy = task.position_xy[1] - outermost_station[1]
+                    d_outer_poi = math.hypot(dx, dy)
+                    # Sensor FOV radius is 40.0 m. Hold at 45.0 m before POI while chain is forming
+                    # so detection does not trigger prematurely before relays are in position.
+                    fov_margin = 45.0
+                    if d_outer_poi <= comm_limit + 1e-3:
+                        # Hold 45 m before POI along line from outermost station to POI
+                        nx = dx / d_outer_poi if d_outer_poi > 1e-9 else 0.0
+                        ny = dy / d_outer_poi if d_outer_poi > 1e-9 else 0.0
+                        safe_dist = max(0.0, d_outer_poi - fov_margin)
+                        desired_target = (
+                            round(outermost_station[0] + nx * safe_dist, 2),
+                            round(outermost_station[1] + ny * safe_dist, 2),
+                        )
+                    else:
+                        # Hold within comm_range of the outermost relay station
+                        safe_advance = max(0.0, comm_limit - 5.0)
+                        nx = dx / d_outer_poi if d_outer_poi > 1e-9 else 0.0
+                        ny = dy / d_outer_poi if d_outer_poi > 1e-9 else 0.0
+                        desired_target = (
+                            round(outermost_station[0] + nx * safe_advance, 2),
+                            round(outermost_station[1] + ny * safe_advance, 2),
+                        )
+                else:
+                    pts = compute_corridor_path(snapshot.gcs_position, task.position_xy)
+                    total_d = sum(math.hypot(pts[i + 1][0] - pts[i][0], pts[i + 1][1] - pts[i][1]) for i in range(len(pts) - 1))
+                    hold_d = max(0.0, total_d - 45.0)
+                    desired_target = get_path_point_at_distance(pts, hold_d)
 
-                desired_target = (0.0, 500.0) if (surv.position_xy[0] < -1.0 and len(pts) > 2) else p_hold
+                # Redirect through corridor portal if surveyor is still in GCS zone
+                if surv.position_xy[0] < -1.0:
+                    pts = compute_corridor_path(snapshot.gcs_position, task.position_xy)
+                    if len(pts) > 2:
+                        desired_target = (0.0, 500.0)
 
                 if surv.target_position != desired_target:
                     commands.append(
@@ -668,14 +792,40 @@ class ConnectivityAwarePlanner:
             )
             assigned_uav_ids.add(best_uav.id)
 
-            # Fix 1: Initial target position setup for pre-detection holding if relay chain is required
+            # Initial target position for surveyor: use outermost relay station
+            # coverage boundary as the holding point so the surveyor immediately
+            # moves toward the POI as far as comms allow, rather than waiting at
+            # a fixed 45m-before-POI position that may be unreachable.
             if best_res.relay_needed:
-                pts = compute_corridor_path(snapshot.gcs_position, task.position_xy)
-                total_d = sum(math.hypot(pts[i + 1][0] - pts[i][0], pts[i + 1][1] - pts[i][1]) for i in range(len(pts) - 1))
-                hold_d = max(0.0, total_d - 45.0)
-                p_hold = get_path_point_at_distance(pts, hold_d)
+                outermost_station = (
+                    best_res.relay_positions[-1] if best_res.relay_positions else None
+                )
+                comm_limit_init = self.config.comm_range_m * self.config.effective_range_factor
+                if outermost_station is not None:
+                    dx = task.position_xy[0] - outermost_station[0]
+                    dy = task.position_xy[1] - outermost_station[1]
+                    d_outer_poi = math.hypot(dx, dy)
+                    if d_outer_poi <= comm_limit_init + 1e-3:
+                        desired_target = task.position_xy
+                    else:
+                        safe_advance = max(0.0, comm_limit_init - 5.0)
+                        nx = dx / d_outer_poi if d_outer_poi > 1e-9 else 0.0
+                        ny = dy / d_outer_poi if d_outer_poi > 1e-9 else 0.0
+                        desired_target = (
+                            round(outermost_station[0] + nx * safe_advance, 2),
+                            round(outermost_station[1] + ny * safe_advance, 2),
+                        )
+                else:
+                    pts = compute_corridor_path(snapshot.gcs_position, task.position_xy)
+                    total_d = sum(math.hypot(pts[i + 1][0] - pts[i][0], pts[i + 1][1] - pts[i][1]) for i in range(len(pts) - 1))
+                    hold_d = max(0.0, total_d - 45.0)
+                    desired_target = get_path_point_at_distance(pts, hold_d)
 
-                desired_target = (0.0, 500.0) if (best_uav.position_xy[0] < -1.0 and len(pts) > 2) else p_hold
+                # Redirect through corridor portal if still in GCS zone
+                if best_uav.position_xy[0] < -1.0:
+                    pts = compute_corridor_path(snapshot.gcs_position, task.position_xy)
+                    if len(pts) > 2:
+                        desired_target = (0.0, 500.0)
 
                 commands.append(
                     SetTargetPositionCommand(

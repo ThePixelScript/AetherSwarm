@@ -37,6 +37,7 @@ mlruns/
 
 # Logs
 *.log
+logs/
 
 # Temporary
 *.tmp

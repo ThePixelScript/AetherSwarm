@@ -7,7 +7,7 @@ from types import MappingProxyType
 from typing import Any, Mapping, Sequence, Tuple
 import yaml
 
-from ..communication.config import CommunicationConfig
+from ..communication.config import COMM_PROFILES, CommunicationConfig
 from ..config import (
     AetherSwarmConfig,
     ChallengeSimulationConfig,
@@ -135,11 +135,15 @@ def load_scenario(source: str | Path | dict[str, Any]) -> ScenarioConfig:
     min_separation_m = float(raw.get("min_separation_m", 20.0))
 
     comm_raw = raw.get("communication", {})
+    prof_name = str(comm_raw.get("profile", comm_raw.get("profile_name", "organizer_reference")))
+    default_range = COMM_PROFILES.get(prof_name, 100.0)
+    comm_max_range = float(comm_raw.get("max_range", default_range))
     communication = CommunicationConfig(
-        max_range=float(comm_raw.get("max_range", 1000.0)),
+        max_range=comm_max_range,
         base_latency=float(comm_raw.get("base_latency", 5.0)),
         packet_loss=float(comm_raw.get("packet_loss", 0.0)),
         degradation_multiplier=float(comm_raw.get("degradation_multiplier", 1.0)),
+        profile_name=prof_name,
     )
 
     battery_raw = raw.get("battery", {})
@@ -183,6 +187,8 @@ def load_scenario(source: str | Path | dict[str, Any]) -> ScenarioConfig:
             processing_delay_s=float(challenge_raw.get("detection_pipeline", {}).get("processing_delay_s", 0.0)),
             comm_base_latency_ms=float(challenge_raw.get("detection_pipeline", {}).get("comm_base_latency_ms", 5.0)),
         ),
+        enable_relay_manager=bool(challenge_raw.get("enable_relay_manager", False)),
+        enable_connectivity_aware_planning=bool(challenge_raw.get("enable_connectivity_aware_planning", False)),
         enable_departure_sequencing=bool(challenge_raw.get("enable_departure_sequencing", True)),
     )
 

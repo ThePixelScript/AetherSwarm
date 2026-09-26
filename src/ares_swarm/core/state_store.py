@@ -14,6 +14,7 @@ from .commands import (
     CompleteRTHCommand,
     FailUAVCommand,
     HandoffRelayCommand,
+    MarkTaskUnreachableCommand,
     RecoverUAVCommand,
     ProgressTaskCommand,
     ReleaseRelayRoleCommand,
@@ -87,6 +88,34 @@ class StateStore:
                         reason=f"Command tick {cmd.source_tick} != store tick {self._simulation_tick}",
                     )
                 )
+                continue
+
+            # MarkTaskUnreachableCommand is a system-level command that does not
+            # require a real UAV entity — handle it before the UAV lookup.
+            if isinstance(cmd, MarkTaskUnreachableCommand):
+                task = self._tasks.get(cmd.task_id)
+                if task is None:
+                    rejected.append(CommandRejection(cmd, RejectionCode.ENTITY_NOT_FOUND, f"Task {cmd.task_id} not found"))
+                    continue
+                if task.status in (TaskStatus.COMPLETE, TaskStatus.UNREACHABLE):
+                    applied.append(cmd)  # Idempotent
+                    continue
+                self._tasks[cmd.task_id] = replace(
+                    task,
+                    status=TaskStatus.UNREACHABLE,
+                    unreachable_reason=cmd.reason,
+                )
+                self._state_version += 1
+                events.append(
+                    DomainEvent.create(
+                        simulation_tick=self._simulation_tick,
+                        simulation_time=self._simulation_time,
+                        event_type=EventType.TASK_UNREACHABLE if hasattr(EventType, "TASK_UNREACHABLE") else EventType.TASK_COMPLETED,
+                        entity_id=cmd.task_id,
+                        payload={"task_id": cmd.task_id, "reason": cmd.reason},
+                    )
+                )
+                applied.append(cmd)
                 continue
 
             uav = self._uavs.get(cmd.uav_id)

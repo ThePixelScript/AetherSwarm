@@ -1,10 +1,10 @@
 # ==============================================================================
-# AETHERSWARM RANDOMIZED WORKING SCENARIO (Seed: 2026)
+# AETHERSWARM RANDOMIZED WORKING SCENARIO (Seed: 5001)
 # Authoritative simulation scenario configuration.
 # Canonical reference scenario: scenarios/poc_round1.yaml
 # ==============================================================================
-name: random_seed_2026
-seed: 2026
+name: random_seed_5001
+seed: 5001
 dt: 1.0
 speed_limit: 5.0
 duration: 2700.0
@@ -76,7 +76,7 @@ config:
     enforce_separation: true
     enforce_geofence: true
   scenario:
-    seed: 2026
+    seed: 5001
     scenario_type: random
     num_pois: 10
 uavs:
@@ -137,73 +137,73 @@ uavs:
   battery_energy: 4200.0
   role: IDLE
 tasks:
-- id: poi_04
-  position:
-  - 491.0
-  - 770.34
-  priority: 2
-  spawn_time: 72.0
-  service_duration: 2.0
 - id: poi_10
   position:
-  - 872.71
-  - 701.94
+  - 906.26
+  - 228.31
   priority: 3
-  spawn_time: 92.7
-  service_duration: 2.0
-- id: poi_06
-  position:
-  - 811.62
-  - 683.33
-  priority: 3
-  spawn_time: 94.3
+  spawn_time: 110.4
   service_duration: 2.0
 - id: poi_05
   position:
-  - 613.06
-  - 114.63
-  priority: 1
-  spawn_time: 134.9
-  service_duration: 2.0
-- id: poi_09
-  position:
-  - 93.77
-  - 537.68
-  priority: 2
-  spawn_time: 137.2
-  service_duration: 2.0
-- id: poi_02
-  position:
-  - 948.42
-  - 880.28
+  - 890.78
+  - 524.45
   priority: 3
-  spawn_time: 186.4
-  service_duration: 2.0
-- id: poi_01
-  position:
-  - 122.93
-  - 502.49
-  priority: 3
-  spawn_time: 194.2
-  service_duration: 2.0
-- id: poi_08
-  position:
-  - 994.66
-  - 513.45
-  priority: 1
-  spawn_time: 216.9
-  service_duration: 2.0
-- id: poi_03
-  position:
-  - 421.41
-  - 571.84
-  priority: 3
-  spawn_time: 233.0
+  spawn_time: 123.6
   service_duration: 2.0
 - id: poi_07
   position:
-  - 398.25
-  - 349.18
+  - 991.78
+  - 804.47
   priority: 2
-  spawn_time: 241.5
+  spawn_time: 124.7
+  service_duration: 2.0
+- id: poi_08
+  position:
+  - 786.75
+  - 89.41
+  priority: 2
+  spawn_time: 150.5
+  service_duration: 2.0
+- id: poi_06
+  position:
+  - 928.17
+  - 345.56
+  priority: 2
+  spawn_time: 156.2
+  service_duration: 2.0
+- id: poi_02
+  position:
+  - 549.9
+  - 55.59
+  priority: 3
+  spawn_time: 171.9
+  service_duration: 2.0
+- id: poi_04
+  position:
+  - 385.35
+  - 823.52
+  priority: 2
+  spawn_time: 218.6
+  service_duration: 2.0
+- id: poi_03
+  position:
+  - 540.66
+  - 464.39
+  priority: 3
+  spawn_time: 222.8
+  service_duration: 2.0
+- id: poi_01
+  position:
+  - 569.55
+  - 627.03
+  priority: 3
+  spawn_time: 233.6
+  service_duration: 2.0
+- id: poi_09
+  position:
+  - 764.18
+  - 469.35
+  priority: 3
+  spawn_time: 245.6
   service_duration: 2.0

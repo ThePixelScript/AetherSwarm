@@ -384,3 +384,31 @@ def test_deterministic_repeatability():
     evs1 = [(e.simulation_tick, e.event_type.value, e.entity_id) for e in res1.all_events]
     evs2 = [(e.simulation_tick, e.event_type.value, e.entity_id) for e in res2.all_events]
     assert evs1 == evs2
+
+
+def test_sensor_fov_configuration_and_multihop_stations():
+    """Verify sensor FOV radius parameter reduces effective distance in multihop station calculation."""
+    from ares_swarm.autonomy.connectivity_planner import compute_multihop_stations
+
+    gcs = (0.0, 500.0)
+    target = (300.0, 500.0)
+    eff_range = 95.0
+
+    # 1. Default FOV (0m): distance = 300m -> math.ceil(300 / 95) = 4 hops -> 3 relays
+    h0, k0, st0 = compute_multihop_stations(gcs, target, effective_range=eff_range, sensor_fov_radius_m=0.0)
+    assert h0 == 4
+    assert k0 == 3
+    assert len(st0) == 3
+
+    # 2. Research FOV (40m): surveyor distance = 300 - 40 = 260m -> math.ceil(260 / 95) = 3 hops -> 2 relays
+    h40, k40, st40 = compute_multihop_stations(gcs, target, effective_range=eff_range, sensor_fov_radius_m=40.0)
+    assert h40 == 3
+    assert k40 == 2
+    assert len(st40) == 2
+
+    # 3. Planner config propagation
+    config_default = ConnectivityAwarePlannerConfig()
+    assert config_default.sensor_fov_radius_m == 0.0
+
+    planner_fov = ConnectivityAwarePlanner(sensor_fov_radius_m=40.0)
+    assert planner_fov.config.sensor_fov_radius_m == 40.0

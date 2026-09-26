@@ -122,7 +122,9 @@ def sample_random_pois(
                 "position": [px, py],
                 "priority": priority,
                 "spawn_time": spawn_time,
-                "deadline_offset": 10.0,
+                # No spawn-to-service deadline: the organiser's 10 s requirement is
+                # detection→GCS telemetry latency only, enforced separately via
+                # reporting_deadline_s in DetectionPipelineConfig.
                 "service_duration": 2.0,
             })
     else:
@@ -149,7 +151,9 @@ def sample_random_pois(
                 "position": [px, py],
                 "priority": priority,
                 "spawn_time": spawn_time,
-                "deadline_offset": 10.0,
+                # No spawn-to-service deadline: the organiser's 10 s requirement is
+                # detection→GCS telemetry latency only, enforced separately via
+                # reporting_deadline_s in DetectionPipelineConfig.
                 "service_duration": 2.0,
             })
 
@@ -224,6 +228,11 @@ def generate_scenario_dict(
             "enabled": True,
             "enforce_separation": True,
             "enforce_geofence": True,
+            # Enable relay manager and connectivity-aware planning so UAVs form
+            # relay chains before departing to distant POIs, maintaining the
+            # communication backbone required for 10 s detection→GCS telemetry.
+            "enable_relay_manager": True,
+            "enable_connectivity_aware_planning": True,
             "airspace": {
                 "enabled": True,
                 "staging_pad_center": list(gcs_pos),
@@ -233,6 +242,14 @@ def generate_scenario_dict(
                 "arena_bounds_x": [0.0, arena_size],
                 "arena_bounds_y": [0.0, arena_size],
                 "max_height": 100.0,
+            },
+            # Organiser requirement: detection → GCS telemetry within 10 s.
+            # This is independent of any spawn-to-service task deadline.
+            "detection_pipeline": {
+                "enabled": True,
+                "sensor_fov_radius_m": 40.0,
+                "reporting_deadline_s": 10.0,
+                "processing_delay_s": 0.0,
             },
         },
         "config": {

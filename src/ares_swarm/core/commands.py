@@ -111,3 +111,15 @@ class StepPhysicsCommand(Command):
     new_position_xy: Tuple[float, float]
     new_velocity_xy: Tuple[float, float]
     delta_energy: float
+
+
+@dataclass(frozen=True)
+class MarkTaskUnreachableCommand(Command):
+    """Mark a task as physically unreachable (no UAV/relay combination can reach it).
+
+    This is a system-level planner command; uav_id should be passed as the
+    reserved sentinel ``"__system__"`` so the StateStore can handle it before
+    the normal UAV entity lookup.
+    """
+    task_id: str = ""
+    reason: str = "PHYSICALLY_UNREACHABLE"
