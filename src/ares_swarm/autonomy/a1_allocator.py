@@ -312,22 +312,151 @@ class A1TaskAllocator(A0TaskAllocator):
         network_analysis: Any = None,
         snapshot: Any = None,
     ) -> AllocationResult:
-        """Deterministically allocate pending tasks using A0 matching with A1 scoring."""
-        prev_net = self._current_network_analysis
-        prev_snap = self._current_snapshot
-        self._current_network_analysis = network_analysis
-        self._current_snapshot = snapshot
-        try:
-            return super().allocate(
-                snapshot_or_uavs,
-                tasks,
-                uavs=uavs,
-                simulation_time=simulation_time,
-                snapshot_revision=snapshot_revision,
+        """Deterministically allocate pending tasks using A1 connectivity-aware scoring.
+        
+        Evaluates batch candidates sequentially, mutating a hypothetical working snapshot
+        to prevent simultaneous assignments from breaking the communication graph.
+        """
+        from typing import Sequence, Any, Mapping
+        from ares_swarm.autonomy.task_allocator import AllocationResult, TaskAssignment
+        import dataclasses
+        
+        # Parse inputs
+        if uavs is not None and tasks is not None:
+            raw_uavs = list(uavs)
+            raw_tasks = list(tasks)
+            sim_time = simulation_time if simulation_time is not None else 0.0
+            revision = snapshot_revision
+        elif tasks is not None:
+            raw_uavs = list(snapshot_or_uavs) if snapshot_or_uavs is not None else []
+            raw_tasks = list(tasks)
+            sim_time = simulation_time if simulation_time is not None else 0.0
+            revision = snapshot_revision
+        elif snapshot_or_uavs is not None and hasattr(snapshot_or_uavs, "state"):
+            state = snapshot_or_uavs.state
+            uavs_obj = getattr(state, "uavs", ())
+            tasks_obj = getattr(state, "tasks", ())
+            raw_uavs = list(uavs_obj.values() if isinstance(uavs_obj, Mapping) else uavs_obj)
+            raw_tasks = list(tasks_obj.values() if isinstance(tasks_obj, Mapping) else tasks_obj)
+            sim_time = simulation_time if simulation_time is not None else float(getattr(state, "simulation_time", 0.0))
+            revision = snapshot_revision or int(getattr(snapshot_or_uavs, "revision", getattr(snapshot_or_uavs, "state_version", 0)))
+        elif snapshot_or_uavs is not None and isinstance(snapshot_or_uavs, dict):
+            uavs_obj = snapshot_or_uavs.get("uavs", ())
+            tasks_obj = snapshot_or_uavs.get("tasks", ())
+            raw_uavs = list(uavs_obj.values() if isinstance(uavs_obj, Mapping) else uavs_obj)
+            raw_tasks = list(tasks_obj.values() if isinstance(tasks_obj, Mapping) else tasks_obj)
+            sim_time = simulation_time if simulation_time is not None else float(snapshot_or_uavs.get("simulation_time", 0.0))
+            revision = snapshot_revision or int(snapshot_or_uavs.get("revision", snapshot_or_uavs.get("state_version", 0)))
+        elif snapshot_or_uavs is not None:
+            uavs_obj = getattr(snapshot_or_uavs, "uavs", ())
+            tasks_obj = getattr(snapshot_or_uavs, "tasks", ())
+            raw_uavs = list(uavs_obj.values() if isinstance(uavs_obj, Mapping) else uavs_obj)
+            raw_tasks = list(tasks_obj.values() if isinstance(tasks_obj, Mapping) else tasks_obj)
+            sim_time = simulation_time if simulation_time is not None else float(getattr(snapshot_or_uavs, "simulation_time", 0.0))
+            revision = snapshot_revision or int(getattr(snapshot_or_uavs, "revision", getattr(snapshot_or_uavs, "state_version", 0)))
+        else:
+            raw_uavs = []
+            raw_tasks = []
+            sim_time = simulation_time if simulation_time is not None else 0.0
+            revision = snapshot_revision
+
+        # Check feasibility
+        feasible_tasks: list[Any] = []
+        infeasible_tasks: dict[str, str] = {}
+        for t in raw_tasks:
+            t_id = str(getattr(t, "id", ""))
+            ok, reason = super().is_task_feasible(t, sim_time)
+            if ok:
+                feasible_tasks.append(t)
+            else:
+                infeasible_tasks[t_id] = reason
+
+        feasible_uavs: list[Any] = []
+        infeasible_uavs: dict[str, str] = {}
+        for u in raw_uavs:
+            u_id = str(getattr(u, "id", ""))
+            ok, reason = super().is_uav_feasible(u, sim_time)
+            if ok:
+                feasible_uavs.append(u)
+            else:
+                infeasible_uavs[u_id] = reason
+
+        feasible_tasks.sort(
+            key=lambda t: (
+                -float(getattr(t, "priority", 1.0)),
+                0 if (getattr(t, "emergency_flag", False) or getattr(t, "is_emergency", False)) else 1,
+                str(getattr(t, "id", "")),
             )
-        finally:
-            self._current_network_analysis = prev_net
-            self._current_snapshot = prev_snap
+        )
+
+        available_uavs: dict[str, Any] = {str(u.id): u for u in feasible_uavs}
+        assignments: list[TaskAssignment] = []
+        unassigned_tasks: list[str] = []
+
+        # Setup working state for accumulated batch evaluation
+        working_snapshot = snapshot if snapshot is not None else (snapshot_or_uavs if hasattr(snapshot_or_uavs, "uavs") else None)
+        working_net = network_analysis
+        analyzer = self._get_comm_analyzer(working_net) if working_net else None
+
+        # Sequential evaluation
+        for task in feasible_tasks:
+            t_id = str(getattr(task, "id", ""))
+            if not available_uavs:
+                unassigned_tasks.append(t_id)
+                continue
+
+            best_uav_id = None
+            best_score = None
+            best_utility = float("-inf")
+            
+            self._current_snapshot = working_snapshot
+            self._current_network_analysis = working_net
+
+            for uav in available_uavs.values():
+                score = self.compute_utility(uav, task, network_analysis=working_net, snapshot=working_snapshot)
+                if score.total > best_utility:
+                    best_utility = score.total
+                    best_uav_id = str(uav.id)
+                    best_score = score
+                elif score.total == best_utility and best_uav_id is not None:
+                    if str(uav.id) < best_uav_id:
+                        best_uav_id = str(uav.id)
+                        best_score = score
+
+            self._current_snapshot = None
+            self._current_network_analysis = None
+
+            if best_uav_id is not None and best_utility >= float(getattr(self.config, "min_utility_threshold", 0.0)):
+                assignments.append(
+                    TaskAssignment(
+                        uav_id=best_uav_id,
+                        task_id=t_id,
+                        score=best_score.total,
+                        score_breakdown=best_score,
+                    )
+                )
+                del available_uavs[best_uav_id]
+                
+                # Apply hypothetical move
+                if working_snapshot is not None and analyzer is not None:
+                    task_pos = getattr(task, "position_xy", getattr(task, "position", None))
+                    if task_pos is not None and hasattr(working_snapshot, "uavs") and best_uav_id in working_snapshot.uavs:
+                        dest_uavs = dict(working_snapshot.uavs)
+                        curr_uav_state = dest_uavs[best_uav_id]
+                        dest_uavs[best_uav_id] = dataclasses.replace(curr_uav_state, position_xy=tuple(task_pos))
+                        working_snapshot = dataclasses.replace(working_snapshot, uavs=dest_uavs)
+                        working_net = analyzer.analyze(working_snapshot)
+            else:
+                unassigned_tasks.append(t_id)
+
+        return AllocationResult(
+            assignments=tuple(assignments),
+            unassigned_tasks=tuple(unassigned_tasks),
+            unassigned_uavs=tuple(available_uavs.keys()),
+            infeasible_tasks=infeasible_tasks,
+            infeasible_uavs=infeasible_uavs,
+            snapshot_revision=revision,
+        )
 
     def plan(
         self,
