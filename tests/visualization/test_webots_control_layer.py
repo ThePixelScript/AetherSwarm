@@ -33,11 +33,12 @@ import aetherswarm_supervisor
 from aetherswarm_supervisor import WebotsAetherSwarmSupervisor, find_trace_file
 
 from scripts.generate_scenario import generate_and_export_scenario
+from scripts.export_webots_trace import export_trace
 
-@pytest.fixture(scope="session", autouse=True)
-def _ensure_random_trace():
-    """Ensure the random trace exists before running webots visualization tests."""
-    data_dir = REPO_ROOT / "visualization" / "webots" / "data"
+@pytest.fixture(scope="module")
+def replay_traces(tmp_path_factory):
+    """Generate both maintained traces independently of developer output files."""
+    data_dir = tmp_path_factory.mktemp("replay_traces")
     data_dir.mkdir(parents=True, exist_ok=True)
     target = data_dir / "random_scenario_trace.json"
     
@@ -50,16 +51,19 @@ def _ensure_random_trace():
         max_ticks=2700,
         run_simulation=True,
     )
-    return target
+    canonical = data_dir / "e1_authoritative_trace.json"
+    # Existing seek/reset assertions reach tick 500; retain enough real frames.
+    export_trace(REPO_ROOT / "scenarios/poc_round1.yaml", canonical, experiment="E1", seed=42, max_ticks=600)
+    return {"random": target, "e1": canonical}
 
 
 @pytest.fixture
-def supervisor_e1():
+def supervisor_e1(replay_traces):
     """Create a standalone supervisor loaded with canonical E1 trace."""
     old_scen = os.environ.get("AETHERSWARM_SCENARIO")
     os.environ["AETHERSWARM_SCENARIO"] = "e1"
     try:
-        sup = WebotsAetherSwarmSupervisor()
+        sup = WebotsAetherSwarmSupervisor(trace_path=replay_traces["e1"])
         return sup
     finally:
         if old_scen is not None:
@@ -69,12 +73,12 @@ def supervisor_e1():
 
 
 @pytest.fixture
-def supervisor_random():
+def supervisor_random(replay_traces):
     """Create a standalone supervisor loaded with randomized working scenario trace."""
     old_scen = os.environ.get("AETHERSWARM_SCENARIO")
     os.environ["AETHERSWARM_SCENARIO"] = "random"
     try:
-        sup = WebotsAetherSwarmSupervisor()
+        sup = WebotsAetherSwarmSupervisor(trace_path=replay_traces["random"])
         return sup
     finally:
         if old_scen is not None:

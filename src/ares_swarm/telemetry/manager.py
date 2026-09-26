@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import dataclasses
 import math
-from typing import Any, Mapping, Optional, Sequence, Tuple
+from typing import Any, Mapping, Optional, Sequence, Tuple, TYPE_CHECKING
 
 from ..core.constants import EPSILON
 from ..core.enums import EventType, RTHState, TelemetryStatus
@@ -11,7 +11,8 @@ from ..core.events import DomainEvent
 from ..core.models import StateSnapshot, TelemetryReport, UAVState
 from ..interfaces.communication import NetworkAnalysis
 from ..communication.analysis import route_latency_ms
-from ..simulation.scenario import DetectionPipelineConfig
+if TYPE_CHECKING:
+    from ..simulation.scenario import DetectionPipelineConfig
 
 
 class DetectionManager:

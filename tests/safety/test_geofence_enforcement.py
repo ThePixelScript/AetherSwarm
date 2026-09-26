@@ -29,6 +29,7 @@ from ares_swarm.safety.geofence import GeofenceEnforcer
 from ares_swarm.safety.separation import SeparationEnforcer
 from ares_swarm.simulation.runner import MissionRunner
 from ares_swarm.simulation.scenario import load_scenario
+from scripts.generate_random_scenario import generate_random_scenario
 
 
 def _make_airspace() -> ChallengeAirspace:
@@ -63,7 +64,7 @@ def _make_snapshot(
 # --- Test A: Seed 2026 Corridor Clipping Regression Test ---
 def test_a_seed_2026_corridor_clipping_eliminated():
     """Test A: Challenge Seed 2026 with geofence enforcement eliminates corridor boundary violations."""
-    scenario = load_scenario("results/random/random_seed_2026.yaml")
+    scenario = load_scenario(generate_random_scenario(seed=2026))
     # Enable both separation enforcement and geofence enforcement
     scenario = replace(
         scenario,
@@ -394,7 +395,7 @@ def test_j_combined_geofence_and_separation():
 # --- Test K: Disabled Enforcement Preserves Baseline ---
 def test_k_disabled_preserves_baseline():
     """Test K: When enforce_geofence is False, geofence_enforcer is None."""
-    scenario = load_scenario("results/random/random_seed_2026.yaml")
+    scenario = load_scenario(generate_random_scenario(seed=2026))
     # Separation True, Geofence False
     scenario = replace(
         scenario,
@@ -417,7 +418,7 @@ def test_k_disabled_preserves_baseline():
 # --- Test L: Deterministic Replay ---
 def test_l_deterministic_replay():
     """Test L: Two independent runs with geofence enforcement produce bitwise identical results."""
-    scenario = load_scenario("results/random/random_seed_2026.yaml")
+    scenario = load_scenario(generate_random_scenario(seed=2026))
     scenario = replace(
         scenario,
         challenge_profile=replace(
