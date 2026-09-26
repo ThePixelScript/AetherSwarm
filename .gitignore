@@ -5,6 +5,13 @@ __pycache__/
 
 # Virtual environments
 .venv/
+.venv-release/
+pytest_release/
+release_audit_*/
+stage1_output/runs/
+stage1_output/logs/
+e2_output/
+visualization/webots/data/random_seed_*.yaml
 venv/
 env/
 

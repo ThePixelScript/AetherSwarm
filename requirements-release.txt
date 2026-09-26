@@ -1,0 +1,10 @@
+# Versions executed in the independent Python 3.12 release environment.
+numpy==2.5.3
+networkx==3.7
+pyyaml==6.0.3
+pytest==9.1.1
+colorama==0.4.6
+iniconfig==2.3.0
+packaging==26.3
+pluggy==1.6.0
+pygments==2.21.0
