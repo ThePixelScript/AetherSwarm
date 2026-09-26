@@ -357,9 +357,13 @@ class SafetyAssessor:
                 # Not currently airborne (staged or landed)
                 continue
 
-            dx = abs(u.position_xy[0] - self.gcs_position[0])
-            dy = abs(u.position_xy[1] - self.gcs_position[1])
-            dist_to_gcs = dx + dy  # Non-collinear transit distance via corridor
+            if self.airspace is not None:
+                # Direct transit to corridor entry (0, 500) then corridor transit to GCS
+                d_arena = math.hypot(u.position_xy[0] - 0.0, u.position_xy[1] - self.gcs_position[1]) if u.position_xy[0] > 0 else 0.0
+                d_corridor = math.hypot(min(0.0, u.position_xy[0]) - self.gcs_position[0], 0.0)
+                dist_to_gcs = d_arena + d_corridor
+            else:
+                dist_to_gcs = math.hypot(u.position_xy[0] - self.gcs_position[0], u.position_xy[1] - self.gcs_position[1])
 
             return_time_s = dist_to_gcs / max(1.0, speed_limit)
             return_energy = (idle_rate * return_time_s + movement_rate * dist_to_gcs) * self.rth_energy_buffer
@@ -371,7 +375,8 @@ class SafetyAssessor:
             uav_idx = sorted_uav_ids.index(u.id)
             stagger_time = uav_idx * 4.0
             time_left = max(0.0, mission_duration - sim_time)
-            time_trigger = enable_time_rth and (time_left <= (return_time_s * self.rth_energy_buffer + stagger_time) + EPSILON)
+            time_margin = max(self.rth_safety_margin_s, 15.0)
+            time_trigger = enable_time_rth and (time_left <= (return_time_s + time_margin + stagger_time) + EPSILON)
 
             # 3. Sortie Duration Trigger (V1 Assumption: 1200s limit - required transit time - safety margin)
             sortie_trigger = False

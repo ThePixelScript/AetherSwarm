@@ -258,13 +258,14 @@ class StateStore:
                 ))
 
             elif isinstance(cmd, ReleaseRelayRoleCommand):
-                if uav.role != Role.RELAY:
+                if uav.role not in (Role.RELAY, Role.SURVEYOR):
                     rejection = CommandRejection(
                         cmd,
                         RejectionCode.ILLEGAL_LIFECYCLE_TRANSITION,
-                        f"UAV {uav.id} is not in RELAY role (current: {uav.role})",
+                        f"UAV {uav.id} is not in RELAY or SURVEYOR role (current: {uav.role})",
                     )
                 else:
+                    prev_role = uav.role
                     staged_uavs[uav.id] = replace(
                         uav,
                         role=cmd.next_role,
@@ -276,8 +277,8 @@ class StateStore:
                         event_type=EventType.RELAY_RELEASED,
                         entity_id=uav.id,
                         payload={
-                            "previous_role": Role.RELAY.value,
-                            "new_role": cmd.next_role.value,
+                            "previous_role": prev_role.value if hasattr(prev_role, "value") else str(prev_role),
+                            "new_role": cmd.next_role.value if hasattr(cmd.next_role, "value") else str(cmd.next_role),
                         },
                         sequence=len(events) + len(staged_events),
                     ))
@@ -604,7 +605,7 @@ class StateStore:
                     staged_tasks[task.id] = replace(task, service_progress=new_progress, status=new_status)
                     if is_complete:
                         staged_tasks[task.id] = replace(staged_tasks[task.id], assigned_uav_id=None)
-                        staged_uavs[uav.id] = replace(uav, assigned_task_id=None)
+                        staged_uavs[uav.id] = replace(uav, assigned_task_id=None, role=Role.IDLE)
                         staged_events.append(DomainEvent.create(
                             simulation_tick=self._simulation_tick,
                             simulation_time=self._simulation_time,

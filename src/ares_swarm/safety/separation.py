@@ -283,13 +283,13 @@ class SeparationEnforcer:
                 base_angle = math.atan2(nom_v[1], nom_v[0])
                 best_progress = chosen_alpha
 
-                for delta_deg in [25.0, -25.0, 50.0, -50.0, 75.0, -75.0]:
+                for delta_deg in [25.0, -25.0, 45.0, -45.0, 60.0, -60.0, 75.0, -75.0, 90.0, -90.0, 105.0, -105.0]:
                     rad = math.radians(delta_deg)
                     cand_angle = base_angle + rad
                     cand_v = (speed * math.cos(cand_angle), speed * math.sin(cand_angle))
                     cand_alpha, cand_partner = find_best_alpha(cand_v)
-                    cand_progress = cand_alpha * math.cos(rad)
-                    if cand_alpha >= 0.4 and cand_progress > best_progress:
+                    cand_progress = cand_alpha * max(0.05, math.cos(rad))
+                    if cand_alpha >= 0.2 and cand_progress > best_progress:
                         best_progress = cand_progress
                         best_v = cand_v
                         partner_id = cand_partner

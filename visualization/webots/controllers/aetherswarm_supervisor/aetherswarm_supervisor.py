@@ -102,15 +102,11 @@ def find_trace_file(supervisor: Any = None, explicit_path: Path | str | None = N
             pass
 
     # 2. Map selector to known authoritative trace files
-    if "random" in selector or "demo" in selector:
-        target_scenario = data_dir / "random_scenario_trace.json"
-        if target_scenario.is_file():
-            log_msg(f"[Webots Supervisor] Selected randomized scenario trace (selector='{selector}'): {target_scenario}")
-            return target_scenario
-        target_compat = data_dir / "random_demo_trace.json"
-        if target_compat.is_file():
-            log_msg(f"[Webots Supervisor] Selected randomized scenario trace (selector='{selector}'): {target_compat}")
-            return target_compat
+    if "e1" in selector:
+        target = data_dir / "e1_authoritative_trace.json"
+        if target.is_file():
+            log_msg(f"[Webots Supervisor] Selected E1 trace (selector='{selector}'): {target}")
+            return target
 
     if "recovery" in selector:
         target = data_dir / "recovery_authoritative_trace.json"
@@ -118,22 +114,26 @@ def find_trace_file(supervisor: Any = None, explicit_path: Path | str | None = N
             log_msg(f"[Webots Supervisor] Selected recovery trace (selector='{selector}'): {target}")
             return target
 
-    if "e1" in selector:
-        target = data_dir / "e1_authoritative_trace.json"
-        if target.is_file():
-            log_msg(f"[Webots Supervisor] Selected E1 trace (selector='{selector}'): {target}")
-            return target
+    # 3. Canonical default and 'random'/'demo' selector: randomized 10-POI mission trace
+    target_scenario = data_dir / "random_scenario_trace.json"
+    if target_scenario.is_file():
+        log_msg(f"[Webots Supervisor] Selected randomized scenario trace (selector='{selector or 'default'}'): {target_scenario}")
+        return target_scenario
 
-    # 3. Deterministic canonical default: official E1 benchmark trace
+    target_compat = data_dir / "random_demo_trace.json"
+    if target_compat.is_file():
+        log_msg(f"[Webots Supervisor] Selected randomized scenario trace (selector='{selector or 'default'}'): {target_compat}")
+        return target_compat
+
+    # Fallback to E1 or recovery if random trace is absent
     default_e1 = data_dir / "e1_authoritative_trace.json"
     if default_e1.is_file():
-        log_msg(f"[Webots Supervisor] Defaulting deterministically to official E1 trace: {default_e1}")
+        log_msg(f"[Webots Supervisor] Randomized trace not found; selecting E1 trace: {default_e1}")
         return default_e1
 
-    # Fallback to recovery trace if E1 is absent
     recovery = data_dir / "recovery_authoritative_trace.json"
     if recovery.is_file():
-        log_msg(f"[Webots Supervisor] E1 trace not found; selecting recovery trace: {recovery}")
+        log_msg(f"[Webots Supervisor] Fallback to recovery trace: {recovery}")
         return recovery
 
     raise FileNotFoundError(
@@ -1264,6 +1264,7 @@ class WebotsAetherSwarmSupervisor:
             sim_tick = step["tick"]
             sim_time = step["time"]
             uavs = step["uavs"]
+            tasks = step["tasks"]
             events = step.get("events", [])
 
             # Print domain events only on first encounter
@@ -1280,6 +1281,18 @@ class WebotsAetherSwarmSupervisor:
 
                 self.perform_spatial_verification(sim_tick, sim_time, current_active_positions)
                 verified_ticks.add(tick)
+
+                if sim_tick in (0, 100, 200, 300, 500, 1000, 1250, 1499, 1713):
+                    u1_pos = [round(v, 2) for v in self.drone_trans_fields["uav_1"].getSFVec3f()] if (self.supervisor and "uav_1" in self.drone_trans_fields) else [round(v, 2) for v in uavs.get("uav_1", {}).get("position", [])]
+                    u2_pos = [round(v, 2) for v in self.drone_trans_fields["uav_2"].getSFVec3f()] if (self.supervisor and "uav_2" in self.drone_trans_fields) else [round(v, 2) for v in uavs.get("uav_2", {}).get("position", [])]
+                    u8_pos = [round(v, 2) for v in self.drone_trans_fields["uav_8"].getSFVec3f()] if (self.supervisor and "uav_8" in self.drone_trans_fields) else [round(v, 2) for v in uavs.get("uav_8", {}).get("position", [])]
+                    comm_count = self.comm_coord_field.getCount() // 2 if (self.supervisor and self.comm_coord_field) else len(step.get("network", {}).get("active_links", []))
+                    log_msg(f"  [Webots Live Spatial Verification @ Tick {sim_tick:4d}] UAV_1={u1_pos} UAV_2={u2_pos} UAV_8={u8_pos} ActiveLinks={comm_count}")
+
+                if sim_tick == 0:
+                    for sample_poi in ("poi_04", "poi_10", "poi_05", "poi_01"):
+                        p_pos = [round(v, 2) for v in self.poi_trans_fields[sample_poi].getSFVec3f()] if (self.supervisor and sample_poi in self.poi_trans_fields) else [round(v, 2) for v in tasks.get(sample_poi, {}).get("position", [])]
+                        log_msg(f"  [Webots Live POI Position @ Tick 0] {sample_poi}={p_pos}")
 
                 if sim_tick % 100 == 0 or sim_tick == self.total_ticks - 1:
                     log_msg(f"  [Webots Playback] Progress: tick {sim_tick}/{self.total_ticks} ({sim_time:.1f}s)")

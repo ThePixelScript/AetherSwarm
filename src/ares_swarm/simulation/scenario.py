@@ -152,13 +152,18 @@ def load_scenario(source: str | Path | dict[str, Any]) -> ScenarioConfig:
     enable_auto_rth = bool(raw.get("enable_auto_rth", True))
     return_by_mission_end = bool(raw.get("return_by_mission_end", False))
     recharge_duration_s = float(raw.get("recharge_duration_s", raw.get("challenge_profile", {}).get("recharge_duration_s", 300.0)))
-    enforce_single_sortie = bool(raw.get("enforce_single_sortie", raw.get("challenge_profile", {}).get("enforce_single_sortie", raw.get("challenge_profile", {}).get("enabled", False))))
-
-    uavs_raw = tuple(raw.get("uavs", []))
-    tasks_raw = tuple(raw.get("tasks", []))
 
     challenge_raw = raw.get("challenge_profile", {})
     challenge_enabled = bool(challenge_raw.get("enabled", False))
+    if "enforce_single_sortie" in raw:
+        enforce_single_sortie = bool(raw.get("enforce_single_sortie"))
+    elif "enforce_single_sortie" in challenge_raw:
+        enforce_single_sortie = bool(challenge_raw.get("enforce_single_sortie"))
+    else:
+        enforce_single_sortie = (challenge_enabled if duration <= float(challenge_raw.get("max_sortie_duration_s", 1200.0)) else False)
+
+    uavs_raw = tuple(raw.get("uavs", []))
+    tasks_raw = tuple(raw.get("tasks", []))
     airspace_raw = challenge_raw.get("airspace", {})
     airspace_config = ChallengeAirspaceConfig(
         enabled=bool(airspace_raw.get("enabled", challenge_enabled)),
@@ -176,7 +181,7 @@ def load_scenario(source: str | Path | dict[str, Any]) -> ScenarioConfig:
         rth_safety_margin_s=float(challenge_raw.get("rth_safety_margin_s", 15.0)),
         recharge_duration_s=float(challenge_raw.get("recharge_duration_s", raw.get("recharge_duration_s", 300.0))),
         enforce_sortie_limit=bool(challenge_raw.get("enforce_sortie_limit", True)),
-        enforce_single_sortie=bool(challenge_raw.get("enforce_single_sortie", True)),
+        enforce_single_sortie=enforce_single_sortie,
         enforce_separation=bool(challenge_raw.get("enforce_separation", False)),
         enforce_geofence=bool(challenge_raw.get("enforce_geofence", False)),
         airspace=airspace_config,

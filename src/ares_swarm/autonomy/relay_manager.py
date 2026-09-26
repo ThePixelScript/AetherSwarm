@@ -148,6 +148,15 @@ class DynamicRelayManager:
                 created_time=created_time,
                 status=ChainStatus.ACTIVE,
             )
+        if chain.chain_id in self.chains:
+            old_c = self.chains[chain.chain_id]
+            if old_c.surveyor_id and old_c.surveyor_id != chain.surveyor_id:
+                self.surveyor_to_chain.pop(old_c.surveyor_id, None)
+                self.surveyor_to_relay.pop(old_c.surveyor_id, None)
+                for rid in old_c.relay_ids:
+                    if rid in self.relay_dependent_surveyors:
+                        self.relay_dependent_surveyors[rid].discard(old_c.surveyor_id)
+
         self.chains[chain.chain_id] = chain
         self.surveyor_to_chain[chain.surveyor_id] = chain.chain_id
         for rid, pos in zip(chain.relay_ids, chain.station_positions):
@@ -171,12 +180,20 @@ class DynamicRelayManager:
         if not chain:
             return cmds
         chain.status = ChainStatus.TEARDOWN
+
+        # Find all surveyors associated with this chain
+        chain_surveyors = [s for s, c in self.surveyor_to_chain.items() if c == chain_id]
+        if chain.surveyor_id:
+            chain_surveyors.append(chain.surveyor_id)
+        all_survs = set(chain_surveyors)
+
         # Release any in-progress replacement UAVs in pending handoffs
         for h in list(chain.pending_handoffs.values()):
             rep_id = h.get("replacement_id")
             if rep_id:
                 if rep_id in self.relay_dependent_surveyors:
-                    self.relay_dependent_surveyors[rep_id].discard(chain.surveyor_id)
+                    for s in all_survs:
+                        self.relay_dependent_surveyors[rep_id].discard(s)
                 deps = self.relay_dependent_surveyors.get(rep_id, set())
                 if not deps:
                     release_cmd = ReleaseRelayRoleCommand(source_tick=tick, uav_id=rep_id, next_role=Role.IDLE)
@@ -196,7 +213,8 @@ class DynamicRelayManager:
 
         for rid in chain.relay_ids:
             if rid in self.relay_dependent_surveyors:
-                self.relay_dependent_surveyors[rid].discard(chain.surveyor_id)
+                for s in all_survs:
+                    self.relay_dependent_surveyors[rid].discard(s)
             deps = self.relay_dependent_surveyors.get(rid, set())
             if not deps:
                 release_cmd = ReleaseRelayRoleCommand(source_tick=tick, uav_id=rid, next_role=Role.IDLE)
@@ -219,8 +237,9 @@ class DynamicRelayManager:
                 next_chain = self.surveyor_to_chain.get(next_surv)
                 if next_chain:
                     self.relay_to_chain[rid] = next_chain
-        self.surveyor_to_chain.pop(chain.surveyor_id, None)
-        self.surveyor_to_relay.pop(chain.surveyor_id, None)
+        for s in all_survs:
+            self.surveyor_to_chain.pop(s, None)
+            self.surveyor_to_relay.pop(s, None)
         self.chains.pop(chain_id, None)
         return cmds
 
@@ -382,6 +401,12 @@ class DynamicRelayManager:
                 continue
 
             # 2. Imminent RTH & Endurance Feasibility Gates (Requirement 5)
+            if u.id in self.relay_positions:
+                curr_st = self.relay_positions[u.id]
+                d_st = math.hypot(curr_st[0] - relay_position[0], curr_st[1] - relay_position[1])
+                if d_st > self.config.airborne_reuse_tolerance_m:
+                    continue
+
             d_to_relay = math.hypot(u.position_xy[0] - relay_position[0], u.position_xy[1] - relay_position[1])
             t_to_relay = d_to_relay / max(1.0, speed_limit)
 

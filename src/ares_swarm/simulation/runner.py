@@ -337,7 +337,7 @@ class MissionRunner:
                 movement_rate=self.scenario.battery_movement_rate,
                 max_sortie_duration_s=max_sortie_s,
                 enforce_sortie_limit=enforce_sortie,
-                allow_partial_chains=True,
+                allow_partial_chains=False,
                 sensor_fov_radius_m=sensor_fov,
             )
 
@@ -408,6 +408,21 @@ class MissionRunner:
         """Execute exactly one deterministic simulation tick."""
         current_snap = self.state_store.snapshot()
         current_tick = current_snap.simulation_tick
+        gcs_pos = self.scenario.gcs_position
+        challenge_prof = getattr(self.scenario, "challenge_profile", None)
+        recharge_duration_s = float(
+            getattr(self.scenario, "recharge_duration_s",
+                getattr(challenge_prof, "recharge_duration_s",
+                    getattr(getattr(self.scenario.config, "challenge", None), "recharge_duration_s", 300.0)
+                )
+            )
+        )
+        if challenge_prof and challenge_prof.enabled:
+            allow_multi_sortie = not challenge_prof.enforce_single_sortie
+        elif getattr(self.scenario, "allow_multi_sortie", False) or getattr(self.scenario, "enable_recharge", False):
+            allow_multi_sortie = True
+        else:
+            allow_multi_sortie = False
 
         applied_commands = []
         rejected_commands = []
@@ -634,6 +649,44 @@ class MissionRunner:
                         rejected_commands.extend(res_auto_rth.rejected_commands)
                         tick_events.extend(res_auto_rth.emitted_events)
 
+                # 5.6 Airborne Idle Fleet Recycling to Base for recharge
+                if allow_multi_sortie and self.relay_manager is not None:
+                    idle_recycle_cmds = []
+                    snap_recycle = self.state_store.snapshot()
+                    flight_recs = getattr(self.safety_assessor.report, "uav_flight_records", {})
+                    has_active_tasks = any(
+                        t.status in (TaskStatus.ASSIGNED, TaskStatus.IN_PROGRESS)
+                        for t in snap_recycle.tasks.values()
+                    )
+                    for u in sorted(snap_recycle.uavs.values(), key=lambda x: x.id):
+                        if (
+                            u.active
+                            and u.role == Role.IDLE
+                            and u.assigned_task_id is None
+                            and u.rth_state == RTHState.NONE
+                            and u.sortie_state not in (SortieState.RTH, SortieState.LANDING, SortieState.LANDED, SortieState.RECHARGING)
+                        ):
+                            if self.relay_manager and (u.id in self.relay_manager.relay_to_chain or self.relay_manager.is_in_pending_handoff(u.id)):
+                                continue
+                            d_from_gcs = math.hypot(u.position_xy[0] - gcs_pos[0], u.position_xy[1] - gcs_pos[1])
+                            if d_from_gcs > 15.0:
+                                rec = flight_recs.get(u.id)
+                                airborne_time = getattr(rec, "current_sortie_duration_s", 0.0) if rec else 0.0
+                                rem_sortie = max(0.0, 1200.0 - airborne_time)
+                                is_at_staging = math.hypot(u.position_xy[0] - 0.0, u.position_xy[1] - 500.0) < 15.0
+                                if is_at_staging or rem_sortie < 300.0 or u.battery_percent < 70.0:
+                                    idle_recycle_cmds.append(
+                                        StartRTHCommand(
+                                            source_tick=current_tick,
+                                            uav_id=u.id,
+                                        )
+                                    )
+                    if idle_recycle_cmds:
+                        res_rec = self.state_store.apply(idle_recycle_cmds)
+                        applied_commands.extend(res_rec.applied_commands)
+                        rejected_commands.extend(res_rec.rejected_commands)
+                        tick_events.extend(res_rec.emitted_events)
+
         # 5.5 Ground Departure Sequencing (deterministic taxi / clearance)
         if self.departure_sequencer is not None:
             dep_cmds, dep_events = self.departure_sequencer.step(
@@ -661,21 +714,6 @@ class MissionRunner:
         # 7. RTH Arrival Completion and Recharge Lifecycle Management
         snap_post_step = self.state_store.snapshot()
         lifecycle_cmds = []
-        gcs_pos = self.scenario.gcs_position
-        challenge_prof = getattr(self.scenario, "challenge_profile", None)
-        recharge_duration_s = float(
-            getattr(self.scenario, "recharge_duration_s",
-                getattr(challenge_prof, "recharge_duration_s",
-                    getattr(getattr(self.scenario.config, "challenge", None), "recharge_duration_s", 300.0)
-                )
-            )
-        )
-        if challenge_prof and challenge_prof.enabled:
-            allow_multi_sortie = not challenge_prof.enforce_single_sortie
-        elif getattr(self.scenario, "allow_multi_sortie", False) or getattr(self.scenario, "enable_recharge", False):
-            allow_multi_sortie = True
-        else:
-            allow_multi_sortie = False
 
         sim_time_now = snap_post_step.simulation_time
         all_done_final = (
@@ -716,13 +754,6 @@ class MissionRunner:
                     lifecycle_cmds.append(
                         CompleteRechargeCommand(source_tick=current_tick, uav_id=uav.id)
                     )
-                    # Reset flight record in safety assessor so new sortie starts cleanly
-                    rec = self.safety_assessor.report.uav_flight_records.get(uav.id)
-                    if rec:
-                        rec.is_airborne = False
-                        rec.landing_time = None
-                        rec.current_sortie_duration_s = 0.0
-                        rec.takeoff_time = None
                 else:
                     # Ground linear recharge: increment battery energy across time
                     recharge_rate = uav.battery_capacity / max(r_dur, 1.0)
@@ -790,9 +821,27 @@ class MissionRunner:
 
         for _ in range(limit):
             step_res = self.step()
-            # Early termination if all UAVs are successfully landed and mission requires return
+            # Early termination only if all tasks are complete/unreachable/expired and all UAVs have landed
             if self.scenario.return_by_mission_end:
-                if all(not u.active and u.rth_state == RTHState.COMPLETE for u in step_res.snapshot.uavs.values() if u.failure_state.name != "FAILED"):
+                snap = step_res.snapshot
+                all_tasks_finished = (
+                    len(snap.tasks) > 0
+                    and all(
+                        t.status in (TaskStatus.COMPLETE, TaskStatus.UNREACHABLE)
+                        or (
+                            t.status in (TaskStatus.PENDING, TaskStatus.DEFERRED)
+                            and t.deadline > 0.0
+                            and snap.simulation_time >= t.deadline
+                        )
+                        for t in snap.tasks.values()
+                    )
+                )
+                all_uavs_landed = all(
+                    not u.active and u.rth_state == RTHState.COMPLETE
+                    for u in snap.uavs.values()
+                    if u.failure_state.name != "FAILED"
+                )
+                if all_tasks_finished and all_uavs_landed:
                     break
 
         final_snap = self.state_store.snapshot()

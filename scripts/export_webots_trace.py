@@ -25,6 +25,11 @@ sys.path.insert(0, str(repo_root / "src"))
 
 from ares_swarm.autonomy.a0_adapter import A0AutonomyAdapter
 from ares_swarm.autonomy.a1_allocator import A1TaskAllocator
+from ares_swarm.autonomy.connectivity_planner import (
+    ConnectivityAwarePlanner,
+    ConnectivityAwarePlannerConfig,
+)
+from ares_swarm.autonomy.relay_manager import DynamicRelayManager
 from ares_swarm.autonomy.task_allocator import A0TaskAllocator
 from ares_swarm.core.enums import FailureState, Role, RTHState, TaskStatus
 from ares_swarm.core.event_scheduler import ScheduledEvent, ScheduledEventType
@@ -80,6 +85,7 @@ def export_trace(
     seed: int = 42,
     a1: bool = True,
     max_ticks: int | None = None,
+    comm_range: float | None = None,
 ) -> Path:
     """Run authoritative AetherSwarm simulation and export Webots trace JSON."""
     scenario_file = Path(scenario_path)
@@ -91,7 +97,15 @@ def export_trace(
 
     # Setup experiment specific modifiers
     scheduled_events: list[ScheduledEvent] = []
-    comm_range = 100.0 if experiment in ("E0", "E1", "E3", "E4") else base_scenario.communication.max_range
+    if comm_range is not None:
+        actual_comm_range = comm_range
+    elif experiment in ("E0", "E1", "E3", "E4", "baseline"):
+        actual_comm_range = 100.0
+    elif experiment in ("random", "demo", "research_150m"):
+        actual_comm_range = 150.0
+    else:
+        actual_comm_range = base_scenario.communication.max_range
+
     tasks = base_scenario.tasks
     uavs = base_scenario.uavs
 
@@ -109,15 +123,38 @@ def export_trace(
     # Construct scenario configuration
     scenario = dataclasses.replace(
         base_scenario,
-        communication=dataclasses.replace(base_scenario.communication, max_range=comm_range),
+        communication=dataclasses.replace(base_scenario.communication, max_range=actual_comm_range),
         tasks=tasks,
         uavs=uavs,
     )
 
+    relay_mgr = DynamicRelayManager() if a1 else None
+    conn_planner = None
+    if a1:
+        planner_cfg = ConnectivityAwarePlannerConfig(
+            enabled=True,
+            comm_range_m=actual_comm_range,
+            effective_range_factor=142.5 / 150.0 if actual_comm_range >= 150.0 else 0.95,
+            max_sortie_duration_s=1200.0,
+            speed_limit=5.0,
+            idle_rate=1.0,
+            movement_rate=0.5,
+            rth_safety_margin_s=15.0,
+            enforce_sortie_limit=True,
+            enable_multihop_chains=True,
+            max_chain_relays=12,
+        )
+        conn_planner = ConnectivityAwarePlanner(
+            config=planner_cfg,
+            relay_manager=relay_mgr,
+        )
+
     runner = MissionRunner(
         scenario=scenario,
         seed=seed,
-        autonomy_adapter=adapter,
+        autonomy_adapter=adapter if not a1 else None,
+        relay_manager=relay_mgr,
+        connectivity_planner=conn_planner,
     )
 
     for evt in scheduled_events:
