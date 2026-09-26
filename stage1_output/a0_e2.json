@@ -1,0 +1,937 @@
+{
+  "scenario_name": "e2_controlled",
+  "seed": 2026,
+  "total_ticks": 400,
+  "final_simulation_time": 400.0,
+  "metrics": {
+    "tasks_total": 1,
+    "tasks_spawned": 1,
+    "tasks_assigned": 0,
+    "tasks_completed": 1,
+    "tasks_expired": 0,
+    "mission_completion_rate": 1.0,
+    "total_energy_consumed": 1631.6228,
+    "final_connected_uav_count": 4,
+    "final_connected_uavs": [
+      "uav_1",
+      "uav_2",
+      "uav_3",
+      "uav_4"
+    ],
+    "total_events_generated": 63
+  },
+  "uavs": {
+    "uav_1": {
+      "position": [
+        80.0,
+        560.0
+      ],
+      "velocity": [
+        0.0,
+        0.0
+      ],
+      "battery_energy": 49600.0,
+      "battery_percent": 99.2,
+      "role": "IDLE",
+      "rth_state": "NONE",
+      "active": true,
+      "assigned_task_id": null
+    },
+    "uav_2": {
+      "position": [
+        80.0,
+        440.0
+      ],
+      "velocity": [
+        0.0,
+        0.0
+      ],
+      "battery_energy": 49600.0,
+      "battery_percent": 99.2,
+      "role": "IDLE",
+      "rth_state": "NONE",
+      "active": true,
+      "assigned_task_id": null
+    },
+    "uav_3": {
+      "position": [
+        160.0,
+        500.0
+      ],
+      "velocity": [
+        0.0,
+        0.0
+      ],
+      "battery_energy": 49568.3772,
+      "battery_percent": 99.14,
+      "role": "IDLE",
+      "rth_state": "NONE",
+      "active": true,
+      "assigned_task_id": null
+    },
+    "uav_4": {
+      "position": [
+        140.0,
+        440.0
+      ],
+      "velocity": [
+        0.0,
+        0.0
+      ],
+      "battery_energy": 49600.0,
+      "battery_percent": 99.2,
+      "role": "IDLE",
+      "rth_state": "NONE",
+      "active": true,
+      "assigned_task_id": null
+    }
+  },
+  "tasks": {
+    "poi_01": {
+      "status": "COMPLETE",
+      "service_progress": 60.0,
+      "service_duration": 60.0,
+      "assigned_uav_id": null
+    }
+  },
+  "evaluation": {
+    "mission": {
+      "tasks_total": 1,
+      "tasks_spawned": 1,
+      "tasks_assigned": 0,
+      "tasks_completed": 1,
+      "tasks_expired": 0,
+      "mission_completion_rate": 1.0,
+      "completion_time_s": 332.0,
+      "priority_weighted_score": 1.0,
+      "total_energy_consumed_wh": 1631.6228
+    },
+    "communication": {
+      "model_estimated_route_pdr": 0.3937,
+      "model_estimated_route_latency_ms": 13.8,
+      "connectivity_availability": 0.9375,
+      "downtime_s": 100.0
+    },
+    "resilience": {
+      "status": "NOT_APPLICABLE_M0",
+      "note": "Dynamic relay allocation and failure recovery deferred to A1+/M1",
+      "relay_reallocations": null,
+      "recovery_time_s": null,
+      "network_reconfiguration_efficiency": null,
+      "performance_after_failure": null
+    },
+    "safety": {
+      "separation_violation_count": 0,
+      "min_inter_uav_separation_m": 60.0,
+      "battery_exhaustion_count": 0,
+      "geofence_violation_count": 0,
+      "min_boundary_clearance_m": 141.58,
+      "separation_interventions": 0,
+      "per_uav_intervention_counts": {},
+      "geofence_interventions": 0,
+      "per_uav_geofence_intervention_counts": {}
+    },
+    "telemetry": {
+      "total_detections": 1,
+      "reports_delivered": 0,
+      "reports_deadline_exceeded": 1,
+      "reporting_compliance_ratio": 0.0,
+      "mean_reporting_latency_s": null,
+      "max_reporting_latency_s": null,
+      "per_uav_detection_counts": {
+        "uav_3": 1
+      },
+      "per_uav_delivered_counts": {}
+    }
+  },
+  "telemetry": {
+    "total_detections": 1,
+    "reports_delivered": 0,
+    "reports_deadline_exceeded": 1,
+    "reporting_compliance_ratio": 0.0,
+    "mean_reporting_latency_s": null,
+    "max_reporting_latency_s": null,
+    "per_uav_detection_counts": {
+      "uav_3": 1
+    },
+    "per_uav_delivered_counts": {}
+  },
+  "telemetry_reports": {
+    "poi_01": {
+      "task_id": "poi_01",
+      "detecting_uav_id": "uav_3",
+      "t_detect": 264.0,
+      "t_report_generated": 264.0,
+      "t_gcs_received": null,
+      "hop_count": null,
+      "route": null,
+      "reporting_latency_s": 11.0,
+      "status": "DEADLINE_EXCEEDED"
+    }
+  },
+  "safety_interventions": {
+    "total_interventions": 0,
+    "per_uav_interventions": {}
+  },
+  "geofence_interventions": {
+    "total_interventions": 0,
+    "per_uav_interventions": {},
+    "min_observed_clearance_m": 141.58
+  },
+  "execution_evidence": {
+    "events": [
+      {
+        "event_id": "evt_260_0",
+        "simulation_tick": 260,
+        "simulation_time": 260.0,
+        "event_type": "TASK_ASSIGNED",
+        "entity_id": "uav_3",
+        "payload": {
+          "task_id": "poi_01"
+        }
+      },
+      {
+        "event_id": "evt_264_1",
+        "simulation_tick": 264,
+        "simulation_time": 264.0,
+        "event_type": "POI_DETECTED",
+        "entity_id": "uav_3",
+        "payload": {
+          "task_id": "poi_01",
+          "uav_id": "uav_3",
+          "t_detect": 264.0,
+          "position": [
+            160.0,
+            500.0
+          ],
+          "distance": 38.246
+        }
+      },
+      {
+        "event_id": "evt_273_0",
+        "simulation_tick": 273,
+        "simulation_time": 273.0,
+        "event_type": "TASK_PROGRESS",
+        "entity_id": "poi_01",
+        "payload": {
+          "progress": 1.0,
+          "duration": 60.0
+        }
+      },
+      {
+        "event_id": "evt_274_0",
+        "simulation_tick": 274,
+        "simulation_time": 274.0,
+        "event_type": "TASK_PROGRESS",
+        "entity_id": "poi_01",
+        "payload": {
+          "progress": 2.0,
+          "duration": 60.0
+        }
+      },
+      {
+        "event_id": "evt_275_0",
+        "simulation_tick": 275,
+        "simulation_time": 275.0,
+        "event_type": "TASK_PROGRESS",
+        "entity_id": "poi_01",
+        "payload": {
+          "progress": 3.0,
+          "duration": 60.0
+        }
+      },
+      {
+        "event_id": "evt_275_2",
+        "simulation_tick": 275,
+        "simulation_time": 275.0,
+        "event_type": "TELEMETRY_DEADLINE_EXCEEDED",
+        "entity_id": "uav_3",
+        "payload": {
+          "task_id": "poi_01",
+          "uav_id": "uav_3",
+          "t_detect": 264.0,
+          "elapsed_s": 11.0,
+          "status": "DEADLINE_EXCEEDED",
+          "reason": "BUFFER_TIMEOUT_NO_ROUTE"
+        }
+      },
+      {
+        "event_id": "evt_276_0",
+        "simulation_tick": 276,
+        "simulation_time": 276.0,
+        "event_type": "TASK_PROGRESS",
+        "entity_id": "poi_01",
+        "payload": {
+          "progress": 4.0,
+          "duration": 60.0
+        }
+      },
+      {
+        "event_id": "evt_277_0",
+        "simulation_tick": 277,
+        "simulation_time": 277.0,
+        "event_type": "TASK_PROGRESS",
+        "entity_id": "poi_01",
+        "payload": {
+          "progress": 5.0,
+          "duration": 60.0
+        }
+      },
+      {
+        "event_id": "evt_278_0",
+        "simulation_tick": 278,
+        "simulation_time": 278.0,
+        "event_type": "TASK_PROGRESS",
+        "entity_id": "poi_01",
+        "payload": {
+          "progress": 6.0,
+          "duration": 60.0
+        }
+      },
+      {
+        "event_id": "evt_279_0",
+        "simulation_tick": 279,
+        "simulation_time": 279.0,
+        "event_type": "TASK_PROGRESS",
+        "entity_id": "poi_01",
+        "payload": {
+          "progress": 7.0,
+          "duration": 60.0
+        }
+      },
+      {
+        "event_id": "evt_280_0",
+        "simulation_tick": 280,
+        "simulation_time": 280.0,
+        "event_type": "TASK_PROGRESS",
+        "entity_id": "poi_01",
+        "payload": {
+          "progress": 8.0,
+          "duration": 60.0
+        }
+      },
+      {
+        "event_id": "evt_281_0",
+        "simulation_tick": 281,
+        "simulation_time": 281.0,
+        "event_type": "TASK_PROGRESS",
+        "entity_id": "poi_01",
+        "payload": {
+          "progress": 9.0,
+          "duration": 60.0
+        }
+      },
+      {
+        "event_id": "evt_282_0",
+        "simulation_tick": 282,
+        "simulation_time": 282.0,
+        "event_type": "TASK_PROGRESS",
+        "entity_id": "poi_01",
+        "payload": {
+          "progress": 10.0,
+          "duration": 60.0
+        }
+      },
+      {
+        "event_id": "evt_283_0",
+        "simulation_tick": 283,
+        "simulation_time": 283.0,
+        "event_type": "TASK_PROGRESS",
+        "entity_id": "poi_01",
+        "payload": {
+          "progress": 11.0,
+          "duration": 60.0
+        }
+      },
+      {
+        "event_id": "evt_284_0",
+        "simulation_tick": 284,
+        "simulation_time": 284.0,
+        "event_type": "TASK_PROGRESS",
+        "entity_id": "poi_01",
+        "payload": {
+          "progress": 12.0,
+          "duration": 60.0
+        }
+      },
+      {
+        "event_id": "evt_285_0",
+        "simulation_tick": 285,
+        "simulation_time": 285.0,
+        "event_type": "TASK_PROGRESS",
+        "entity_id": "poi_01",
+        "payload": {
+          "progress": 13.0,
+          "duration": 60.0
+        }
+      },
+      {
+        "event_id": "evt_286_0",
+        "simulation_tick": 286,
+        "simulation_time": 286.0,
+        "event_type": "TASK_PROGRESS",
+        "entity_id": "poi_01",
+        "payload": {
+          "progress": 14.0,
+          "duration": 60.0
+        }
+      },
+      {
+        "event_id": "evt_287_0",
+        "simulation_tick": 287,
+        "simulation_time": 287.0,
+        "event_type": "TASK_PROGRESS",
+        "entity_id": "poi_01",
+        "payload": {
+          "progress": 15.0,
+          "duration": 60.0
+        }
+      },
+      {
+        "event_id": "evt_288_0",
+        "simulation_tick": 288,
+        "simulation_time": 288.0,
+        "event_type": "TASK_PROGRESS",
+        "entity_id": "poi_01",
+        "payload": {
+          "progress": 16.0,
+          "duration": 60.0
+        }
+      },
+      {
+        "event_id": "evt_289_0",
+        "simulation_tick": 289,
+        "simulation_time": 289.0,
+        "event_type": "TASK_PROGRESS",
+        "entity_id": "poi_01",
+        "payload": {
+          "progress": 17.0,
+          "duration": 60.0
+        }
+      },
+      {
+        "event_id": "evt_290_0",
+        "simulation_tick": 290,
+        "simulation_time": 290.0,
+        "event_type": "TASK_PROGRESS",
+        "entity_id": "poi_01",
+        "payload": {
+          "progress": 18.0,
+          "duration": 60.0
+        }
+      },
+      {
+        "event_id": "evt_291_0",
+        "simulation_tick": 291,
+        "simulation_time": 291.0,
+        "event_type": "TASK_PROGRESS",
+        "entity_id": "poi_01",
+        "payload": {
+          "progress": 19.0,
+          "duration": 60.0
+        }
+      },
+      {
+        "event_id": "evt_292_0",
+        "simulation_tick": 292,
+        "simulation_time": 292.0,
+        "event_type": "TASK_PROGRESS",
+        "entity_id": "poi_01",
+        "payload": {
+          "progress": 20.0,
+          "duration": 60.0
+        }
+      },
+      {
+        "event_id": "evt_293_0",
+        "simulation_tick": 293,
+        "simulation_time": 293.0,
+        "event_type": "TASK_PROGRESS",
+        "entity_id": "poi_01",
+        "payload": {
+          "progress": 21.0,
+          "duration": 60.0
+        }
+      },
+      {
+        "event_id": "evt_294_0",
+        "simulation_tick": 294,
+        "simulation_time": 294.0,
+        "event_type": "TASK_PROGRESS",
+        "entity_id": "poi_01",
+        "payload": {
+          "progress": 22.0,
+          "duration": 60.0
+        }
+      },
+      {
+        "event_id": "evt_295_0",
+        "simulation_tick": 295,
+        "simulation_time": 295.0,
+        "event_type": "TASK_PROGRESS",
+        "entity_id": "poi_01",
+        "payload": {
+          "progress": 23.0,
+          "duration": 60.0
+        }
+      },
+      {
+        "event_id": "evt_296_0",
+        "simulation_tick": 296,
+        "simulation_time": 296.0,
+        "event_type": "TASK_PROGRESS",
+        "entity_id": "poi_01",
+        "payload": {
+          "progress": 24.0,
+          "duration": 60.0
+        }
+      },
+      {
+        "event_id": "evt_297_0",
+        "simulation_tick": 297,
+        "simulation_time": 297.0,
+        "event_type": "TASK_PROGRESS",
+        "entity_id": "poi_01",
+        "payload": {
+          "progress": 25.0,
+          "duration": 60.0
+        }
+      },
+      {
+        "event_id": "evt_298_0",
+        "simulation_tick": 298,
+        "simulation_time": 298.0,
+        "event_type": "TASK_PROGRESS",
+        "entity_id": "poi_01",
+        "payload": {
+          "progress": 26.0,
+          "duration": 60.0
+        }
+      },
+      {
+        "event_id": "evt_299_0",
+        "simulation_tick": 299,
+        "simulation_time": 299.0,
+        "event_type": "TASK_PROGRESS",
+        "entity_id": "poi_01",
+        "payload": {
+          "progress": 27.0,
+          "duration": 60.0
+        }
+      },
+      {
+        "event_id": "evt_300_0",
+        "simulation_tick": 300,
+        "simulation_time": 300.0,
+        "event_type": "TASK_PROGRESS",
+        "entity_id": "poi_01",
+        "payload": {
+          "progress": 28.0,
+          "duration": 60.0
+        }
+      },
+      {
+        "event_id": "evt_301_0",
+        "simulation_tick": 301,
+        "simulation_time": 301.0,
+        "event_type": "TASK_PROGRESS",
+        "entity_id": "poi_01",
+        "payload": {
+          "progress": 29.0,
+          "duration": 60.0
+        }
+      },
+      {
+        "event_id": "evt_302_0",
+        "simulation_tick": 302,
+        "simulation_time": 302.0,
+        "event_type": "TASK_PROGRESS",
+        "entity_id": "poi_01",
+        "payload": {
+          "progress": 30.0,
+          "duration": 60.0
+        }
+      },
+      {
+        "event_id": "evt_303_0",
+        "simulation_tick": 303,
+        "simulation_time": 303.0,
+        "event_type": "TASK_PROGRESS",
+        "entity_id": "poi_01",
+        "payload": {
+          "progress": 31.0,
+          "duration": 60.0
+        }
+      },
+      {
+        "event_id": "evt_304_0",
+        "simulation_tick": 304,
+        "simulation_time": 304.0,
+        "event_type": "TASK_PROGRESS",
+        "entity_id": "poi_01",
+        "payload": {
+          "progress": 32.0,
+          "duration": 60.0
+        }
+      },
+      {
+        "event_id": "evt_305_0",
+        "simulation_tick": 305,
+        "simulation_time": 305.0,
+        "event_type": "TASK_PROGRESS",
+        "entity_id": "poi_01",
+        "payload": {
+          "progress": 33.0,
+          "duration": 60.0
+        }
+      },
+      {
+        "event_id": "evt_306_0",
+        "simulation_tick": 306,
+        "simulation_time": 306.0,
+        "event_type": "TASK_PROGRESS",
+        "entity_id": "poi_01",
+        "payload": {
+          "progress": 34.0,
+          "duration": 60.0
+        }
+      },
+      {
+        "event_id": "evt_307_0",
+        "simulation_tick": 307,
+        "simulation_time": 307.0,
+        "event_type": "TASK_PROGRESS",
+        "entity_id": "poi_01",
+        "payload": {
+          "progress": 35.0,
+          "duration": 60.0
+        }
+      },
+      {
+        "event_id": "evt_308_0",
+        "simulation_tick": 308,
+        "simulation_time": 308.0,
+        "event_type": "TASK_PROGRESS",
+        "entity_id": "poi_01",
+        "payload": {
+          "progress": 36.0,
+          "duration": 60.0
+        }
+      },
+      {
+        "event_id": "evt_309_0",
+        "simulation_tick": 309,
+        "simulation_time": 309.0,
+        "event_type": "TASK_PROGRESS",
+        "entity_id": "poi_01",
+        "payload": {
+          "progress": 37.0,
+          "duration": 60.0
+        }
+      },
+      {
+        "event_id": "evt_310_0",
+        "simulation_tick": 310,
+        "simulation_time": 310.0,
+        "event_type": "TASK_PROGRESS",
+        "entity_id": "poi_01",
+        "payload": {
+          "progress": 38.0,
+          "duration": 60.0
+        }
+      },
+      {
+        "event_id": "evt_311_0",
+        "simulation_tick": 311,
+        "simulation_time": 311.0,
+        "event_type": "TASK_PROGRESS",
+        "entity_id": "poi_01",
+        "payload": {
+          "progress": 39.0,
+          "duration": 60.0
+        }
+      },
+      {
+        "event_id": "evt_312_0",
+        "simulation_tick": 312,
+        "simulation_time": 312.0,
+        "event_type": "TASK_PROGRESS",
+        "entity_id": "poi_01",
+        "payload": {
+          "progress": 40.0,
+          "duration": 60.0
+        }
+      },
+      {
+        "event_id": "evt_313_0",
+        "simulation_tick": 313,
+        "simulation_time": 313.0,
+        "event_type": "TASK_PROGRESS",
+        "entity_id": "poi_01",
+        "payload": {
+          "progress": 41.0,
+          "duration": 60.0
+        }
+      },
+      {
+        "event_id": "evt_314_0",
+        "simulation_tick": 314,
+        "simulation_time": 314.0,
+        "event_type": "TASK_PROGRESS",
+        "entity_id": "poi_01",
+        "payload": {
+          "progress": 42.0,
+          "duration": 60.0
+        }
+      },
+      {
+        "event_id": "evt_315_0",
+        "simulation_tick": 315,
+        "simulation_time": 315.0,
+        "event_type": "TASK_PROGRESS",
+        "entity_id": "poi_01",
+        "payload": {
+          "progress": 43.0,
+          "duration": 60.0
+        }
+      },
+      {
+        "event_id": "evt_316_0",
+        "simulation_tick": 316,
+        "simulation_time": 316.0,
+        "event_type": "TASK_PROGRESS",
+        "entity_id": "poi_01",
+        "payload": {
+          "progress": 44.0,
+          "duration": 60.0
+        }
+      },
+      {
+        "event_id": "evt_317_0",
+        "simulation_tick": 317,
+        "simulation_time": 317.0,
+        "event_type": "TASK_PROGRESS",
+        "entity_id": "poi_01",
+        "payload": {
+          "progress": 45.0,
+          "duration": 60.0
+        }
+      },
+      {
+        "event_id": "evt_318_0",
+        "simulation_tick": 318,
+        "simulation_time": 318.0,
+        "event_type": "TASK_PROGRESS",
+        "entity_id": "poi_01",
+        "payload": {
+          "progress": 46.0,
+          "duration": 60.0
+        }
+      },
+      {
+        "event_id": "evt_319_0",
+        "simulation_tick": 319,
+        "simulation_time": 319.0,
+        "event_type": "TASK_PROGRESS",
+        "entity_id": "poi_01",
+        "payload": {
+          "progress": 47.0,
+          "duration": 60.0
+        }
+      },
+      {
+        "event_id": "evt_320_0",
+        "simulation_tick": 320,
+        "simulation_time": 320.0,
+        "event_type": "TASK_PROGRESS",
+        "entity_id": "poi_01",
+        "payload": {
+          "progress": 48.0,
+          "duration": 60.0
+        }
+      },
+      {
+        "event_id": "evt_321_0",
+        "simulation_tick": 321,
+        "simulation_time": 321.0,
+        "event_type": "TASK_PROGRESS",
+        "entity_id": "poi_01",
+        "payload": {
+          "progress": 49.0,
+          "duration": 60.0
+        }
+      },
+      {
+        "event_id": "evt_322_0",
+        "simulation_tick": 322,
+        "simulation_time": 322.0,
+        "event_type": "TASK_PROGRESS",
+        "entity_id": "poi_01",
+        "payload": {
+          "progress": 50.0,
+          "duration": 60.0
+        }
+      },
+      {
+        "event_id": "evt_323_0",
+        "simulation_tick": 323,
+        "simulation_time": 323.0,
+        "event_type": "TASK_PROGRESS",
+        "entity_id": "poi_01",
+        "payload": {
+          "progress": 51.0,
+          "duration": 60.0
+        }
+      },
+      {
+        "event_id": "evt_324_0",
+        "simulation_tick": 324,
+        "simulation_time": 324.0,
+        "event_type": "TASK_PROGRESS",
+        "entity_id": "poi_01",
+        "payload": {
+          "progress": 52.0,
+          "duration": 60.0
+        }
+      },
+      {
+        "event_id": "evt_325_0",
+        "simulation_tick": 325,
+        "simulation_time": 325.0,
+        "event_type": "TASK_PROGRESS",
+        "entity_id": "poi_01",
+        "payload": {
+          "progress": 53.0,
+          "duration": 60.0
+        }
+      },
+      {
+        "event_id": "evt_326_0",
+        "simulation_tick": 326,
+        "simulation_time": 326.0,
+        "event_type": "TASK_PROGRESS",
+        "entity_id": "poi_01",
+        "payload": {
+          "progress": 54.0,
+          "duration": 60.0
+        }
+      },
+      {
+        "event_id": "evt_327_0",
+        "simulation_tick": 327,
+        "simulation_time": 327.0,
+        "event_type": "TASK_PROGRESS",
+        "entity_id": "poi_01",
+        "payload": {
+          "progress": 55.0,
+          "duration": 60.0
+        }
+      },
+      {
+        "event_id": "evt_328_0",
+        "simulation_tick": 328,
+        "simulation_time": 328.0,
+        "event_type": "TASK_PROGRESS",
+        "entity_id": "poi_01",
+        "payload": {
+          "progress": 56.0,
+          "duration": 60.0
+        }
+      },
+      {
+        "event_id": "evt_329_0",
+        "simulation_tick": 329,
+        "simulation_time": 329.0,
+        "event_type": "TASK_PROGRESS",
+        "entity_id": "poi_01",
+        "payload": {
+          "progress": 57.0,
+          "duration": 60.0
+        }
+      },
+      {
+        "event_id": "evt_330_0",
+        "simulation_tick": 330,
+        "simulation_time": 330.0,
+        "event_type": "TASK_PROGRESS",
+        "entity_id": "poi_01",
+        "payload": {
+          "progress": 58.0,
+          "duration": 60.0
+        }
+      },
+      {
+        "event_id": "evt_331_0",
+        "simulation_tick": 331,
+        "simulation_time": 331.0,
+        "event_type": "TASK_PROGRESS",
+        "entity_id": "poi_01",
+        "payload": {
+          "progress": 59.0,
+          "duration": 60.0
+        }
+      },
+      {
+        "event_id": "evt_332_0",
+        "simulation_tick": 332,
+        "simulation_time": 332.0,
+        "event_type": "TASK_COMPLETED",
+        "entity_id": "poi_01",
+        "payload": {
+          "uav_id": "uav_3"
+        }
+      }
+    ],
+    "history_sha256": "e19d568eeac134ea68416ffcd4d4af6951e9d14481e1f8436f6d775ee13c703e",
+    "history_ticks": 400,
+    "flight_records": {
+      "uav_1": {
+        "uav_id": "uav_1",
+        "takeoff_time": 0.0,
+        "landing_time": null,
+        "current_sortie_duration_s": 399.0,
+        "cumulative_airborne_s": 0.0,
+        "is_airborne": true,
+        "landing_position": null
+      },
+      "uav_2": {
+        "uav_id": "uav_2",
+        "takeoff_time": 0.0,
+        "landing_time": null,
+        "current_sortie_duration_s": 399.0,
+        "cumulative_airborne_s": 0.0,
+        "is_airborne": true,
+        "landing_position": null
+      },
+      "uav_3": {
+        "uav_id": "uav_3",
+        "takeoff_time": 0.0,
+        "landing_time": null,
+        "current_sortie_duration_s": 399.0,
+        "cumulative_airborne_s": 0.0,
+        "is_airborne": true,
+        "landing_position": null
+      },
+      "uav_4": {
+        "uav_id": "uav_4",
+        "takeoff_time": 0.0,
+        "landing_time": null,
+        "current_sortie_duration_s": 399.0,
+        "cumulative_airborne_s": 0.0,
+        "is_airborne": true,
+        "landing_position": null
+      }
+    },
+    "safety": {
+      "minimum_separation_m": 60.0,
+      "separation_violations": 0,
+      "geofence_violations": 0,
+      "landing_violations": 0,
+      "flight_duration_violations": 0,
+      "battery_exhaustions": 0,
+      "max_airborne_s": 399.0,
+      "landed_count": 0,
+      "expected_uav_count": 4
+    }
+  }
+}

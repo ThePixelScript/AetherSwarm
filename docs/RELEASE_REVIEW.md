@@ -74,3 +74,35 @@ Removed the tracked `scripts/fix_tests.py` assertion-replacement utility. Git re
 historically; no original user scratch files were deleted. Generated traces, caches,
 environments and repeated validation runs are ignored. Historical reports remain historical;
 the release manifest identifies the current authoritative artifacts.
+
+## Final executed checkpoint — 27 September 2026
+
+Completed at source commit `aeb4837fbe0e2d3c7a60da35b34a064c39d8964d` in the second,
+independent `AetherSwarm_release_cleanroom` clone with an initially clean worktree:
+
+- New Python 3.12.14 venv; pinned editable install succeeded; pip check clean.
+- All five direct imports passed in separate processes.
+- Full suite: 336 collected/passed, zero failed/errors/skipped.
+- Independent focused suites: autonomy 62, communication 103, telemetry 15,
+  safety 42, simulation 18, visualization 14, batch 8; all passed.
+- Canonical 10/10 serviced, 10/10 timely reports; service completion 429 s;
+  mission termination 1183 s; maximum airborne 1182 s; all five landed.
+- Minimum separation 20.00500005608731 m; zero separation/geofence/landing/
+  flight-duration/battery-exhaustion violations.
+- Model route PDR 0.334, model latency 18.59 ms, connectivity 0.9959, downtime 8 s.
+- Ten canonical reports/history hashes identical; five E2 pairs identical;
+  three worker-failure observations identical.
+- E2: A0 selects uav_3 and times out; A1 selects uav_4 and reports in 0.018596416 s.
+- Failure: uav_1 fails at tick 8 while servicing poi_recovery, uav_2 is assigned
+  at tick 8 and completes at tick 21.
+- Random seeds 2026/42/137 without fixed ingress each complete 0/10, with zero
+  detections. This is a coverage/liveness limitation, not 100% reporting success.
+- Native Webots playback remains NOT VERIFIED. Existing 150-tick trace export
+  executed successfully; standalone replay/control tests passed.
+
+The first validator attempt correctly rejected two too-short replay fixture cases.
+The fixture was extended to 600 real frames; original assertions were preserved.
+Both the corrected development validator and final clean-room validator exited zero.
+Final machine evidence was copied unchanged from the clean-room execution. Publication
+adds evidence/docs only, with no source/test/script changes after the tested source SHA.
+See the manifest and final release report for commands, limitations and artifact meanings.

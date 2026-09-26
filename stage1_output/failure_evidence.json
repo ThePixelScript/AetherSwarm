@@ -1,0 +1,184 @@
+{
+  "completion_tick": 21,
+  "deferred_verified": true,
+  "events": [
+    {
+      "entity_id": "uav_1",
+      "payload": {
+        "task_id": "poi_recovery"
+      },
+      "tick": 0,
+      "time": 0.0,
+      "type": "TASK_ASSIGNED"
+    },
+    {
+      "entity_id": "poi_recovery",
+      "payload": {
+        "duration": 6.0,
+        "progress": 1.0
+      },
+      "tick": 6,
+      "time": 6.0,
+      "type": "TASK_PROGRESS"
+    },
+    {
+      "entity_id": "poi_recovery",
+      "payload": {
+        "duration": 6.0,
+        "progress": 2.0
+      },
+      "tick": 7,
+      "time": 7.0,
+      "type": "TASK_PROGRESS"
+    },
+    {
+      "entity_id": "uav_1",
+      "payload": {
+        "failure_state": "FAILED",
+        "reason": "In-flight propulsion failure demo"
+      },
+      "tick": 8,
+      "time": 8.0,
+      "type": "UAV_FAILED"
+    },
+    {
+      "entity_id": "uav_2",
+      "payload": {
+        "task_id": "poi_recovery"
+      },
+      "tick": 8,
+      "time": 8.0,
+      "type": "TASK_ASSIGNED"
+    },
+    {
+      "entity_id": "poi_recovery",
+      "payload": {
+        "duration": 6.0,
+        "progress": 3.0
+      },
+      "tick": 18,
+      "time": 18.0,
+      "type": "TASK_PROGRESS"
+    },
+    {
+      "entity_id": "poi_recovery",
+      "payload": {
+        "duration": 6.0,
+        "progress": 4.0
+      },
+      "tick": 19,
+      "time": 19.0,
+      "type": "TASK_PROGRESS"
+    },
+    {
+      "entity_id": "poi_recovery",
+      "payload": {
+        "duration": 6.0,
+        "progress": 5.0
+      },
+      "tick": 20,
+      "time": 20.0,
+      "type": "TASK_PROGRESS"
+    },
+    {
+      "entity_id": "poi_recovery",
+      "payload": {
+        "uav_id": "uav_2"
+      },
+      "tick": 21,
+      "time": 21.0,
+      "type": "TASK_COMPLETED"
+    },
+    {
+      "entity_id": "uav_5",
+      "payload": {},
+      "tick": 38,
+      "time": 38.0,
+      "type": "RTH_TRIGGERED"
+    },
+    {
+      "entity_id": "uav_4",
+      "payload": {},
+      "tick": 51,
+      "time": 51.0,
+      "type": "RTH_TRIGGERED"
+    },
+    {
+      "entity_id": "uav_2",
+      "payload": {},
+      "tick": 56,
+      "time": 56.0,
+      "type": "RTH_TRIGGERED"
+    },
+    {
+      "entity_id": "uav_3",
+      "payload": {},
+      "tick": 60,
+      "time": 60.0,
+      "type": "RTH_TRIGGERED"
+    },
+    {
+      "entity_id": "uav_5",
+      "payload": {
+        "final_energy": 4071.9687576256715
+      },
+      "tick": 63,
+      "time": 63.0,
+      "type": "UAV_LANDED"
+    },
+    {
+      "entity_id": "uav_4",
+      "payload": {
+        "final_energy": 4073.148351928655
+      },
+      "tick": 72,
+      "time": 72.0,
+      "type": "UAV_LANDED"
+    },
+    {
+      "entity_id": "uav_3",
+      "payload": {
+        "final_energy": 4070.0
+      },
+      "tick": 79,
+      "time": 79.0,
+      "type": "UAV_LANDED"
+    },
+    {
+      "entity_id": "uav_2",
+      "payload": {
+        "final_energy": 4011.678312387631
+      },
+      "tick": 86,
+      "time": 86.0,
+      "type": "UAV_LANDED"
+    }
+  ],
+  "failure_tick": 8,
+  "min_separation_m": 31.23,
+  "original_uav": "uav_1",
+  "reassignment_tick": 8,
+  "replacement_uav": "uav_2",
+  "scenario_name": "demo_in_flight_recovery",
+  "seed": 42,
+  "selected_task": "poi_recovery",
+  "separation_violations": 0,
+  "task_in_progress_tick": 7,
+  "timeline_entries": [
+    "Tick 0 (t=0.0s): TASK_ASSIGNED -> uav_1 (task: poi_recovery)",
+    "Tick 7 (t=7.0s): Task 'poi_recovery' IN_PROGRESS by 'uav_1' (actively servicing)",
+    "Tick 8 (t=8.0s) [Pre-Autonomy]: UAV 'uav_1' FAILED -> Task 'poi_recovery' transitioned to DEFERRED (assigned_uav=None)",
+    "Tick 8 (t=8.0s) [Post-Autonomy]: A1 reassigns SAME task 'poi_recovery' to replacement UAV 'uav_2'",
+    "Tick 8 (t=8.0s): UAV_FAILED -> uav_1 (In-flight propulsion failure demo)",
+    "Tick 21 (t=21.0s): TASK_COMPLETED -> task 'poi_recovery' completed by 'uav_2'",
+    "Tick 38 (t=38.0s): RTH_TRIGGERED -> uav_5",
+    "Tick 51 (t=51.0s): RTH_TRIGGERED -> uav_4",
+    "Tick 56 (t=56.0s): RTH_TRIGGERED -> uav_2",
+    "Tick 60 (t=60.0s): RTH_TRIGGERED -> uav_3",
+    "Tick 63 (t=63.0s): UAV_LANDED -> uav_5 at GCS (energy: 4071.97 Wh)",
+    "Tick 72 (t=72.0s): UAV_LANDED -> uav_4 at GCS (energy: 4073.15 Wh)",
+    "Tick 79 (t=79.0s): UAV_LANDED -> uav_3 at GCS (energy: 4070.0 Wh)",
+    "Tick 86 (t=86.0s): UAV_LANDED -> uav_2 at GCS (energy: 4011.68 Wh)"
+  ],
+  "total_ticks": 100
+}

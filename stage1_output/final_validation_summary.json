@@ -1,0 +1,1251 @@
+{
+  "E2": {
+    "a0": {
+      "assignments": [
+        {
+          "task": "poi_01",
+          "time": 260.0,
+          "uav": "uav_3"
+        }
+      ],
+      "reports": {
+        "poi_01": {
+          "detecting_uav_id": "uav_3",
+          "hop_count": null,
+          "reporting_latency_s": 11.0,
+          "route": null,
+          "status": "DEADLINE_EXCEEDED",
+          "t_detect": 264.0,
+          "t_gcs_received": null,
+          "t_report_generated": 264.0,
+          "task_id": "poi_01"
+        }
+      },
+      "tasks": {
+        "poi_01": {
+          "assigned_uav_id": null,
+          "service_duration": 60.0,
+          "service_progress": 60.0,
+          "status": "COMPLETE"
+        }
+      },
+      "telemetry": {
+        "max_reporting_latency_s": null,
+        "mean_reporting_latency_s": null,
+        "per_uav_delivered_counts": {},
+        "per_uav_detection_counts": {
+          "uav_3": 1
+        },
+        "reporting_compliance_ratio": 0.0,
+        "reports_deadline_exceeded": 1,
+        "reports_delivered": 0,
+        "total_detections": 1
+      }
+    },
+    "a1": {
+      "assignments": [
+        {
+          "task": "poi_01",
+          "time": 260.0,
+          "uav": "uav_4"
+        }
+      ],
+      "reports": {
+        "poi_01": {
+          "detecting_uav_id": "uav_4",
+          "hop_count": 2,
+          "reporting_latency_s": 0.01859641602783313,
+          "route": [
+            "uav_4",
+            "uav_2",
+            "gcs"
+          ],
+          "status": "DELIVERED",
+          "t_detect": 264.0,
+          "t_gcs_received": 264.01859641602783,
+          "t_report_generated": 264.0,
+          "task_id": "poi_01"
+        }
+      },
+      "tasks": {
+        "poi_01": {
+          "assigned_uav_id": null,
+          "service_duration": 60.0,
+          "service_progress": 60.0,
+          "status": "COMPLETE"
+        }
+      },
+      "telemetry": {
+        "max_reporting_latency_s": 0.019,
+        "mean_reporting_latency_s": 0.019,
+        "per_uav_delivered_counts": {
+          "uav_4": 1
+        },
+        "per_uav_detection_counts": {
+          "uav_4": 1
+        },
+        "reporting_compliance_ratio": 1.0,
+        "reports_deadline_exceeded": 0,
+        "reports_delivered": 1,
+        "total_detections": 1
+      }
+    },
+    "causal_difference_preserved": true
+  },
+  "artifacts_directory": "stage1_output\\runs\\validation-h5cyftyn",
+  "batch": [
+    {
+      "assignments": [
+        {
+          "score": 1.0482571750056402,
+          "score_breakdown": {
+            "connectivity_term": 0.0,
+            "energy_risk_term": 0.0,
+            "network_risk_term": 0.8386057400045122,
+            "priority_term": 2.0,
+            "switching_cost_term": 0.0,
+            "total": 1.0482571750056402,
+            "travel_cost_term": 0.1131370849898476
+          },
+          "task_id": "t1",
+          "uav_id": "a"
+        }
+      ],
+      "connectivity_preserved": true,
+      "final_connected_peers": [
+        "a",
+        "b",
+        "c"
+      ],
+      "protected_c_ineligible": true,
+      "protected_connected_peers": [
+        "a",
+        "b",
+        "c"
+      ],
+      "unassigned_tasks": [
+        "t2"
+      ]
+    },
+    {
+      "assignments": [
+        {
+          "score": 1.0482571750056402,
+          "score_breakdown": {
+            "connectivity_term": 0.0,
+            "energy_risk_term": 0.0,
+            "network_risk_term": 0.8386057400045122,
+            "priority_term": 2.0,
+            "switching_cost_term": 0.0,
+            "total": 1.0482571750056402,
+            "travel_cost_term": 0.1131370849898476
+          },
+          "task_id": "t1",
+          "uav_id": "a"
+        },
+        {
+          "score": 0.46242747436533216,
+          "score_breakdown": {
+            "connectivity_term": 0.0,
+            "energy_risk_term": 0.0,
+            "network_risk_term": 0.3699419794922657,
+            "priority_term": 1.0,
+            "switching_cost_term": 0.0,
+            "total": 0.46242747436533216,
+            "travel_cost_term": 0.1676305461424021
+          },
+          "task_id": "t2",
+          "uav_id": "c"
+        }
+      ],
+      "connectivity_preserved": true,
+      "final_connected_peers": [
+        "a",
+        "b",
+        "c"
+      ],
+      "protected_c_ineligible": false,
+      "protected_connected_peers": [
+        "a",
+        "b",
+        "c"
+      ],
+      "unassigned_tasks": []
+    }
+  ],
+  "canonical": {
+    "communication": {
+      "connectivity_availability": 0.9959,
+      "downtime_s": 8.0,
+      "model_estimated_route_latency_ms": 18.59,
+      "model_estimated_route_pdr": 0.334
+    },
+    "flight_records": {
+      "uav_1": {
+        "cumulative_airborne_s": 1182.0,
+        "current_sortie_duration_s": 1182.0,
+        "is_airborne": false,
+        "landing_position": [
+          -61.22649961867581,
+          502.82533341155363
+        ],
+        "landing_time": 1182.0,
+        "takeoff_time": 0.0,
+        "uav_id": "uav_1"
+      },
+      "uav_2": {
+        "cumulative_airborne_s": 1174.0,
+        "current_sortie_duration_s": 1174.0,
+        "is_airborne": false,
+        "landing_position": [
+          -61.66820077538247,
+          494.8723849136087
+        ],
+        "landing_time": 1174.0,
+        "takeoff_time": 0.0,
+        "uav_id": "uav_2"
+      },
+      "uav_3": {
+        "cumulative_airborne_s": 1168.0,
+        "current_sortie_duration_s": 1168.0,
+        "is_airborne": false,
+        "landing_position": [
+          -60.0,
+          500.0
+        ],
+        "landing_time": 1168.0,
+        "takeoff_time": 0.0,
+        "uav_id": "uav_3"
+      },
+      "uav_4": {
+        "cumulative_airborne_s": 1158.0,
+        "current_sortie_duration_s": 1158.0,
+        "is_airborne": false,
+        "landing_position": [
+          -61.66820077538247,
+          505.1276150863913
+        ],
+        "landing_time": 1158.0,
+        "takeoff_time": 0.0,
+        "uav_id": "uav_4"
+      },
+      "uav_5": {
+        "cumulative_airborne_s": 1163.0,
+        "current_sortie_duration_s": 1163.0,
+        "is_airborne": false,
+        "landing_position": [
+          -61.122470724378815,
+          505.6933453438445
+        ],
+        "landing_time": 1163.0,
+        "takeoff_time": 0.0,
+        "uav_id": "uav_5"
+      }
+    },
+    "mission": {
+      "final_connected_uav_count": 0,
+      "final_connected_uavs": [],
+      "mission_completion_rate": 1.0,
+      "tasks_assigned": 0,
+      "tasks_completed": 10,
+      "tasks_expired": 0,
+      "tasks_spawned": 10,
+      "tasks_total": 10,
+      "total_energy_consumed": 6504.8121,
+      "total_events_generated": 105
+    },
+    "mission_termination_time_s": 1183.0,
+    "safety": {
+      "battery_exhaustions": 0,
+      "expected_uav_count": 5,
+      "flight_duration_violations": 0,
+      "geofence_violations": 0,
+      "landed_count": 5,
+      "landing_violations": 0,
+      "max_airborne_s": 1182.0,
+      "minimum_separation_m": 20.00500005608731,
+      "separation_violations": 0
+    },
+    "task_completion_time_s": 429.0,
+    "telemetry": {
+      "max_reporting_latency_s": 4.019,
+      "mean_reporting_latency_s": 0.423,
+      "per_uav_delivered_counts": {
+        "uav_1": 10
+      },
+      "per_uav_detection_counts": {
+        "uav_1": 10
+      },
+      "reporting_compliance_ratio": 1.0,
+      "reports_deadline_exceeded": 0,
+      "reports_delivered": 10,
+      "total_detections": 10
+    }
+  },
+  "commands": [
+    {
+      "argv": [
+        "git",
+        "rev-parse",
+        "HEAD"
+      ],
+      "log": "stage1_output\\runs\\validation-h5cyftyn\\logs\\git-head.json",
+      "name": "git-head",
+      "returncode": 0
+    },
+    {
+      "argv": [
+        "git",
+        "branch",
+        "--show-current"
+      ],
+      "log": "stage1_output\\runs\\validation-h5cyftyn\\logs\\git-branch.json",
+      "name": "git-branch",
+      "returncode": 0
+    },
+    {
+      "argv": [
+        "git",
+        "remote",
+        "get-url",
+        "origin"
+      ],
+      "log": "stage1_output\\runs\\validation-h5cyftyn\\logs\\git-origin.json",
+      "name": "git-origin",
+      "returncode": 0
+    },
+    {
+      "argv": [
+        "git",
+        "status",
+        "--short"
+      ],
+      "log": "stage1_output\\runs\\validation-h5cyftyn\\logs\\git-status.json",
+      "name": "git-status",
+      "returncode": 0
+    },
+    {
+      "argv": [
+        "C:\\Users\\anwar\\OneDrive\\Documents\\ChatGPT\\Drone\\AetherSwarm_release_cleanroom\\.venv-release\\Scripts\\python.exe",
+        "--version"
+      ],
+      "log": "stage1_output\\runs\\validation-h5cyftyn\\logs\\python.json",
+      "name": "python",
+      "returncode": 0
+    },
+    {
+      "argv": [
+        "C:\\Users\\anwar\\OneDrive\\Documents\\ChatGPT\\Drone\\AetherSwarm_release_cleanroom\\.venv-release\\Scripts\\python.exe",
+        "-m",
+        "pip",
+        "--version"
+      ],
+      "log": "stage1_output\\runs\\validation-h5cyftyn\\logs\\pip-version.json",
+      "name": "pip-version",
+      "returncode": 0
+    },
+    {
+      "argv": [
+        "C:\\Users\\anwar\\OneDrive\\Documents\\ChatGPT\\Drone\\AetherSwarm_release_cleanroom\\.venv-release\\Scripts\\python.exe",
+        "-m",
+        "pip",
+        "check"
+      ],
+      "log": "stage1_output\\runs\\validation-h5cyftyn\\logs\\pip-check.json",
+      "name": "pip-check",
+      "returncode": 0
+    },
+    {
+      "argv": [
+        "C:\\Users\\anwar\\OneDrive\\Documents\\ChatGPT\\Drone\\AetherSwarm_release_cleanroom\\.venv-release\\Scripts\\python.exe",
+        "-m",
+        "pip",
+        "freeze"
+      ],
+      "log": "stage1_output\\runs\\validation-h5cyftyn\\logs\\pip-freeze.json",
+      "name": "pip-freeze",
+      "returncode": 0
+    },
+    {
+      "argv": [
+        "C:\\Users\\anwar\\OneDrive\\Documents\\ChatGPT\\Drone\\AetherSwarm_release_cleanroom\\.venv-release\\Scripts\\python.exe",
+        "-c",
+        "import ares_swarm"
+      ],
+      "log": "stage1_output\\runs\\validation-h5cyftyn\\logs\\import-0.json",
+      "name": "import-0",
+      "returncode": 0
+    },
+    {
+      "argv": [
+        "C:\\Users\\anwar\\OneDrive\\Documents\\ChatGPT\\Drone\\AetherSwarm_release_cleanroom\\.venv-release\\Scripts\\python.exe",
+        "-c",
+        "from ares_swarm.autonomy.a1_allocator import A1TaskAllocator"
+      ],
+      "log": "stage1_output\\runs\\validation-h5cyftyn\\logs\\import-1.json",
+      "name": "import-1",
+      "returncode": 0
+    },
+    {
+      "argv": [
+        "C:\\Users\\anwar\\OneDrive\\Documents\\ChatGPT\\Drone\\AetherSwarm_release_cleanroom\\.venv-release\\Scripts\\python.exe",
+        "-c",
+        "from ares_swarm.communication.analysis import BaselineCommunicationAnalyzer"
+      ],
+      "log": "stage1_output\\runs\\validation-h5cyftyn\\logs\\import-2.json",
+      "name": "import-2",
+      "returncode": 0
+    },
+    {
+      "argv": [
+        "C:\\Users\\anwar\\OneDrive\\Documents\\ChatGPT\\Drone\\AetherSwarm_release_cleanroom\\.venv-release\\Scripts\\python.exe",
+        "-c",
+        "from ares_swarm.telemetry.manager import DetectionManager"
+      ],
+      "log": "stage1_output\\runs\\validation-h5cyftyn\\logs\\import-3.json",
+      "name": "import-3",
+      "returncode": 0
+    },
+    {
+      "argv": [
+        "C:\\Users\\anwar\\OneDrive\\Documents\\ChatGPT\\Drone\\AetherSwarm_release_cleanroom\\.venv-release\\Scripts\\python.exe",
+        "-c",
+        "from ares_swarm.simulation.runner import MissionRunner"
+      ],
+      "log": "stage1_output\\runs\\validation-h5cyftyn\\logs\\import-4.json",
+      "name": "import-4",
+      "returncode": 0
+    },
+    {
+      "argv": [
+        "C:\\Users\\anwar\\OneDrive\\Documents\\ChatGPT\\Drone\\AetherSwarm_release_cleanroom\\.venv-release\\Scripts\\python.exe",
+        "-m",
+        "pytest",
+        "tests/",
+        "-q",
+        "--basetemp=C:\\Users\\anwar\\OneDrive\\Documents\\ChatGPT\\Drone\\AetherSwarm_release_cleanroom\\stage1_output\\runs\\validation-h5cyftyn\\full-tests_tmp",
+        "--junitxml=C:\\Users\\anwar\\OneDrive\\Documents\\ChatGPT\\Drone\\AetherSwarm_release_cleanroom\\stage1_output\\runs\\validation-h5cyftyn\\full-tests.xml"
+      ],
+      "log": "stage1_output\\runs\\validation-h5cyftyn\\logs\\full-tests.json",
+      "name": "full-tests",
+      "returncode": 0
+    },
+    {
+      "argv": [
+        "C:\\Users\\anwar\\OneDrive\\Documents\\ChatGPT\\Drone\\AetherSwarm_release_cleanroom\\.venv-release\\Scripts\\python.exe",
+        "-m",
+        "pytest",
+        "tests/autonomy/",
+        "-q",
+        "--basetemp=C:\\Users\\anwar\\OneDrive\\Documents\\ChatGPT\\Drone\\AetherSwarm_release_cleanroom\\stage1_output\\runs\\validation-h5cyftyn\\autonomy_tmp",
+        "--junitxml=C:\\Users\\anwar\\OneDrive\\Documents\\ChatGPT\\Drone\\AetherSwarm_release_cleanroom\\stage1_output\\runs\\validation-h5cyftyn\\autonomy.xml"
+      ],
+      "log": "stage1_output\\runs\\validation-h5cyftyn\\logs\\autonomy.json",
+      "name": "autonomy",
+      "returncode": 0
+    },
+    {
+      "argv": [
+        "C:\\Users\\anwar\\OneDrive\\Documents\\ChatGPT\\Drone\\AetherSwarm_release_cleanroom\\.venv-release\\Scripts\\python.exe",
+        "-m",
+        "pytest",
+        "tests/communication/",
+        "-q",
+        "--basetemp=C:\\Users\\anwar\\OneDrive\\Documents\\ChatGPT\\Drone\\AetherSwarm_release_cleanroom\\stage1_output\\runs\\validation-h5cyftyn\\communication_tmp",
+        "--junitxml=C:\\Users\\anwar\\OneDrive\\Documents\\ChatGPT\\Drone\\AetherSwarm_release_cleanroom\\stage1_output\\runs\\validation-h5cyftyn\\communication.xml"
+      ],
+      "log": "stage1_output\\runs\\validation-h5cyftyn\\logs\\communication.json",
+      "name": "communication",
+      "returncode": 0
+    },
+    {
+      "argv": [
+        "C:\\Users\\anwar\\OneDrive\\Documents\\ChatGPT\\Drone\\AetherSwarm_release_cleanroom\\.venv-release\\Scripts\\python.exe",
+        "-m",
+        "pytest",
+        "tests/telemetry/",
+        "-q",
+        "--basetemp=C:\\Users\\anwar\\OneDrive\\Documents\\ChatGPT\\Drone\\AetherSwarm_release_cleanroom\\stage1_output\\runs\\validation-h5cyftyn\\telemetry_tmp",
+        "--junitxml=C:\\Users\\anwar\\OneDrive\\Documents\\ChatGPT\\Drone\\AetherSwarm_release_cleanroom\\stage1_output\\runs\\validation-h5cyftyn\\telemetry.xml"
+      ],
+      "log": "stage1_output\\runs\\validation-h5cyftyn\\logs\\telemetry.json",
+      "name": "telemetry",
+      "returncode": 0
+    },
+    {
+      "argv": [
+        "C:\\Users\\anwar\\OneDrive\\Documents\\ChatGPT\\Drone\\AetherSwarm_release_cleanroom\\.venv-release\\Scripts\\python.exe",
+        "-m",
+        "pytest",
+        "tests/safety/",
+        "-q",
+        "--basetemp=C:\\Users\\anwar\\OneDrive\\Documents\\ChatGPT\\Drone\\AetherSwarm_release_cleanroom\\stage1_output\\runs\\validation-h5cyftyn\\safety_tmp",
+        "--junitxml=C:\\Users\\anwar\\OneDrive\\Documents\\ChatGPT\\Drone\\AetherSwarm_release_cleanroom\\stage1_output\\runs\\validation-h5cyftyn\\safety.xml"
+      ],
+      "log": "stage1_output\\runs\\validation-h5cyftyn\\logs\\safety.json",
+      "name": "safety",
+      "returncode": 0
+    },
+    {
+      "argv": [
+        "C:\\Users\\anwar\\OneDrive\\Documents\\ChatGPT\\Drone\\AetherSwarm_release_cleanroom\\.venv-release\\Scripts\\python.exe",
+        "-m",
+        "pytest",
+        "tests/simulation/",
+        "-q",
+        "--basetemp=C:\\Users\\anwar\\OneDrive\\Documents\\ChatGPT\\Drone\\AetherSwarm_release_cleanroom\\stage1_output\\runs\\validation-h5cyftyn\\simulation_tmp",
+        "--junitxml=C:\\Users\\anwar\\OneDrive\\Documents\\ChatGPT\\Drone\\AetherSwarm_release_cleanroom\\stage1_output\\runs\\validation-h5cyftyn\\simulation.xml"
+      ],
+      "log": "stage1_output\\runs\\validation-h5cyftyn\\logs\\simulation.json",
+      "name": "simulation",
+      "returncode": 0
+    },
+    {
+      "argv": [
+        "C:\\Users\\anwar\\OneDrive\\Documents\\ChatGPT\\Drone\\AetherSwarm_release_cleanroom\\.venv-release\\Scripts\\python.exe",
+        "-m",
+        "pytest",
+        "tests/visualization/",
+        "-q",
+        "--basetemp=C:\\Users\\anwar\\OneDrive\\Documents\\ChatGPT\\Drone\\AetherSwarm_release_cleanroom\\stage1_output\\runs\\validation-h5cyftyn\\visualization_tmp",
+        "--junitxml=C:\\Users\\anwar\\OneDrive\\Documents\\ChatGPT\\Drone\\AetherSwarm_release_cleanroom\\stage1_output\\runs\\validation-h5cyftyn\\visualization.xml"
+      ],
+      "log": "stage1_output\\runs\\validation-h5cyftyn\\logs\\visualization.json",
+      "name": "visualization",
+      "returncode": 0
+    },
+    {
+      "argv": [
+        "C:\\Users\\anwar\\OneDrive\\Documents\\ChatGPT\\Drone\\AetherSwarm_release_cleanroom\\.venv-release\\Scripts\\python.exe",
+        "-m",
+        "pytest",
+        "tests/autonomy/test_a1_batch_allocation.py",
+        "tests/autonomy/test_a1_release_regressions.py",
+        "-q",
+        "--basetemp=C:\\Users\\anwar\\OneDrive\\Documents\\ChatGPT\\Drone\\AetherSwarm_release_cleanroom\\stage1_output\\runs\\validation-h5cyftyn\\batch_tmp",
+        "--junitxml=C:\\Users\\anwar\\OneDrive\\Documents\\ChatGPT\\Drone\\AetherSwarm_release_cleanroom\\stage1_output\\runs\\validation-h5cyftyn\\batch.xml"
+      ],
+      "log": "stage1_output\\runs\\validation-h5cyftyn\\logs\\batch.json",
+      "name": "batch",
+      "returncode": 0
+    },
+    {
+      "argv": [
+        "C:\\Users\\anwar\\OneDrive\\Documents\\ChatGPT\\Drone\\AetherSwarm_release_cleanroom\\.venv-release\\Scripts\\python.exe",
+        "scripts/run_stage1_submission.py",
+        "--outdir",
+        "C:\\Users\\anwar\\OneDrive\\Documents\\ChatGPT\\Drone\\AetherSwarm_release_cleanroom\\stage1_output\\runs\\validation-h5cyftyn\\canonical-0"
+      ],
+      "log": "stage1_output\\runs\\validation-h5cyftyn\\logs\\canonical-0.json",
+      "name": "canonical-0",
+      "returncode": 0
+    },
+    {
+      "argv": [
+        "C:\\Users\\anwar\\OneDrive\\Documents\\ChatGPT\\Drone\\AetherSwarm_release_cleanroom\\.venv-release\\Scripts\\python.exe",
+        "scripts/run_stage1_submission.py",
+        "--outdir",
+        "C:\\Users\\anwar\\OneDrive\\Documents\\ChatGPT\\Drone\\AetherSwarm_release_cleanroom\\stage1_output\\runs\\validation-h5cyftyn\\canonical-1"
+      ],
+      "log": "stage1_output\\runs\\validation-h5cyftyn\\logs\\canonical-1.json",
+      "name": "canonical-1",
+      "returncode": 0
+    },
+    {
+      "argv": [
+        "C:\\Users\\anwar\\OneDrive\\Documents\\ChatGPT\\Drone\\AetherSwarm_release_cleanroom\\.venv-release\\Scripts\\python.exe",
+        "scripts/run_stage1_submission.py",
+        "--outdir",
+        "C:\\Users\\anwar\\OneDrive\\Documents\\ChatGPT\\Drone\\AetherSwarm_release_cleanroom\\stage1_output\\runs\\validation-h5cyftyn\\canonical-2"
+      ],
+      "log": "stage1_output\\runs\\validation-h5cyftyn\\logs\\canonical-2.json",
+      "name": "canonical-2",
+      "returncode": 0
+    },
+    {
+      "argv": [
+        "C:\\Users\\anwar\\OneDrive\\Documents\\ChatGPT\\Drone\\AetherSwarm_release_cleanroom\\.venv-release\\Scripts\\python.exe",
+        "scripts/run_stage1_submission.py",
+        "--outdir",
+        "C:\\Users\\anwar\\OneDrive\\Documents\\ChatGPT\\Drone\\AetherSwarm_release_cleanroom\\stage1_output\\runs\\validation-h5cyftyn\\canonical-3"
+      ],
+      "log": "stage1_output\\runs\\validation-h5cyftyn\\logs\\canonical-3.json",
+      "name": "canonical-3",
+      "returncode": 0
+    },
+    {
+      "argv": [
+        "C:\\Users\\anwar\\OneDrive\\Documents\\ChatGPT\\Drone\\AetherSwarm_release_cleanroom\\.venv-release\\Scripts\\python.exe",
+        "scripts/run_stage1_submission.py",
+        "--outdir",
+        "C:\\Users\\anwar\\OneDrive\\Documents\\ChatGPT\\Drone\\AetherSwarm_release_cleanroom\\stage1_output\\runs\\validation-h5cyftyn\\canonical-4"
+      ],
+      "log": "stage1_output\\runs\\validation-h5cyftyn\\logs\\canonical-4.json",
+      "name": "canonical-4",
+      "returncode": 0
+    },
+    {
+      "argv": [
+        "C:\\Users\\anwar\\OneDrive\\Documents\\ChatGPT\\Drone\\AetherSwarm_release_cleanroom\\.venv-release\\Scripts\\python.exe",
+        "scripts/run_stage1_submission.py",
+        "--outdir",
+        "C:\\Users\\anwar\\OneDrive\\Documents\\ChatGPT\\Drone\\AetherSwarm_release_cleanroom\\stage1_output\\runs\\validation-h5cyftyn\\canonical-5"
+      ],
+      "log": "stage1_output\\runs\\validation-h5cyftyn\\logs\\canonical-5.json",
+      "name": "canonical-5",
+      "returncode": 0
+    },
+    {
+      "argv": [
+        "C:\\Users\\anwar\\OneDrive\\Documents\\ChatGPT\\Drone\\AetherSwarm_release_cleanroom\\.venv-release\\Scripts\\python.exe",
+        "scripts/run_stage1_submission.py",
+        "--outdir",
+        "C:\\Users\\anwar\\OneDrive\\Documents\\ChatGPT\\Drone\\AetherSwarm_release_cleanroom\\stage1_output\\runs\\validation-h5cyftyn\\canonical-6"
+      ],
+      "log": "stage1_output\\runs\\validation-h5cyftyn\\logs\\canonical-6.json",
+      "name": "canonical-6",
+      "returncode": 0
+    },
+    {
+      "argv": [
+        "C:\\Users\\anwar\\OneDrive\\Documents\\ChatGPT\\Drone\\AetherSwarm_release_cleanroom\\.venv-release\\Scripts\\python.exe",
+        "scripts/run_stage1_submission.py",
+        "--outdir",
+        "C:\\Users\\anwar\\OneDrive\\Documents\\ChatGPT\\Drone\\AetherSwarm_release_cleanroom\\stage1_output\\runs\\validation-h5cyftyn\\canonical-7"
+      ],
+      "log": "stage1_output\\runs\\validation-h5cyftyn\\logs\\canonical-7.json",
+      "name": "canonical-7",
+      "returncode": 0
+    },
+    {
+      "argv": [
+        "C:\\Users\\anwar\\OneDrive\\Documents\\ChatGPT\\Drone\\AetherSwarm_release_cleanroom\\.venv-release\\Scripts\\python.exe",
+        "scripts/run_stage1_submission.py",
+        "--outdir",
+        "C:\\Users\\anwar\\OneDrive\\Documents\\ChatGPT\\Drone\\AetherSwarm_release_cleanroom\\stage1_output\\runs\\validation-h5cyftyn\\canonical-8"
+      ],
+      "log": "stage1_output\\runs\\validation-h5cyftyn\\logs\\canonical-8.json",
+      "name": "canonical-8",
+      "returncode": 0
+    },
+    {
+      "argv": [
+        "C:\\Users\\anwar\\OneDrive\\Documents\\ChatGPT\\Drone\\AetherSwarm_release_cleanroom\\.venv-release\\Scripts\\python.exe",
+        "scripts/run_stage1_submission.py",
+        "--outdir",
+        "C:\\Users\\anwar\\OneDrive\\Documents\\ChatGPT\\Drone\\AetherSwarm_release_cleanroom\\stage1_output\\runs\\validation-h5cyftyn\\canonical-9"
+      ],
+      "log": "stage1_output\\runs\\validation-h5cyftyn\\logs\\canonical-9.json",
+      "name": "canonical-9",
+      "returncode": 0
+    },
+    {
+      "argv": [
+        "C:\\Users\\anwar\\OneDrive\\Documents\\ChatGPT\\Drone\\AetherSwarm_release_cleanroom\\.venv-release\\Scripts\\python.exe",
+        "scripts/run_e2_controlled.py",
+        "--outdir",
+        "C:\\Users\\anwar\\OneDrive\\Documents\\ChatGPT\\Drone\\AetherSwarm_release_cleanroom\\stage1_output\\runs\\validation-h5cyftyn\\e2-0"
+      ],
+      "log": "stage1_output\\runs\\validation-h5cyftyn\\logs\\e2-0.json",
+      "name": "e2-0",
+      "returncode": 0
+    },
+    {
+      "argv": [
+        "C:\\Users\\anwar\\OneDrive\\Documents\\ChatGPT\\Drone\\AetherSwarm_release_cleanroom\\.venv-release\\Scripts\\python.exe",
+        "scripts/run_e2_controlled.py",
+        "--outdir",
+        "C:\\Users\\anwar\\OneDrive\\Documents\\ChatGPT\\Drone\\AetherSwarm_release_cleanroom\\stage1_output\\runs\\validation-h5cyftyn\\e2-1"
+      ],
+      "log": "stage1_output\\runs\\validation-h5cyftyn\\logs\\e2-1.json",
+      "name": "e2-1",
+      "returncode": 0
+    },
+    {
+      "argv": [
+        "C:\\Users\\anwar\\OneDrive\\Documents\\ChatGPT\\Drone\\AetherSwarm_release_cleanroom\\.venv-release\\Scripts\\python.exe",
+        "scripts/run_e2_controlled.py",
+        "--outdir",
+        "C:\\Users\\anwar\\OneDrive\\Documents\\ChatGPT\\Drone\\AetherSwarm_release_cleanroom\\stage1_output\\runs\\validation-h5cyftyn\\e2-2"
+      ],
+      "log": "stage1_output\\runs\\validation-h5cyftyn\\logs\\e2-2.json",
+      "name": "e2-2",
+      "returncode": 0
+    },
+    {
+      "argv": [
+        "C:\\Users\\anwar\\OneDrive\\Documents\\ChatGPT\\Drone\\AetherSwarm_release_cleanroom\\.venv-release\\Scripts\\python.exe",
+        "scripts/run_e2_controlled.py",
+        "--outdir",
+        "C:\\Users\\anwar\\OneDrive\\Documents\\ChatGPT\\Drone\\AetherSwarm_release_cleanroom\\stage1_output\\runs\\validation-h5cyftyn\\e2-3"
+      ],
+      "log": "stage1_output\\runs\\validation-h5cyftyn\\logs\\e2-3.json",
+      "name": "e2-3",
+      "returncode": 0
+    },
+    {
+      "argv": [
+        "C:\\Users\\anwar\\OneDrive\\Documents\\ChatGPT\\Drone\\AetherSwarm_release_cleanroom\\.venv-release\\Scripts\\python.exe",
+        "scripts/run_e2_controlled.py",
+        "--outdir",
+        "C:\\Users\\anwar\\OneDrive\\Documents\\ChatGPT\\Drone\\AetherSwarm_release_cleanroom\\stage1_output\\runs\\validation-h5cyftyn\\e2-4"
+      ],
+      "log": "stage1_output\\runs\\validation-h5cyftyn\\logs\\e2-4.json",
+      "name": "e2-4",
+      "returncode": 0
+    },
+    {
+      "argv": [
+        "C:\\Users\\anwar\\OneDrive\\Documents\\ChatGPT\\Drone\\AetherSwarm_release_cleanroom\\.venv-release\\Scripts\\python.exe",
+        "scripts/run_demo_in_flight_recovery.py",
+        "--output-dir",
+        "C:\\Users\\anwar\\OneDrive\\Documents\\ChatGPT\\Drone\\AetherSwarm_release_cleanroom\\stage1_output\\runs\\validation-h5cyftyn\\failure-0"
+      ],
+      "log": "stage1_output\\runs\\validation-h5cyftyn\\logs\\failure-0.json",
+      "name": "failure-0",
+      "returncode": 0
+    },
+    {
+      "argv": [
+        "C:\\Users\\anwar\\OneDrive\\Documents\\ChatGPT\\Drone\\AetherSwarm_release_cleanroom\\.venv-release\\Scripts\\python.exe",
+        "scripts/run_demo_in_flight_recovery.py",
+        "--output-dir",
+        "C:\\Users\\anwar\\OneDrive\\Documents\\ChatGPT\\Drone\\AetherSwarm_release_cleanroom\\stage1_output\\runs\\validation-h5cyftyn\\failure-1"
+      ],
+      "log": "stage1_output\\runs\\validation-h5cyftyn\\logs\\failure-1.json",
+      "name": "failure-1",
+      "returncode": 0
+    },
+    {
+      "argv": [
+        "C:\\Users\\anwar\\OneDrive\\Documents\\ChatGPT\\Drone\\AetherSwarm_release_cleanroom\\.venv-release\\Scripts\\python.exe",
+        "scripts/run_demo_in_flight_recovery.py",
+        "--output-dir",
+        "C:\\Users\\anwar\\OneDrive\\Documents\\ChatGPT\\Drone\\AetherSwarm_release_cleanroom\\stage1_output\\runs\\validation-h5cyftyn\\failure-2"
+      ],
+      "log": "stage1_output\\runs\\validation-h5cyftyn\\logs\\failure-2.json",
+      "name": "failure-2",
+      "returncode": 0
+    },
+    {
+      "argv": [
+        "C:\\Users\\anwar\\OneDrive\\Documents\\ChatGPT\\Drone\\AetherSwarm_release_cleanroom\\.venv-release\\Scripts\\python.exe",
+        "scripts/run_release_probes.py",
+        "batch",
+        "--output",
+        "C:\\Users\\anwar\\OneDrive\\Documents\\ChatGPT\\Drone\\AetherSwarm_release_cleanroom\\stage1_output\\runs\\validation-h5cyftyn\\batch.json"
+      ],
+      "log": "stage1_output\\runs\\validation-h5cyftyn\\logs\\batch-evidence.json",
+      "name": "batch-evidence",
+      "returncode": 0
+    },
+    {
+      "argv": [
+        "C:\\Users\\anwar\\OneDrive\\Documents\\ChatGPT\\Drone\\AetherSwarm_release_cleanroom\\.venv-release\\Scripts\\python.exe",
+        "scripts/run_release_probes.py",
+        "random",
+        "--output",
+        "C:\\Users\\anwar\\OneDrive\\Documents\\ChatGPT\\Drone\\AetherSwarm_release_cleanroom\\stage1_output\\runs\\validation-h5cyftyn\\random.json"
+      ],
+      "log": "stage1_output\\runs\\validation-h5cyftyn\\logs\\random-evidence.json",
+      "name": "random-evidence",
+      "returncode": 0
+    },
+    {
+      "argv": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "log": "stage1_output\\runs\\validation-h5cyftyn\\logs\\diff-check.json",
+      "name": "diff-check",
+      "returncode": 0
+    }
+  ],
+  "determinism": {
+    "E2": {
+      "identical": true,
+      "runs": 5,
+      "sha256": [
+        "676e276f4c97fba64c958baba80048cc4da52bbaf1f403cccddff196b7f29f4e",
+        "676e276f4c97fba64c958baba80048cc4da52bbaf1f403cccddff196b7f29f4e",
+        "676e276f4c97fba64c958baba80048cc4da52bbaf1f403cccddff196b7f29f4e",
+        "676e276f4c97fba64c958baba80048cc4da52bbaf1f403cccddff196b7f29f4e",
+        "676e276f4c97fba64c958baba80048cc4da52bbaf1f403cccddff196b7f29f4e"
+      ]
+    },
+    "canonical": {
+      "identical": true,
+      "runs": 10,
+      "sha256": [
+        "9fc6d7d8e5385664b4028c810ea89b3c08d06066c114d22c6270c16e3b36fa53",
+        "9fc6d7d8e5385664b4028c810ea89b3c08d06066c114d22c6270c16e3b36fa53",
+        "9fc6d7d8e5385664b4028c810ea89b3c08d06066c114d22c6270c16e3b36fa53",
+        "9fc6d7d8e5385664b4028c810ea89b3c08d06066c114d22c6270c16e3b36fa53",
+        "9fc6d7d8e5385664b4028c810ea89b3c08d06066c114d22c6270c16e3b36fa53",
+        "9fc6d7d8e5385664b4028c810ea89b3c08d06066c114d22c6270c16e3b36fa53",
+        "9fc6d7d8e5385664b4028c810ea89b3c08d06066c114d22c6270c16e3b36fa53",
+        "9fc6d7d8e5385664b4028c810ea89b3c08d06066c114d22c6270c16e3b36fa53",
+        "9fc6d7d8e5385664b4028c810ea89b3c08d06066c114d22c6270c16e3b36fa53",
+        "9fc6d7d8e5385664b4028c810ea89b3c08d06066c114d22c6270c16e3b36fa53"
+      ]
+    },
+    "failure_recovery": {
+      "identical": true,
+      "runs": 3,
+      "sha256": [
+        "84902a54ba629e6fd36ed6e45c479725eb054aad1459d416f8fa27f3700fcdc3",
+        "84902a54ba629e6fd36ed6e45c479725eb054aad1459d416f8fa27f3700fcdc3",
+        "84902a54ba629e6fd36ed6e45c479725eb054aad1459d416f8fa27f3700fcdc3"
+      ]
+    }
+  },
+  "direct_imports": {
+    "passed": 5,
+    "statements": [
+      "import ares_swarm",
+      "from ares_swarm.autonomy.a1_allocator import A1TaskAllocator",
+      "from ares_swarm.communication.analysis import BaselineCommunicationAnalyzer",
+      "from ares_swarm.telemetry.manager import DetectionManager",
+      "from ares_swarm.simulation.runner import MissionRunner"
+    ]
+  },
+  "environment": {
+    "base_prefix": "C:\\Users\\anwar\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\python",
+    "freeze": [
+      "-e git+https://github.com/ThePixelScript/AetherSwarm.git@aeb4837fbe0e2d3c7a60da35b34a064c39d8964d#egg=ares_swarm",
+      "colorama==0.4.6",
+      "iniconfig==2.3.0",
+      "networkx==3.7",
+      "numpy==2.5.3",
+      "packaging==26.3",
+      "pluggy==1.6.0",
+      "Pygments==2.21.0",
+      "pytest==9.1.1",
+      "PyYAML==6.0.3"
+    ],
+    "pip": "pip 25.0.1 from C:\\Users\\anwar\\OneDrive\\Documents\\ChatGPT\\Drone\\AetherSwarm_release_cleanroom\\.venv-release\\Lib\\site-packages\\pip (python 3.12)",
+    "pip_check": "No broken requirements found.",
+    "prefix": "C:\\Users\\anwar\\OneDrive\\Documents\\ChatGPT\\Drone\\AetherSwarm_release_cleanroom\\.venv-release",
+    "python": "Python 3.12.14"
+  },
+  "failure_recovery": {
+    "completion_tick": 21,
+    "deferred_verified": true,
+    "events": [
+      {
+        "entity_id": "uav_1",
+        "payload": {
+          "task_id": "poi_recovery"
+        },
+        "tick": 0,
+        "time": 0.0,
+        "type": "TASK_ASSIGNED"
+      },
+      {
+        "entity_id": "poi_recovery",
+        "payload": {
+          "duration": 6.0,
+          "progress": 1.0
+        },
+        "tick": 6,
+        "time": 6.0,
+        "type": "TASK_PROGRESS"
+      },
+      {
+        "entity_id": "poi_recovery",
+        "payload": {
+          "duration": 6.0,
+          "progress": 2.0
+        },
+        "tick": 7,
+        "time": 7.0,
+        "type": "TASK_PROGRESS"
+      },
+      {
+        "entity_id": "uav_1",
+        "payload": {
+          "failure_state": "FAILED",
+          "reason": "In-flight propulsion failure demo"
+        },
+        "tick": 8,
+        "time": 8.0,
+        "type": "UAV_FAILED"
+      },
+      {
+        "entity_id": "uav_2",
+        "payload": {
+          "task_id": "poi_recovery"
+        },
+        "tick": 8,
+        "time": 8.0,
+        "type": "TASK_ASSIGNED"
+      },
+      {
+        "entity_id": "poi_recovery",
+        "payload": {
+          "duration": 6.0,
+          "progress": 3.0
+        },
+        "tick": 18,
+        "time": 18.0,
+        "type": "TASK_PROGRESS"
+      },
+      {
+        "entity_id": "poi_recovery",
+        "payload": {
+          "duration": 6.0,
+          "progress": 4.0
+        },
+        "tick": 19,
+        "time": 19.0,
+        "type": "TASK_PROGRESS"
+      },
+      {
+        "entity_id": "poi_recovery",
+        "payload": {
+          "duration": 6.0,
+          "progress": 5.0
+        },
+        "tick": 20,
+        "time": 20.0,
+        "type": "TASK_PROGRESS"
+      },
+      {
+        "entity_id": "poi_recovery",
+        "payload": {
+          "uav_id": "uav_2"
+        },
+        "tick": 21,
+        "time": 21.0,
+        "type": "TASK_COMPLETED"
+      },
+      {
+        "entity_id": "uav_5",
+        "payload": {},
+        "tick": 38,
+        "time": 38.0,
+        "type": "RTH_TRIGGERED"
+      },
+      {
+        "entity_id": "uav_4",
+        "payload": {},
+        "tick": 51,
+        "time": 51.0,
+        "type": "RTH_TRIGGERED"
+      },
+      {
+        "entity_id": "uav_2",
+        "payload": {},
+        "tick": 56,
+        "time": 56.0,
+        "type": "RTH_TRIGGERED"
+      },
+      {
+        "entity_id": "uav_3",
+        "payload": {},
+        "tick": 60,
+        "time": 60.0,
+        "type": "RTH_TRIGGERED"
+      },
+      {
+        "entity_id": "uav_5",
+        "payload": {
+          "final_energy": 4071.9687576256715
+        },
+        "tick": 63,
+        "time": 63.0,
+        "type": "UAV_LANDED"
+      },
+      {
+        "entity_id": "uav_4",
+        "payload": {
+          "final_energy": 4073.148351928655
+        },
+        "tick": 72,
+        "time": 72.0,
+        "type": "UAV_LANDED"
+      },
+      {
+        "entity_id": "uav_3",
+        "payload": {
+          "final_energy": 4070.0
+        },
+        "tick": 79,
+        "time": 79.0,
+        "type": "UAV_LANDED"
+      },
+      {
+        "entity_id": "uav_2",
+        "payload": {
+          "final_energy": 4011.678312387631
+        },
+        "tick": 86,
+        "time": 86.0,
+        "type": "UAV_LANDED"
+      }
+    ],
+    "failure_tick": 8,
+    "min_separation_m": 31.23,
+    "original_uav": "uav_1",
+    "reassignment_tick": 8,
+    "replacement_uav": "uav_2",
+    "scenario_name": "demo_in_flight_recovery",
+    "seed": 42,
+    "selected_task": "poi_recovery",
+    "separation_violations": 0,
+    "task_in_progress_tick": 7,
+    "timeline_entries": [
+      "Tick 0 (t=0.0s): TASK_ASSIGNED -> uav_1 (task: poi_recovery)",
+      "Tick 7 (t=7.0s): Task 'poi_recovery' IN_PROGRESS by 'uav_1' (actively servicing)",
+      "Tick 8 (t=8.0s) [Pre-Autonomy]: UAV 'uav_1' FAILED -> Task 'poi_recovery' transitioned to DEFERRED (assigned_uav=None)",
+      "Tick 8 (t=8.0s) [Post-Autonomy]: A1 reassigns SAME task 'poi_recovery' to replacement UAV 'uav_2'",
+      "Tick 8 (t=8.0s): UAV_FAILED -> uav_1 (In-flight propulsion failure demo)",
+      "Tick 21 (t=21.0s): TASK_COMPLETED -> task 'poi_recovery' completed by 'uav_2'",
+      "Tick 38 (t=38.0s): RTH_TRIGGERED -> uav_5",
+      "Tick 51 (t=51.0s): RTH_TRIGGERED -> uav_4",
+      "Tick 56 (t=56.0s): RTH_TRIGGERED -> uav_2",
+      "Tick 60 (t=60.0s): RTH_TRIGGERED -> uav_3",
+      "Tick 63 (t=63.0s): UAV_LANDED -> uav_5 at GCS (energy: 4071.97 Wh)",
+      "Tick 72 (t=72.0s): UAV_LANDED -> uav_4 at GCS (energy: 4073.15 Wh)",
+      "Tick 79 (t=79.0s): UAV_LANDED -> uav_3 at GCS (energy: 4070.0 Wh)",
+      "Tick 86 (t=86.0s): UAV_LANDED -> uav_2 at GCS (energy: 4011.68 Wh)"
+    ],
+    "total_ticks": 100
+  },
+  "focused_tests": {
+    "autonomy": {
+      "collected": 62,
+      "errors": 0,
+      "failed": 0,
+      "passed": 62,
+      "skipped": 0
+    },
+    "batch": {
+      "collected": 8,
+      "errors": 0,
+      "failed": 0,
+      "passed": 8,
+      "skipped": 0
+    },
+    "communication": {
+      "collected": 103,
+      "errors": 0,
+      "failed": 0,
+      "passed": 103,
+      "skipped": 0
+    },
+    "safety": {
+      "collected": 42,
+      "errors": 0,
+      "failed": 0,
+      "passed": 42,
+      "skipped": 0
+    },
+    "simulation": {
+      "collected": 18,
+      "errors": 0,
+      "failed": 0,
+      "passed": 18,
+      "skipped": 0
+    },
+    "telemetry": {
+      "collected": 15,
+      "errors": 0,
+      "failed": 0,
+      "passed": 15,
+      "skipped": 0
+    },
+    "visualization": {
+      "collected": 14,
+      "errors": 0,
+      "failed": 0,
+      "passed": 14,
+      "skipped": 0
+    }
+  },
+  "fresh_clone_reproduction": {
+    "independent_git_directory": true,
+    "note": "Creation/install command provenance is recorded separately in EVIDENCE_MANIFEST.md; these checks alone do not prove freshness.",
+    "venv_active": true,
+    "venv_inside_clone": true
+  },
+  "generalization": [
+    {
+      "communication": {
+        "connectivity_availability": 1.0,
+        "downtime_s": 0.0,
+        "model_estimated_route_latency_ms": 6.94,
+        "model_estimated_route_pdr": 0.7477
+      },
+      "completed": 0,
+      "profile": "uniform full-arena, no fixed canonical ingress",
+      "safety": {
+        "battery_exhaustion_count": 0,
+        "geofence_interventions": 0,
+        "geofence_violation_count": 0,
+        "min_boundary_clearance_m": 0.0,
+        "min_inter_uav_separation_m": 20.0,
+        "per_uav_geofence_intervention_counts": {},
+        "per_uav_intervention_counts": {
+          "uav_1": 1528,
+          "uav_2": 1531,
+          "uav_4": 1544,
+          "uav_5": 1557
+        },
+        "separation_interventions": 6160,
+        "separation_violation_count": 0
+      },
+      "seed": 2026,
+      "task_statuses": {
+        "poi_01": "PENDING",
+        "poi_02": "PENDING",
+        "poi_03": "PENDING",
+        "poi_04": "PENDING",
+        "poi_05": "PENDING",
+        "poi_06": "PENDING",
+        "poi_07": "PENDING",
+        "poi_08": "PENDING",
+        "poi_09": "PENDING",
+        "poi_10": "PENDING"
+      },
+      "telemetry": {
+        "max_reporting_latency_s": null,
+        "mean_reporting_latency_s": null,
+        "per_uav_delivered_counts": {},
+        "per_uav_detection_counts": {},
+        "reporting_compliance_ratio": 1.0,
+        "reports_deadline_exceeded": 0,
+        "reports_delivered": 0,
+        "total_detections": 0
+      },
+      "uncompleted": 10
+    },
+    {
+      "communication": {
+        "connectivity_availability": 1.0,
+        "downtime_s": 0.0,
+        "model_estimated_route_latency_ms": 6.94,
+        "model_estimated_route_pdr": 0.7477
+      },
+      "completed": 0,
+      "profile": "uniform full-arena, no fixed canonical ingress",
+      "safety": {
+        "battery_exhaustion_count": 0,
+        "geofence_interventions": 0,
+        "geofence_violation_count": 0,
+        "min_boundary_clearance_m": 0.0,
+        "min_inter_uav_separation_m": 20.0,
+        "per_uav_geofence_intervention_counts": {},
+        "per_uav_intervention_counts": {
+          "uav_1": 1528,
+          "uav_2": 1531,
+          "uav_4": 1544,
+          "uav_5": 1557
+        },
+        "separation_interventions": 6160,
+        "separation_violation_count": 0
+      },
+      "seed": 42,
+      "task_statuses": {
+        "poi_01": "PENDING",
+        "poi_02": "PENDING",
+        "poi_03": "PENDING",
+        "poi_04": "PENDING",
+        "poi_05": "PENDING",
+        "poi_06": "PENDING",
+        "poi_07": "PENDING",
+        "poi_08": "PENDING",
+        "poi_09": "PENDING",
+        "poi_10": "PENDING"
+      },
+      "telemetry": {
+        "max_reporting_latency_s": null,
+        "mean_reporting_latency_s": null,
+        "per_uav_delivered_counts": {},
+        "per_uav_detection_counts": {},
+        "reporting_compliance_ratio": 1.0,
+        "reports_deadline_exceeded": 0,
+        "reports_delivered": 0,
+        "total_detections": 0
+      },
+      "uncompleted": 10
+    },
+    {
+      "communication": {
+        "connectivity_availability": 1.0,
+        "downtime_s": 0.0,
+        "model_estimated_route_latency_ms": 6.94,
+        "model_estimated_route_pdr": 0.7477
+      },
+      "completed": 0,
+      "profile": "uniform full-arena, no fixed canonical ingress",
+      "safety": {
+        "battery_exhaustion_count": 0,
+        "geofence_interventions": 0,
+        "geofence_violation_count": 0,
+        "min_boundary_clearance_m": 0.0,
+        "min_inter_uav_separation_m": 20.0,
+        "per_uav_geofence_intervention_counts": {},
+        "per_uav_intervention_counts": {
+          "uav_1": 1528,
+          "uav_2": 1531,
+          "uav_4": 1544,
+          "uav_5": 1557
+        },
+        "separation_interventions": 6160,
+        "separation_violation_count": 0
+      },
+      "seed": 137,
+      "task_statuses": {
+        "poi_01": "PENDING",
+        "poi_02": "PENDING",
+        "poi_03": "PENDING",
+        "poi_04": "PENDING",
+        "poi_05": "PENDING",
+        "poi_06": "PENDING",
+        "poi_07": "PENDING",
+        "poi_08": "PENDING",
+        "poi_09": "PENDING",
+        "poi_10": "PENDING"
+      },
+      "telemetry": {
+        "max_reporting_latency_s": null,
+        "mean_reporting_latency_s": null,
+        "per_uav_delivered_counts": {},
+        "per_uav_detection_counts": {},
+        "reporting_compliance_ratio": 1.0,
+        "reports_deadline_exceeded": 0,
+        "reports_delivered": 0,
+        "total_detections": 0
+      },
+      "uncompleted": 10
+    }
+  ],
+  "repository": {
+    "branch": "aether/stage1-submission-verified",
+    "commit": "aeb4837fbe0e2d3c7a60da35b34a064c39d8964d",
+    "origin": "https://github.com/ThePixelScript/AetherSwarm.git",
+    "starting_status": ""
+  },
+  "status": "AUTOMATED_GATES_PASSED",
+  "tests": {
+    "collected": 336,
+    "errors": 0,
+    "failed": 0,
+    "passed": 336,
+    "skipped": 0
+  },
+  "verified_at_utc": "2026-09-26T19:00:03.044779+00:00",
+  "webots": {
+    "native_executable": "NOT_AVAILABLE",
+    "native_rendering_executed": false,
+    "standalone_control_tests": {
+      "collected": 14,
+      "errors": 0,
+      "failed": 0,
+      "passed": 14,
+      "skipped": 0
+    }
+  }
+}

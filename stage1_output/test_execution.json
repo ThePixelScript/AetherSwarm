@@ -1,0 +1,15 @@
+{
+  "argv": [
+    "C:\\Users\\anwar\\OneDrive\\Documents\\ChatGPT\\Drone\\AetherSwarm_release_cleanroom\\.venv-release\\Scripts\\python.exe",
+    "-m",
+    "pytest",
+    "tests/",
+    "-q",
+    "--basetemp=C:\\Users\\anwar\\OneDrive\\Documents\\ChatGPT\\Drone\\AetherSwarm_release_cleanroom\\stage1_output\\runs\\validation-h5cyftyn\\full-tests_tmp",
+    "--junitxml=C:\\Users\\anwar\\OneDrive\\Documents\\ChatGPT\\Drone\\AetherSwarm_release_cleanroom\\stage1_output\\runs\\validation-h5cyftyn\\full-tests.xml"
+  ],
+  "name": "full-tests",
+  "returncode": 0,
+  "stderr": "",
+  "stdout": "........................................................................ [ 21%]\n........................................................................ [ 42%]\n........................................................................ [ 64%]\n........................................................................ [ 85%]\n................................................                         [100%]\n336 passed in 28.43s\n"
+}
