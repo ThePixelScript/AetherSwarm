@@ -99,7 +99,7 @@ def test_connected_uav_beats_disconnected_uav():
     # GCS at (0, 0). Comm range = 50m.
     # UAV 1 at (20, 0) -> distance to GCS = 20m -> connected!
     # UAV 2 at (100, 0) -> distance to GCS = 100m, distance to u1 = 80m > 50m -> disconnected!
-    # Task at (60, 0) -> distance from u1 = 40m, distance from u2 = 40m (identical travel cost!)
+    # Task at (40, 0): connected destination; distances are 20m and 60m.
     u1 = UAVState(id="u1", position_xy=(20.0, 0.0))
     u2 = UAVState(id="u2", position_xy=(100.0, 0.0))
     t = TaskState(id="t1", position_xy=(40.0, 0.0), priority=5)
@@ -164,8 +164,8 @@ def test_better_route_pdr_beats_worse_route_pdr():
     assert score_u1 > score_u2
 
 
-def test_lower_hop_count_preferred_when_reliability_equal():
-    """Requirement 5: Lower hop count is preferred when communication reliability is equal."""
+def test_destination_gate_preserves_gateway_despite_current_hop_advantage():
+    """Moving the one-hop gateway outside GCS range is infeasible."""
     # GCS at (0, 0). Comm range = 30m.
     # UAV 1 at (25, 0): 1 hop to GCS
     # UAV 2 at (50, 0): 2 hops to GCS (via u1 at 25, 0)
@@ -188,12 +188,15 @@ def test_lower_hop_count_preferred_when_reliability_equal():
     assert net.hop_counts["u1"] == 1
     assert net.hop_counts["u2"] == 2
 
-    allocator = A1TaskAllocator(A1AllocatorConfig(hop_decay=0.85))
+    allocator = A1TaskAllocator(A1AllocatorConfig(hop_decay=0.85), comm_analyzer=analyzer)
     comm_f1 = allocator.compute_communication_factor(u1, net)
     comm_f2 = allocator.compute_communication_factor(u2, net)
 
     assert comm_f1 == 1.0
     assert pytest.approx(comm_f2) == 0.85
+
+    assert allocator.compute_utility(u1, t, net, snap).total == float("-inf")
+    assert allocator.compute_utility(u2, t, net, snap).total == pytest.approx(4.9875 * 0.85)
 
     res = allocator.allocate(snap, network_analysis=net)
     assert res.assignments[0].uav_id == "u2"
@@ -220,8 +223,8 @@ def test_communication_does_not_override_clearly_higher_priority_task():
     assert "t-low" in res.unassigned_tasks
 
 
-def test_disconnected_only_swarm_does_not_deadlock():
-    """Requirement 7: Swarm with all UAVs disconnected does not deadlock; task is assigned."""
+def test_disconnected_only_swarm_safely_defers_blackout_destination():
+    """A scoring floor must not dispatch a task into a disconnected destination."""
     # GCS at (0, 0), comm range = 20m.
     # Both UAVs at 100m, 120m (completely disconnected from GCS)
     u1 = UAVState(id="u1", position_xy=(100.0, 0.0))
@@ -238,7 +241,7 @@ def test_disconnected_only_swarm_does_not_deadlock():
     allocator = A1TaskAllocator(A1AllocatorConfig(min_comm_factor=0.2))
     res = allocator.allocate(snap, network_analysis=net)
 
-    # Must NOT deadlock: u1 is closer to t1 (5m vs 15m) and is assigned despite being disconnected
+    # The destination gate safely defers; a scoring floor does not grant feasibility.
     assert len(res.assignments) == 0
     # Both UAVs had floor comm_factor = 0.2
     assert allocator.compute_communication_factor(u1, net) == 0.2
@@ -356,8 +359,8 @@ def test_a0_adapter_wiring_with_a1():
     assert cmds[0].source_tick == 3
 
 
-def test_controlled_a0_vs_a1_scenario():
-    """Controlled unit scenario demonstrating a communication-driven ranking change.
+def test_legacy_current_position_scoring_changes_a0_ranking():
+    """Legacy scoring-only mode; not evidence for destination-aware feasibility.
 
     Setup:
     - GCS at (0, 0).

@@ -1,4 +1,4 @@
-"""Deterministic communication-aware task allocator (A1) for ARES-Swarm autonomy.
+"""Deterministic communication-aware task allocator (A1) for AetherSwarm.
 
 Stage-1 communication-aware task assignment incorporating real NetworkAnalysis signals
 (reachability, hop count, end-to-end route PDR) on top of the deterministic A0 baseline.
@@ -8,10 +8,10 @@ A1 v1 ARCHITECTURE & CONTRACTS:
 - Preserves A0 task ordering (descending priority, emergency status, ascending ID).
 - Modifies candidate utility scoring using a bounded, deterministic communication factor:
     A1Utility(i, j) = BaseMissionUtility(i, j) * CommunicationFactor(i)
-- Demotes disconnected UAVs to a configurable floor (min_comm_factor) rather than rejecting them,
-  preventing mission deadlock when the swarm is partitioned.
-- Explicit A1 v1 limitation: evaluates communication based strictly on current UAV position and
-  current route to GCS. Does not simulate future connectivity at the task destination.
+- Production mode rejects disconnected destinations and loss of connected peers.
+- Accepted moves accumulate in a hypothetical batch snapshot; Gamma stays read-only.
+- The communication floor applies to scoring, not a relaxation of feasibility.
+- Endpoint checks do not prove continuous trajectory connectivity or relay recovery.
 """
 from __future__ import annotations
 
@@ -312,6 +312,30 @@ class A1TaskAllocator(A0TaskAllocator):
         network_analysis: Any = None,
         snapshot: Any = None,
     ) -> AllocationResult:
+        """Allocate a hypothetical batch without leaking per-call scoring context."""
+        previous_snapshot = self._current_snapshot
+        previous_network = self._current_network_analysis
+        try:
+            return self._allocate_batch(
+                snapshot_or_uavs, tasks, uavs=uavs,
+                simulation_time=simulation_time, snapshot_revision=snapshot_revision,
+                network_analysis=network_analysis, snapshot=snapshot,
+            )
+        finally:
+            self._current_snapshot = previous_snapshot
+            self._current_network_analysis = previous_network
+
+    def _allocate_batch(
+        self,
+        snapshot_or_uavs: Any = None,
+        tasks: Sequence[Any] | None = None,
+        *,
+        uavs: Sequence[Any] | None = None,
+        simulation_time: float | None = None,
+        snapshot_revision: int = 0,
+        network_analysis: Any = None,
+        snapshot: Any = None,
+    ) -> AllocationResult:
         """Deterministically allocate pending tasks using A1 connectivity-aware scoring.
         
         Evaluates batch candidates sequentially, mutating a hypothetical working snapshot
@@ -389,7 +413,7 @@ class A1TaskAllocator(A0TaskAllocator):
             )
         )
 
-        available_uavs: dict[str, Any] = {str(u.id): u for u in feasible_uavs}
+        available_uavs: dict[str, Any] = {str(u.id): u for u in sorted(feasible_uavs, key=lambda u: str(u.id))}
         assignments: list[TaskAssignment] = []
         unassigned_tasks: list[str] = []
 
@@ -426,7 +450,9 @@ class A1TaskAllocator(A0TaskAllocator):
             self._current_snapshot = None
             self._current_network_analysis = None
 
-            if best_uav_id is not None and best_utility >= float(getattr(self.config, "min_utility_threshold", 0.0)):
+            # A0 has no zero-utility rejection threshold. Preserve that contract;
+            # topology-infeasible (-inf) candidates never acquire best_uav_id.
+            if best_uav_id is not None and best_utility >= float(getattr(self.config, "min_utility_threshold", float("-inf"))):
                 assignments.append(
                     TaskAssignment(
                         uav_id=best_uav_id,
