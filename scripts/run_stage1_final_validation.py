@@ -40,7 +40,7 @@ def main():
         "test_count": test_count,
         "canonical": {
             "tasks": canonical_data["evaluation"]["mission"]["tasks_completed"],
-            "completion_time": canonical_data["evaluation"]["mission"]["mission_completion_time_s"],
+            "completion_time": canonical_data["evaluation"]["mission"]["completion_time_s"],
             "report_compliance": canonical_data["evaluation"]["telemetry"]["compliance_ratio"],
             "connectivity": "100%",
             "PDR": 1.0,
