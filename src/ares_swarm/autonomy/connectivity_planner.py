@@ -463,11 +463,12 @@ class ConnectivityAwarePlanner:
                     if relay_uav.role != Role.RELAY:
                         relay_lost_unrecovered = True
 
-            # Trigger replanning if relay was lost without replacement or disconnection exceeds tolerance
+            # Trigger replanning if relay was lost without replacement or disconnection exceeds tolerance while active
             disconnect_duration = self._disconnected_time.get(surv.id, 0.0)
             trigger_replan = relay_lost_unrecovered or (
                 disconnect_duration >= self.config.disconnected_replan_tolerance_s
                 and math.hypot(surv.position_xy[0] - snapshot.gcs_position[0], surv.position_xy[1] - snapshot.gcs_position[1]) > self.config.comm_range_m
+                and (chain is None or chain.status != ChainStatus.FORMING)
             )
 
             if trigger_replan:
@@ -553,10 +554,15 @@ class ConnectivityAwarePlanner:
         # Track UAVs assigned during this planning tick
         assigned_uav_ids: Set[str] = set()
 
-        # Sort tasks deterministically: priority descending, emergency first, id ascending
+        # Sort tasks deterministically: priority descending, emergency first, min relays ascending, id ascending
         sorted_tasks = sorted(
             [t for t in snapshot.tasks.values() if t.status in (TaskStatus.PENDING, TaskStatus.DEFERRED)],
-            key=lambda t: (-t.priority, not getattr(t, "emergency_flag", False), t.id),
+            key=lambda t: (
+                -t.priority,
+                not getattr(t, "emergency_flag", False),
+                compute_multihop_stations(snapshot.gcs_position, t.position_xy, effective_range=self.config.comm_range_m)[1],
+                t.id,
+            ),
         )
 
         for task in sorted_tasks:

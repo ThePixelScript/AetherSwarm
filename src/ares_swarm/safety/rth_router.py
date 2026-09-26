@@ -98,7 +98,7 @@ class RTHRouter:
 
         for uav_id in sorted(snapshot.uavs):
             uav = snapshot.uavs[uav_id]
-            if not uav.active or uav.rth_state != RTHState.ACTIVE:
+            if uav.rth_state != RTHState.ACTIVE:
                 continue
 
             lane_y = self.get_rth_lane_y(uav, snapshot)
