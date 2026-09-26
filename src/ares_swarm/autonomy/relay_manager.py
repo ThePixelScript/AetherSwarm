@@ -399,6 +399,8 @@ class DynamicRelayManager:
                 continue
             if u.sortie_state in (SortieState.RTH, SortieState.LANDING, SortieState.LANDED, SortieState.RECHARGING):
                 continue
+            if u.assigned_task_id is not None:
+                continue
 
             # 2. Imminent RTH & Endurance Feasibility Gates (Requirement 5)
             if u.id in self.relay_positions:
@@ -450,10 +452,7 @@ class DynamicRelayManager:
             if u.role == Role.IDLE:
                 score += 100.0
             elif u.role == Role.SURVEYOR:
-                if u.assigned_task_id is None:
-                    score += 80.0
-                else:
-                    score += 30.0
+                score += 80.0
             elif u.role == Role.RELAY:
                 score += 50.0 if (is_airborne and d_to_relay <= self.config.airborne_reuse_tolerance_m) else 10.0
 
@@ -996,6 +995,8 @@ class DynamicRelayManager:
         ]
 
         for surveyor in sorted(active_surveyors, key=lambda x: x.id):
+            if surveyor.id in self.surveyor_to_chain:
+                continue
             d_gcs = math.hypot(surveyor.position_xy[0] - gcs_pos[0], surveyor.position_xy[1] - gcs_pos[1])
             is_connected = bool(network_analysis and surveyor.id in network_analysis.connected_uav_ids)
 

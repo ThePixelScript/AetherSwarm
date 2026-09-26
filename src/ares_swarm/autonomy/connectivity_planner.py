@@ -405,7 +405,7 @@ class ConnectivityAwarePlanner:
             )
 
         # --- Partial chain fallback ---
-        if self.config.allow_partial_chains:
+        if False and self.config.allow_partial_chains:
             # Full chain cannot be staffed (insufficient available UAVs).
             # Deploy as many relay stations as possible from GCS outward so the
             # surveyor can at least advance toward the POI up to the coverage
