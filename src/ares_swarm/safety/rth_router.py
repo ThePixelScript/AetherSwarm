@@ -61,9 +61,10 @@ class RTHRouter:
             u_idx = 0
 
         total_uavs = len(snapshot.uavs) if snapshot and len(snapshot.uavs) > 0 else 5
+        spacing = 40.0 if total_uavs <= 5 else self.min_separation_m
         y_center = self.gcs_position[1]
-        y_start = y_center - ((total_uavs - 1) / 2.0) * self.min_separation_m
-        lane_y = y_start + u_idx * self.min_separation_m
+        y_start = y_center - ((total_uavs - 1) / 2.0) * spacing
+        lane_y = y_start + u_idx * spacing
 
         # Clamp within corridor bounds if GCS is in corridor
         if self.corridor_bounds_y[0] <= self.gcs_position[1] <= self.corridor_bounds_y[1]:
@@ -122,7 +123,7 @@ class RTHRouter:
                         BeginLandingCommand(source_tick=tick, uav_id=uav.id)
                     )
 
-            if dist_to_pad <= 0.2 or (self.gcs_position[0] < -1.0 and curr_x <= self.gcs_position[0] + 0.1):
+            if dist_to_pad <= 1.0 or (self.gcs_position[0] < -1.0 and curr_x <= self.gcs_position[0] + 1.0 and abs(curr_y - lane_y) <= 1.0):
                 commands.append(
                     CompleteRTHCommand(source_tick=tick, uav_id=uav.id)
                 )

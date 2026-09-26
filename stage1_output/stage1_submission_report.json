@@ -1,8 +1,8 @@
 {
   "scenario_name": "poc_round1_mission",
   "seed": 2026,
-  "total_ticks": 1182,
-  "final_simulation_time": 1182.0,
+  "total_ticks": 1177,
+  "final_simulation_time": 1177.0,
   "metrics": {
     "tasks_total": 10,
     "tasks_spawned": 10,
@@ -10,10 +10,10 @@
     "tasks_completed": 9,
     "tasks_expired": 1,
     "mission_completion_rate": 0.9,
-    "total_energy_consumed": 6508.7204,
+    "total_energy_consumed": 6510.0869,
     "final_connected_uav_count": 0,
     "final_connected_uavs": [],
-    "total_events_generated": 99
+    "total_events_generated": 74
   },
   "uavs": {
     "uav_1": {
@@ -25,8 +25,8 @@
         0.0,
         0.0
       ],
-      "battery_energy": 2697.7325,
-      "battery_percent": 64.23,
+      "battery_energy": 2702.7325,
+      "battery_percent": 64.35,
       "role": "IDLE",
       "rth_state": "COMPLETE",
       "active": false,
@@ -41,8 +41,8 @@
         0.0,
         0.0
       ],
-      "battery_energy": 2960.959,
-      "battery_percent": 70.5,
+      "battery_energy": 2961.959,
+      "battery_percent": 70.52,
       "role": "IDLE",
       "rth_state": "COMPLETE",
       "active": false,
@@ -57,8 +57,8 @@
         0.0,
         0.0
       ],
-      "battery_energy": 2968.5,
-      "battery_percent": 70.68,
+      "battery_energy": 2965.5,
+      "battery_percent": 70.61,
       "role": "IDLE",
       "rth_state": "COMPLETE",
       "active": false,
@@ -73,8 +73,8 @@
         0.0,
         0.0
       ],
-      "battery_energy": 2976.959,
-      "battery_percent": 70.88,
+      "battery_energy": 2969.959,
+      "battery_percent": 70.71,
       "role": "IDLE",
       "rth_state": "COMPLETE",
       "active": false,
@@ -82,15 +82,15 @@
     },
     "uav_5": {
       "position": [
-        -75.0,
-        540.0
+        -74.52519470665248,
+        540.0018837177605
       ],
       "velocity": [
         0.0,
         0.0
       ],
-      "battery_energy": 2887.1292,
-      "battery_percent": 68.74,
+      "battery_energy": 2889.7627,
+      "battery_percent": 68.8,
       "role": "IDLE",
       "rth_state": "COMPLETE",
       "active": false,
@@ -167,15 +167,15 @@
       "tasks_completed": 9,
       "tasks_expired": 1,
       "mission_completion_rate": 0.9,
-      "completion_time_s": 1182.0,
+      "completion_time_s": 1177.0,
       "priority_weighted_score": 0.8636,
-      "total_energy_consumed_wh": 6508.7204
+      "total_energy_consumed_wh": 6510.0869
     },
     "communication": {
-      "model_estimated_route_pdr": 0.3345,
-      "model_estimated_route_latency_ms": 18.56,
-      "connectivity_availability": 0.9957,
-      "downtime_s": 9.0
+      "model_estimated_route_pdr": 0.3344,
+      "model_estimated_route_latency_ms": 18.57,
+      "connectivity_availability": 0.9966,
+      "downtime_s": 4.0
     },
     "resilience": {
       "status": "ACTIVE_M1",
@@ -191,9 +191,9 @@
       "battery_exhaustion_count": 0,
       "geofence_violation_count": 0,
       "min_boundary_clearance_m": 0.0,
-      "separation_interventions": 31,
+      "separation_interventions": 6,
       "per_uav_intervention_counts": {
-        "uav_5": 31
+        "uav_5": 6
       },
       "geofence_interventions": 0,
       "per_uav_geofence_intervention_counts": {}
@@ -219,7 +219,7 @@
       "RTH_count": 5,
       "task_handoffs": 0,
       "successful_task_reassignments": 0,
-      "max_continuous_sortie_duration_s": 1181.0,
+      "max_continuous_sortie_duration_s": 1176.0,
       "battery_exhaustions": 0,
       "landing_deadlocks": 0,
       "UAVs_landed": 5,
@@ -232,44 +232,44 @@
         "uav_5": 4200.0
       },
       "per_uav_min_battery": {
-        "uav_1": 2697.73,
-        "uav_2": 2960.96,
-        "uav_3": 2968.5,
-        "uav_4": 2976.96,
-        "uav_5": 2887.13
+        "uav_1": 2702.73,
+        "uav_2": 2961.96,
+        "uav_3": 2965.5,
+        "uav_4": 2969.96,
+        "uav_5": 2889.76
       },
       "per_uav_rth_trigger_times": {
         "uav_5": [
-          1098.0
+          1109.0
         ],
         "uav_4": [
-          1125.0
+          1132.0
         ],
         "uav_1": [
-          1138.0
+          1133.0
         ],
         "uav_2": [
-          1141.0
+          1140.0
         ],
         "uav_3": [
-          1154.0
+          1157.0
         ]
       },
       "per_uav_landing_times": {
-        "uav_4": [
-          1151.0
-        ],
         "uav_5": [
-          1156.0
+          1150.0
+        ],
+        "uav_4": [
+          1158.0
         ],
         "uav_2": [
-          1167.0
+          1166.0
         ],
         "uav_3": [
-          1168.0
+          1171.0
         ],
         "uav_1": [
-          1181.0
+          1176.0
         ]
       },
       "per_uav_recharge_start_times": {},
@@ -487,9 +487,9 @@
     }
   },
   "safety_interventions": {
-    "total_interventions": 31,
+    "total_interventions": 6,
     "per_uav_interventions": {
-      "uav_5": 31
+      "uav_5": 6
     }
   },
   "geofence_interventions": {

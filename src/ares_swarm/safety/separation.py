@@ -112,23 +112,22 @@ class SeparationEnforcer:
 
     def is_landed_at_gcs(self, uav: UAVState, airspace: Optional[ChallengeAirspace] = None) -> bool:
         """Determine if UAV is safely landed and parked on the staging pad/GCS."""
+        in_staging = (
+            airspace.is_in_staging_area(uav.position_xy)
+            if airspace is not None
+            else (abs(uav.position_xy[0] - self.gcs_position[0]) <= 5.0 and abs(uav.position_xy[1] - self.gcs_position[1]) <= 150.0)
+        )
+        if not in_staging:
+            return False
+
         if uav.failure_state == FailureState.FAILED:
-            # A failed UAV at GCS is parked; a failed UAV elsewhere is an in-flight obstacle
-            if airspace is not None:
-                return airspace.is_in_staging_area(uav.position_xy)
-            dx = abs(uav.position_xy[0] - self.gcs_position[0])
-            dy = abs(uav.position_xy[1] - self.gcs_position[1])
-            return dx <= 5.0 and dy <= 150.0
+            return True
 
         if uav.rth_state == RTHState.COMPLETE or uav.sortie_state in (SortieState.LANDED, SortieState.RECHARGING):
             return True
 
-        if not uav.active:
-            if airspace is not None:
-                return airspace.is_in_staging_area(uav.position_xy)
-            dx = abs(uav.position_xy[0] - self.gcs_position[0])
-            dy = abs(uav.position_xy[1] - self.gcs_position[1])
-            return dx <= 5.0 and dy <= 150.0
+        if uav.target_position is None or not uav.active:
+            return True
 
         return False
 
@@ -236,8 +235,8 @@ class SeparationEnforcer:
             for other_uav in moving_uavs[idx + 1:]:
                 obstacles_to_check.append((other_uav.id, other_uav.position_xy, (0.0, 0.0)))
 
-            def is_trajectory_safe(alpha: float) -> Tuple[bool, Optional[str], float]:
-                cand_v = (alpha * nom_v[0], alpha * nom_v[1])
+            def eval_vel_safe(test_v: Tuple[float, float], alpha: float) -> Tuple[bool, Optional[str], float]:
+                cand_v = (alpha * test_v[0], alpha * test_v[1])
                 worst_min_sep = float("inf")
                 worst_partner = None
 
@@ -257,37 +256,60 @@ class SeparationEnforcer:
 
                 return True, worst_partner, worst_min_sep
 
-            safe_full, partner_id, min_sep = is_trajectory_safe(max_alpha)
-            chosen_alpha = max_alpha
-            intervention_type = None
-            if max_alpha < 1.0:
-                intervention_type = "HOLD" if max_alpha == 0.0 else "TRUNCATE"
-
-            if not safe_full:
+            def find_best_alpha(test_v: Tuple[float, float]) -> Tuple[float, Optional[str]]:
+                safe, partner, _ = eval_vel_safe(test_v, 1.0)
+                if safe:
+                    return 1.0, partner
                 low = 0.0
-                high = max_alpha
+                high = 1.0
+                last_p = partner
                 for _ in range(25):
                     mid = (low + high) / 2.0
-                    safe_mid, _, _ = is_trajectory_safe(mid)
+                    safe_mid, p, _ = eval_vel_safe(test_v, mid)
                     if safe_mid:
                         low = mid
                     else:
                         high = mid
-                chosen_alpha = low
+                        last_p = p
+                return low, last_p
 
+            chosen_alpha, partner_id = find_best_alpha(nom_v)
+            best_v = nom_v
+            intervention_type = None
+
+            if chosen_alpha < 0.5 and (nom_v[0] != 0.0 or nom_v[1] != 0.0):
+                # Direct path blocked: evaluate detour steering angles
+                speed = math.hypot(nom_v[0], nom_v[1])
+                base_angle = math.atan2(nom_v[1], nom_v[0])
+                best_progress = chosen_alpha
+
+                for delta_deg in [25.0, -25.0, 50.0, -50.0, 75.0, -75.0]:
+                    rad = math.radians(delta_deg)
+                    cand_angle = base_angle + rad
+                    cand_v = (speed * math.cos(cand_angle), speed * math.sin(cand_angle))
+                    cand_alpha, cand_partner = find_best_alpha(cand_v)
+                    cand_progress = cand_alpha * math.cos(rad)
+                    if cand_alpha >= 0.4 and cand_progress > best_progress:
+                        best_progress = cand_progress
+                        best_v = cand_v
+                        partner_id = cand_partner
+                        chosen_alpha = cand_alpha
+                        intervention_type = "DETOUR"
+
+            if intervention_type is None:
                 if chosen_alpha < 1e-4:
                     chosen_alpha = 0.0
                     intervention_type = "HOLD"
-                else:
+                elif chosen_alpha < 1.0:
                     intervention_type = "TRUNCATE"
 
             actual_pos = (
-                uav.position_xy[0] + chosen_alpha * nom_v[0] * dt,
-                uav.position_xy[1] + chosen_alpha * nom_v[1] * dt,
+                uav.position_xy[0] + chosen_alpha * best_v[0] * dt,
+                uav.position_xy[1] + chosen_alpha * best_v[1] * dt,
             )
             actual_vel = (
-                chosen_alpha * nom_v[0],
-                chosen_alpha * nom_v[1],
+                chosen_alpha * best_v[0],
+                chosen_alpha * best_v[1],
             )
 
             # Airspace validation if explicitly provided
@@ -327,7 +349,7 @@ class SeparationEnforcer:
                 self.per_uav_interventions[uav.id] = self.per_uav_interventions.get(uav.id, 0) + 1
                 self._event_counter += 1
 
-                _, _, resulting_sep = is_trajectory_safe(chosen_alpha)
+                _, _, resulting_sep = eval_vel_safe(best_v, chosen_alpha)
                 events.append(
                     DomainEvent.create(
                         simulation_tick=snapshot.simulation_tick,

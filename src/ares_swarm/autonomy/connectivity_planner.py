@@ -480,14 +480,10 @@ class ConnectivityAwarePlanner:
                         reason="COMMUNICATION_LOSS_CHAIN_SEVERED",
                     )
                 )
-                pts_ret = compute_corridor_path(surv.position_xy, snapshot.gcs_position)
-                desired_gcs_target = (0.0, 500.0) if (surv.position_xy[0] >= 0.0 and len(pts_ret) > 2) else snapshot.gcs_position
                 commands.append(
-                    SetTargetPositionCommand(
+                    StartRTHCommand(
                         source_tick=tick,
                         uav_id=surv.id,
-                        target_position=desired_gcs_target,
-                        speed=self.config.speed_limit,
                     )
                 )
                 self.communication_induced_replans += 1

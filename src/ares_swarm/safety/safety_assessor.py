@@ -287,7 +287,7 @@ class SafetyAssessor:
                     self.report.max_observed_sortie_duration_s = rec.current_sortie_duration_s
 
                 # Detect landing
-                if not u.active or u.rth_state == RTHState.COMPLETE:
+                if not u.active or u.rth_state == RTHState.COMPLETE or u.sortie_state in (SortieState.LANDED, SortieState.RECHARGING):
                     rec.landing_time = sim_time
                     rec.is_airborne = False
                     rec.landing_position = u.position_xy
@@ -345,14 +345,21 @@ class SafetyAssessor:
             if not u.active or u.rth_state != RTHState.NONE:
                 continue
 
+            rec = self.report.uav_flight_records.get(u.id)
+            if rec is not None:
+                is_airborne = rec.is_airborne
+            else:
+                dist_gcs_raw = math.hypot(u.position_xy[0] - self.gcs_position[0], u.position_xy[1] - self.gcs_position[1])
+                pad_rad = self.airspace.staging_pad_radius_m if self.airspace else 1.0
+                is_airborne = dist_gcs_raw > pad_rad
+
+            if not is_airborne:
+                # Not currently airborne (staged or landed)
+                continue
+
             dx = abs(u.position_xy[0] - self.gcs_position[0])
             dy = abs(u.position_xy[1] - self.gcs_position[1])
             dist_to_gcs = dx + dy  # Non-collinear transit distance via corridor
-
-            pad_radius = self.airspace.staging_pad_radius_m if self.airspace else 1.0
-            if math.hypot(u.position_xy[0] - self.gcs_position[0], u.position_xy[1] - self.gcs_position[1]) <= pad_radius:
-                # Already at GCS / Staging Pad
-                continue
 
             return_time_s = dist_to_gcs / max(1.0, speed_limit)
             return_energy = (idle_rate * return_time_s + movement_rate * dist_to_gcs) * self.rth_energy_buffer
@@ -362,18 +369,18 @@ class SafetyAssessor:
 
             # 2. Mission Overtime Trigger (stagger return by UAV index)
             uav_idx = sorted_uav_ids.index(u.id)
-            stagger_time = uav_idx * 8.0
+            stagger_time = uav_idx * 4.0
             time_left = max(0.0, mission_duration - sim_time)
             time_trigger = enable_time_rth and (time_left <= (return_time_s * self.rth_energy_buffer + stagger_time) + EPSILON)
 
             # 3. Sortie Duration Trigger (V1 Assumption: 1200s limit - required transit time - safety margin)
             sortie_trigger = False
             if enable_sortie_rth:
-                rec = self.report.uav_flight_records.get(u.id)
-                current_sortie = rec.current_sortie_duration_s if rec and rec.is_airborne else 0.0
+                current_sortie = rec.current_sortie_duration_s if rec else 0.0
                 remaining_sortie = max(0.0, self.max_sortie_duration_s - current_sortie)
                 # Transit time to GCS plus safety margin and deterministic stagger to avoid convergence deadlocks
-                required_rth_time = return_time_s + self.rth_safety_margin_s + stagger_time
+                safety_margin = max(self.rth_safety_margin_s, 20.0)
+                required_rth_time = return_time_s + safety_margin + stagger_time
                 if remaining_sortie <= required_rth_time + EPSILON:
                     sortie_trigger = True
 

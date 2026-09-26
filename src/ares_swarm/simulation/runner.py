@@ -21,6 +21,7 @@ from ..core.commands import (
     ProgressTaskCommand,
     SetTargetPositionCommand,
     StartRechargeCommand,
+    StartRTHCommand,
     StepPhysicsCommand,
 )
 from ..autonomy.connectivity_planner import ConnectivityAwarePlanner, ConnectivityAwarePlannerConfig
@@ -557,6 +558,17 @@ class MissionRunner:
                                     target_position=None,
                                 )
                             )
+                            all_done = all(
+                                t.status in (TaskStatus.COMPLETE, TaskStatus.UNREACHABLE)
+                                for t in snap_mid.tasks.values()
+                            )
+                            if all_done and getattr(self.scenario, "enable_auto_rth", False):
+                                clear_cmds.append(
+                                    StartRTHCommand(
+                                        source_tick=current_tick,
+                                        uav_id=completed_uav_id,
+                                    )
+                                )
                 if clear_cmds:
                     res_clear = self.state_store.apply(clear_cmds)
                     applied_commands.extend(res_clear.applied_commands)

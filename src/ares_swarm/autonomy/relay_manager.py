@@ -95,6 +95,7 @@ class DynamicRelayManager:
         # Tracking state for active handoff / recovery
         self._active_handoff: Optional[Dict[str, Any]] = None
         self._handoff_completed: bool = False
+        self._pending_single_handoffs: Dict[str, Dict[str, Any]] = {}
 
     def reset(self) -> None:
         """Reset internal relay manager state."""
@@ -118,6 +119,7 @@ class DynamicRelayManager:
         self.connected_time_after_handoff = 0.0
         self._active_handoff = None
         self._handoff_completed = False
+        self._pending_single_handoffs.clear()
 
     def register_chain(
         self,
@@ -175,6 +177,10 @@ class DynamicRelayManager:
                 self.relay_to_chain.pop(rep_id, None)
                 self.relay_to_surveyor.pop(rep_id, None)
                 self.relay_positions.pop(rep_id, None)
+                rth_cmd = StartRTHCommand(source_tick=tick, uav_id=rep_id)
+                if commands is not None:
+                    commands.append(rth_cmd)
+                cmds.append(rth_cmd)
         chain.pending_handoffs.clear()
 
         for rid in chain.relay_ids:
@@ -186,13 +192,17 @@ class DynamicRelayManager:
             self.relay_to_chain.pop(rid, None)
             self.relay_to_surveyor.pop(rid, None)
             self.relay_positions.pop(rid, None)
+            rth_cmd = StartRTHCommand(source_tick=tick, uav_id=rid)
+            if commands is not None:
+                commands.append(rth_cmd)
+            cmds.append(rth_cmd)
         self.surveyor_to_chain.pop(chain.surveyor_id, None)
         self.surveyor_to_relay.pop(chain.surveyor_id, None)
         self.chains.pop(chain_id, None)
         return cmds
 
     def _get_all_reserved_uav_ids(self) -> Set[str]:
-        """Collect all UAV IDs currently assigned or reserved across all chains."""
+        """Collect all UAV IDs currently assigned or reserved across all chains and single relays."""
         reserved: Set[str] = set()
         for c in self.chains.values():
             reserved.add(c.surveyor_id)
@@ -204,6 +214,13 @@ class DynamicRelayManager:
                 inc = h.get("incumbent_id")
                 if inc:
                     reserved.add(inc)
+        for h in self._pending_single_handoffs.values():
+            rep = h.get("replacement_id")
+            if rep:
+                reserved.add(rep)
+            inc = h.get("incumbent_id")
+            if inc:
+                reserved.add(inc)
         for sid, rid in self.surveyor_to_relay.items():
             reserved.add(sid)
             reserved.add(rid)
@@ -215,6 +232,9 @@ class DynamicRelayManager:
             for h in c.pending_handoffs.values():
                 if h.get("replacement_id") == uav_id or h.get("incumbent_id") == uav_id:
                     return True
+        for h in self._pending_single_handoffs.values():
+            if h.get("replacement_id") == uav_id or h.get("incumbent_id") == uav_id:
+                return True
         return False
 
     def _verify_replacement_connectivity(
@@ -755,10 +775,62 @@ class DynamicRelayManager:
                         chain.status = ChainStatus.DEGRADED
 
         # 1. Inspect existing active relays (Legacy single-relay fallback)
+        # 1a. Check and progress existing pending single handoffs
+        for inc_id, h in list(self._pending_single_handoffs.items()):
+            rep_id = h["replacement_id"]
+            surv_id = h["surveyor_id"]
+            r_pos = h["relay_pos"]
+            rep_u = snapshot.uavs.get(rep_id)
+            inc_u = snapshot.uavs.get(inc_id)
+
+            if not rep_u or not rep_u.active or rep_u.failure_state != FailureState.NORMAL or rep_u.rth_state != RTHState.NONE:
+                # Replacement aborted
+                self._pending_single_handoffs.pop(inc_id, None)
+                self.relay_positions.pop(rep_id, None)
+                if rep_u and rep_u.active and rep_u.role == Role.RELAY:
+                    commands.append(ReleaseRelayRoleCommand(source_tick=tick, uav_id=rep_id, next_role=Role.IDLE))
+                    self.relay_releases += 1
+                continue
+
+            dist_station = math.hypot(rep_u.position_xy[0] - r_pos[0], rep_u.position_xy[1] - r_pos[1])
+            if dist_station <= 1.0:
+                # Arrived at station! Complete make-before-break handoff
+                commands.append(HandoffRelayCommand(
+                    source_tick=tick,
+                    uav_id=inc_id,
+                    replacement_uav_id=rep_id,
+                    target_position=r_pos,
+                    relay_for_uav_id=surv_id,
+                ))
+                commands.append(SetTargetPositionCommand(source_tick=tick, uav_id=rep_id, target_position=r_pos, speed=speed_limit))
+                self.surveyor_to_relay[surv_id] = rep_id
+                self.relay_to_surveyor[rep_id] = surv_id
+                self.relay_positions[rep_id] = r_pos
+                self.relay_handoffs += 1
+                self.relay_assignments += 1
+                self._active_handoff = {
+                    "surveyor_id": surv_id,
+                    "old_relay_id": inc_id,
+                    "new_relay_id": rep_id,
+                    "handoff_start_time": h["start_time"],
+                }
+                self._handoff_completed = True
+
+                # Release old relay
+                if inc_u:
+                    commands.append(ReleaseRelayRoleCommand(source_tick=tick, uav_id=inc_id, next_role=Role.IDLE))
+                    if inc_u.rth_state == RTHState.NONE:
+                        commands.append(StartRTHCommand(source_tick=tick, uav_id=inc_id))
+                    self.relay_to_surveyor.pop(inc_id, None)
+                    self.relay_positions.pop(inc_id, None)
+                    self.relay_releases += 1
+
+                self._pending_single_handoffs.pop(inc_id, None)
+
         current_relays = [u for u in snapshot.uavs.values() if u.role == Role.RELAY]
         for relay in sorted(current_relays, key=lambda x: x.id):
             if relay.id in self.relay_to_chain or self.is_in_pending_handoff(relay.id):
-                continue  # Handled in multi-hop chain monitor above
+                continue  # Handled in multi-hop chain monitor or pending single handoff above
             surveyor_id = self.relay_to_surveyor.get(relay.id) or relay.relay_target_id
             relay_pos = self.relay_positions.get(relay.id) or relay.target_position or relay.position_xy
 
@@ -808,15 +880,14 @@ class DynamicRelayManager:
             is_rth = (relay.rth_state != RTHState.NONE or battery_near_rth or sortie_near_rth)
 
             if is_rth and surveyor_id and surveyor_id in snapshot.uavs:
-                # Check if handoff already initiated
-                if self.surveyor_to_relay.get(surveyor_id) == relay.id:
-                    # Select available replacement
+                if self.surveyor_to_relay.get(surveyor_id) == relay.id and relay.id not in self._pending_single_handoffs:
+                    reserved = self._get_all_reserved_uav_ids()
                     rep_id = self.select_relay_candidate(
                         snapshot=snapshot,
                         target_uav_id=surveyor_id,
                         relay_position=relay_pos,
                         network_analysis=network_analysis,
-                        exclude_uav_ids={relay.id},
+                        exclude_uav_ids=reserved,
                         speed_limit=speed_limit,
                         idle_rate=idle_rate,
                         movement_rate=movement_rate,
@@ -825,35 +896,50 @@ class DynamicRelayManager:
                         flight_records=flight_records,
                     )
                     if rep_id:
-                        commands.append(HandoffRelayCommand(
-                            source_tick=tick,
-                            uav_id=relay.id,
-                            replacement_uav_id=rep_id,
-                            target_position=relay_pos,
-                            relay_for_uav_id=surveyor_id,
-                        ))
-                        commands.append(SetTargetPositionCommand(source_tick=tick, uav_id=rep_id, target_position=relay_pos, speed=speed_limit))
-                        self.surveyor_to_relay[surveyor_id] = rep_id
-                        self.relay_to_surveyor[rep_id] = surveyor_id
-                        self.relay_positions[rep_id] = relay_pos
-                        self.relay_handoffs += 1
-                        self.relay_assignments += 1
+                        rep_u = snapshot.uavs.get(rep_id)
+                        dist_rep_station = math.hypot(rep_u.position_xy[0] - relay_pos[0], rep_u.position_xy[1] - relay_pos[1]) if rep_u else 999.0
+                        if dist_rep_station <= 1.0:
+                            commands.append(HandoffRelayCommand(
+                                source_tick=tick,
+                                uav_id=relay.id,
+                                replacement_uav_id=rep_id,
+                                target_position=relay_pos,
+                                relay_for_uav_id=surveyor_id,
+                            ))
+                            commands.append(SetTargetPositionCommand(source_tick=tick, uav_id=rep_id, target_position=relay_pos, speed=speed_limit))
+                            self.surveyor_to_relay[surveyor_id] = rep_id
+                            self.relay_to_surveyor[rep_id] = surveyor_id
+                            self.relay_positions[rep_id] = relay_pos
+                            self.relay_handoffs += 1
+                            self.relay_assignments += 1
 
-                        self._active_handoff = {
-                            "surveyor_id": surveyor_id,
-                            "old_relay_id": relay.id,
-                            "new_relay_id": rep_id,
-                            "handoff_start_time": sim_time,
-                        }
-                        self._handoff_completed = True
+                            self._active_handoff = {
+                                "surveyor_id": surveyor_id,
+                                "old_relay_id": relay.id,
+                                "new_relay_id": rep_id,
+                                "handoff_start_time": sim_time,
+                            }
+                            self._handoff_completed = True
 
-                        # Release old relay and send it home safely
-                        commands.append(ReleaseRelayRoleCommand(source_tick=tick, uav_id=relay.id, next_role=Role.IDLE))
-                        if relay.rth_state == RTHState.NONE:
-                            commands.append(StartRTHCommand(source_tick=tick, uav_id=relay.id))
-                        self.relay_to_surveyor.pop(relay.id, None)
-                        self.relay_positions.pop(relay.id, None)
-                        self.relay_releases += 1
+                            commands.append(ReleaseRelayRoleCommand(source_tick=tick, uav_id=relay.id, next_role=Role.IDLE))
+                            if relay.rth_state == RTHState.NONE:
+                                commands.append(StartRTHCommand(source_tick=tick, uav_id=relay.id))
+                            self.relay_to_surveyor.pop(relay.id, None)
+                            self.relay_positions.pop(relay.id, None)
+                            self.relay_releases += 1
+                        else:
+                            # MAKE-BEFORE-BREAK: Dispatch replacement while incumbent stays active on station
+                            commands.append(AssignRelayRoleCommand(source_tick=tick, uav_id=rep_id, target_position=relay_pos, relay_for_uav_id=surveyor_id))
+                            commands.append(SetTargetPositionCommand(source_tick=tick, uav_id=rep_id, target_position=relay_pos, speed=speed_limit))
+                            self.relay_assignments += 1
+                            self.relay_positions[rep_id] = relay_pos
+                            self._pending_single_handoffs[relay.id] = {
+                                "incumbent_id": relay.id,
+                                "replacement_id": rep_id,
+                                "relay_pos": relay_pos,
+                                "surveyor_id": surveyor_id,
+                                "start_time": sim_time,
+                            }
 
         # 2. Inspect active SURVEYORs needing relay support
         active_surveyors = [

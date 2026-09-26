@@ -80,7 +80,7 @@ def build_scenario(seed: int) -> Tuple[ScenarioConfig, DynamicRelayManager, Conn
     airspace = ChallengeAirspaceConfig(
         enabled=True,
         staging_pad_center=GCS_POSITION,
-        staging_pad_radius_m=75.0,
+        staging_pad_radius_m=15.0,
         corridor_bounds_x=(-75.0, 0.0),
         corridor_bounds_y=(400.0, 600.0),
         arena_bounds_x=(0.0, 1000.0),

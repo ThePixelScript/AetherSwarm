@@ -121,23 +121,33 @@ class DepartureSequencer:
             if uid not in self.uav_phases:
                 self.uav_phases[uid] = UAVDeparturePhase.STAGED
 
-            # Check if a previously cleared UAV has landed at GCS and is ready for a new sortie
-            if self.uav_phases[uid] == UAVDeparturePhase.CLEARED:
-                if (
-                    uav.sortie_state in (SortieState.LANDED, SortieState.RECHARGING, SortieState.READY)
-                    and self.is_in_staging(uav.position_xy)
-                    and uav.rth_state in (RTHState.COMPLETE, RTHState.NONE)
-                ):
-                    # Reset phase to STAGED for next sortie
+            # Check if a previously cleared/landed UAV has landed at GCS and is ready for a new sortie
+            if (
+                uav.sortie_state in (SortieState.LANDED, SortieState.RECHARGING, SortieState.READY)
+                and self.is_in_staging(uav.position_xy)
+                and uav.rth_state in (RTHState.COMPLETE, RTHState.NONE)
+            ):
+                if self.uav_phases.get(uid) == UAVDeparturePhase.CLEARED:
                     self.uav_phases[uid] = UAVDeparturePhase.STAGED
                     self.staged_origins[uid] = uav.position_xy
                     self.intended_targets.pop(uid, None)
+
+            # Check if an active/queued UAV has entered active RTH
+            elif uav.rth_state == RTHState.ACTIVE or uav.sortie_state in (SortieState.RTH, SortieState.LANDING):
+                if self.active_departing_uav_id == uid:
+                    self.active_departing_uav_id = None
+                if uid in self.departure_queue:
+                    self.departure_queue.remove(uid)
+                self.uav_phases[uid] = UAVDeparturePhase.CLEARED
+                self.intended_targets.pop(uid, None)
+                self._taxi_progress_ticks.pop(uid, None)
+                self._last_taxi_positions.pop(uid, None)
 
         # 2. Check status of active departing UAV
         if self.active_departing_uav_id is not None:
             act_id = self.active_departing_uav_id
             act_uav = snapshot.uavs.get(act_id)
-            if act_uav is None or not act_uav.active:
+            if act_uav is None or not act_uav.active or act_uav.rth_state != RTHState.NONE:
                 self.active_departing_uav_id = None
             else:
                 curr_x, curr_y = act_uav.position_xy
@@ -215,7 +225,7 @@ class DepartureSequencer:
 
             # Determine if UAV has a mission target
             has_mission_intent = False
-            tgt = None
+            tgt = self.intended_targets.get(uid)
 
             if uav.target_position is not None:
                 d_pad = math.hypot(
@@ -230,6 +240,9 @@ class DepartureSequencer:
                 if task is not None and task.status in (TaskStatus.ASSIGNED, TaskStatus.IN_PROGRESS):
                     has_mission_intent = True
                     tgt = task.position_xy
+            elif uid in self.intended_targets and (uav.role == Role.RELAY or uav.assigned_task_id is not None):
+                has_mission_intent = True
+                tgt = self.intended_targets[uid]
 
             if has_mission_intent and tgt is not None:
                 self.intended_targets[uid] = tgt
