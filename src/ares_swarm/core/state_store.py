@@ -425,8 +425,17 @@ class StateStore:
                         f"UAV {uav.id} is in RTHState {uav.rth_state}, expected ACTIVE",
                     )
                 else:
+                    init_pos = self._initial_uav_positions.get(uav.id)
+                    if init_pos is not None and abs(init_pos[0] - self._gcs_position[0]) <= 5.0:
+                        landing_pos = init_pos
+                    elif uav.target_position is not None:
+                        landing_pos = uav.target_position
+                    else:
+                        landing_pos = self._initial_uav_positions.get(uav.id, uav.position_xy)
+
                     staged_uavs[uav.id] = replace(
                         uav,
+                        position_xy=landing_pos,
                         rth_state=RTHState.COMPLETE,
                         sortie_state=SortieState.LANDED,
                         role=Role.IDLE,
