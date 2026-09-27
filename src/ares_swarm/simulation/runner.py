@@ -325,8 +325,9 @@ class MissionRunner:
         self.connectivity_planner: Optional[ConnectivityAwarePlanner] = None
         if connectivity_planner is not None:
             self.connectivity_planner = connectivity_planner
-            if self.relay_manager is None:
-                self.relay_manager = connectivity_planner.relay_manager
+            if relay_manager is not None and relay_manager is not connectivity_planner.relay_manager:
+                raise ValueError("Planner and runner must share one relay manager")
+            self.relay_manager = connectivity_planner.relay_manager
         elif getattr(self.scenario, "enable_connectivity_aware_planning", False) or getattr(challenge_profile, "enable_connectivity_aware_planning", False):
             if self.relay_manager is None:
                 self.relay_manager = DynamicRelayManager()
@@ -346,6 +347,8 @@ class MissionRunner:
                 allow_partial_chains=False,
                 sensor_fov_radius_m=sensor_fov,
             )
+
+        self.elastic_tether = None
 
         self.departure_sequencer: Optional[DepartureSequencer] = None
         if getattr(self.scenario, "enable_departure_sequencing", True) or (challenge_profile and getattr(challenge_profile, "enable_departure_sequencing", True)):
@@ -378,6 +381,12 @@ class MissionRunner:
             self.comm_analyzer = self._custom_comm_analyzer
         else:
             self.comm_analyzer = BaselineCommunicationAnalyzer(config=self.scenario.communication)
+        if self.connectivity_planner and self.connectivity_planner.config.elastic_tether_enabled:
+            from ..autonomy.elastic_tether import ElasticChainTether, TetherConfig
+            cfg = self.connectivity_planner.config
+            self.connectivity_planner.allocator._comm_analyzer = self.comm_analyzer
+            self.elastic_tether = ElasticChainTether(self.relay_manager, self.comm_analyzer,
+                TetherConfig(cfg.safe_hop_m, cfg.tether_margin_m))
         if self._custom_autonomy_adapter is not None:
             self.autonomy_adapter = self._custom_autonomy_adapter
         else:
@@ -400,6 +409,8 @@ class MissionRunner:
             self.relay_manager.reset()
         if self.connectivity_planner is not None:
             self.connectivity_planner.reset()
+        if self.elastic_tether is not None:
+            self.elastic_tether.reset()
         if self.departure_sequencer is not None:
             self.departure_sequencer.reset()
         if self._custom_discovery_manager is not None:
@@ -511,6 +522,7 @@ class MissionRunner:
                 max_sortie_s=max_s,
                 enforce_sortie_limit=enf_s,
                 dt=self.scenario.dt,
+                pending_report_task_ids=set(self.detection_manager.pending_reports) if self.detection_manager else set(),
             )
             if relay_cmds:
                 res_relay = self.state_store.apply(relay_cmds)
@@ -604,7 +616,7 @@ class MissionRunner:
                 for ev in res_prog.emitted_events:
                     if ev.event_type == EventType.TASK_COMPLETED:
                         completed_uav_id = ev.payload.get("uav_id")
-                        completed_task_id = ev.payload.get("task_id")
+                        completed_task_id = ev.payload.get("task_id") or ev.entity_id
                         if completed_uav_id:
                             # Release surveyor to IDLE
                             clear_cmds.append(
@@ -629,7 +641,8 @@ class MissionRunner:
                                     self.relay_manager.surveyor_to_chain.get(completed_uav_id)
                                     or (f"chain_{completed_task_id}" if completed_task_id else None)
                                 )
-                                if chain_id:
+                                if chain_id and not (self.detection_manager and
+                                        completed_task_id in self.detection_manager.pending_reports):
                                     self.relay_manager.teardown_chain(
                                         chain_id, commands=clear_cmds, tick=current_tick
                                     )
@@ -736,6 +749,7 @@ class MissionRunner:
             separation_enforcer=self.separation_enforcer,
             geofence_enforcer=self.geofence_enforcer,
             airspace=self.airspace,
+            motion_guard=self.elastic_tether,
         )
         applied_commands.extend(step_res.applied_commands)
         rejected_commands.extend(step_res.rejected_commands)

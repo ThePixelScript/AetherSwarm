@@ -172,6 +172,9 @@ class ConnectivityAwarePlannerConfig:
     max_chain_relays: int = 12
     allow_partial_chains: bool = False  # Enabled in runner for large scenarios
     sensor_fov_radius_m: float = 0.0
+    elastic_tether_enabled: bool = False  # Explicit experimental profile, legacy runs unchanged
+    safe_hop_m: float = 85.0
+    tether_margin_m: float = 5.0
 
 
 class ConnectivityAwarePlanner:
@@ -230,6 +233,7 @@ class ConnectivityAwarePlanner:
 
         # Disconnection tracking per active surveyor
         self._disconnected_time: Dict[str, float] = {}
+        self.expedition_plans: List[dict] = []
 
     def reset(self) -> None:
         """Reset all planner metrics and active tracking state."""
@@ -243,6 +247,7 @@ class ConnectivityAwarePlanner:
         self.tasks_deferred_insufficient_relays = 0
         self.max_hop_count = 0
         self._disconnected_time.clear()
+        self.expedition_plans.clear()
 
     def check_task_connectivity_feasibility(
         self,
@@ -259,6 +264,8 @@ class ConnectivityAwarePlanner:
         idle = self.config.idle_rate
         mov = self.config.movement_rate
         comm_limit = self.config.comm_range_m * self.config.effective_range_factor
+        if self.config.elastic_tether_enabled:
+            comm_limit = min(comm_limit, self.config.safe_hop_m - self.config.tether_margin_m)
 
         # 1. Endurance & Sortie Limit Feasibility
         d_transit_to = math.hypot(uav.position_xy[0] - task.position_xy[0], uav.position_xy[1] - task.position_xy[1])
@@ -318,18 +325,26 @@ class ConnectivityAwarePlanner:
             r for r in snapshot.uavs.values()
             if r.role == Role.RELAY and r.active and r.failure_state == FailureState.NORMAL and r.rth_state == RTHState.NONE
         ]
-        for relay in active_relays:
+        for relay in sorted(active_relays, key=lambda u: u.id):
             if network_analysis and relay.id in network_analysis.connected_uav_ids:
                 d_relay_poi = math.hypot(relay.position_xy[0] - task.position_xy[0], relay.position_xy[1] - task.position_xy[1])
                 if d_relay_poi <= comm_limit:
+                    relay_ids = (relay.id,)
+                    if self.config.elastic_tether_enabled:
+                        route = network_analysis.routes_to_gcs.get(relay.id)
+                        if not route:
+                            continue
+                        relay_ids = tuple(reversed(route[:-1]))
+                        if any(snapshot.uavs[r].role != Role.RELAY for r in relay_ids):
+                            continue
                     return ConnectivityFeasibilityResult(
                         feasible=True,
                         reason=f"Existing relay {relay.id} covers POI",
                         relay_needed=False,
                         relay_uav_id=relay.id,
                         relay_position=relay.position_xy,
-                        relay_uav_ids=(relay.id,),
-                        relay_positions=(relay.position_xy,),
+                        relay_uav_ids=relay_ids,
+                        relay_positions=tuple(snapshot.uavs[r].position_xy for r in relay_ids),
                         estimated_return_time_s=t_transit_ret,
                         estimated_total_energy_wh=e_total_req,
                         hop_count=2,
@@ -352,7 +367,8 @@ class ConnectivityAwarePlanner:
                 )
 
         h_min, k_min, stations = compute_multihop_stations(
-            gcs, task.position_xy, effective_range=comm_limit, sensor_fov_radius_m=self.config.sensor_fov_radius_m
+            gcs, task.position_xy, effective_range=comm_limit,
+            sensor_fov_radius_m=0.0 if self.config.elastic_tether_enabled else self.config.sensor_fov_radius_m
         )
 
         if k_min > self.config.max_chain_relays:
@@ -367,6 +383,8 @@ class ConnectivityAwarePlanner:
 
         excluded = set(exclude_uav_ids or set())
         excluded.add(uav.id)
+        if self.config.elastic_tether_enabled:
+            excluded.update(self.relay_manager.relay_dependent_surveyors)
         # Protect active surveyors working on other tasks from being stolen as relays
         for u in snapshot.uavs.values():
             if u.assigned_task_id is not None:
@@ -529,7 +547,8 @@ class ConnectivityAwarePlanner:
 
                 # Transition FORMING → ACTIVE once deployed relays are in position.
                 # No GCS-route requirement: partial chains need this relaxation.
-                if relays_in_position:
+                if relays_in_position and (not self.config.elastic_tether_enabled or
+                        (is_connected and all(r in connected_ids for r in chain.relay_ids))):
                     if chain.status == ChainStatus.FORMING:
                         chain.status = ChainStatus.ACTIVE
                     chain_ready = True
@@ -579,7 +598,7 @@ class ConnectivityAwarePlanner:
                 # Tear down surviving chain components to prevent orphan relays
                 if chain_id:
                     self.relay_manager.teardown_chain(chain_id, commands=commands, tick=tick)
-            elif chain and not chain_ready:
+            elif chain and not chain_ready and not self.config.elastic_tether_enabled:
                 # Pre-detection holding while chain relays are still in transit.
                 # For partial chains: hold at comm_range ahead of the outermost
                 # planned relay station so the surveyor stays connected.
@@ -700,6 +719,7 @@ class ConnectivityAwarePlanner:
                 and u.id not in assigned_uav_ids
                 and u.assigned_task_id is None
                 and u.role != Role.RELAY
+                and u.assignment_lock_until <= sim_time
             ]
 
             if not remaining_candidates:
@@ -720,10 +740,42 @@ class ConnectivityAwarePlanner:
                     exclude_uav_ids=assigned_uav_ids,
                 )
                 if res.feasible:
+                    # Reject a malformed/incomplete reservation before emitting any command.
+                    members = (cand_uav.id, *res.relay_uav_ids)
+                    if (len(set(members)) != len(members)
+                            or len(res.relay_uav_ids) != len(res.relay_positions)
+                            or (res.relay_needed and len(res.relay_uav_ids) != res.min_relay_count)
+                            or any(uid not in snapshot.uavs or uid in assigned_uav_ids for uid in members)
+                            or any(snapshot.uavs[uid].assignment_lock_until > sim_time
+                                   or snapshot.uavs[uid].role_lock_until > sim_time for uid in members)):
+                        continue
+                    scoring_snapshot = snapshot
+                    scoring_net = network_analysis
+                    if self.config.elastic_tether_enabled and network_analysis is not None:
+                        # Evaluate the complete expedition topology, not a lone surveyor
+                        # teleported beyond its not-yet-deployed relay chain.
+                        projected = dict(snapshot.uavs)
+                        for rid, pos in zip(res.relay_uav_ids, res.relay_positions):
+                            projected[rid] = dataclasses.replace(projected[rid], position_xy=pos)
+                        scoring_snapshot = dataclasses.replace(snapshot, uavs=projected)
+                        scoring_net = self.allocator._get_comm_analyzer(network_analysis).analyze(scoring_snapshot)
+                        final_uavs = dict(projected)
+                        final_uavs[cand_uav.id] = dataclasses.replace(cand_uav, position_xy=task.position_xy)
+                        final_net = self.allocator._get_comm_analyzer(network_analysis).analyze(
+                            dataclasses.replace(snapshot, uavs=final_uavs))
+                        if not set(network_analysis.connected_uav_ids) <= set(final_net.connected_uav_ids):
+                            continue
                     utility = self.allocator.compute_utility(
-                        cand_uav, task, network_analysis=network_analysis, snapshot=snapshot
+                        cand_uav, task, network_analysis=scoring_net, snapshot=scoring_snapshot
                     )
-                    feasible_proposals.append((utility.total, cand_uav, res))
+                    score = utility.total
+                    if self.config.elastic_tether_enabled:
+                        if not math.isfinite(score):
+                            continue
+                        relay_travel = sum(math.dist(snapshot.uavs[r].position_xy, p)
+                                           for r, p in zip(res.relay_uav_ids, res.relay_positions))
+                        score -= self.allocator.config.weights.wT * relay_travel
+                    feasible_proposals.append((score, cand_uav, res))
                 else:
                     self.connectivity_rejected_assignments += 1
                     rejections_for_task.append(res)
@@ -735,8 +787,11 @@ class ConnectivityAwarePlanner:
                 continue
 
             # Deterministic tie-breaking: descending score, ascending UAV ID
-            feasible_proposals.sort(key=lambda item: (-round(item[0], 8), item[1].id))
+            feasible_proposals.sort(key=lambda item: (-round(item[0], 8), item[1].id, item[2].relay_uav_ids))
             _, best_uav, best_res = feasible_proposals[0]
+            self.expedition_plans.append({'tick': tick, 'task': task.id,
+                'surveyor': best_uav.id, 'relays': list(best_res.relay_uav_ids),
+                'stations': list(best_res.relay_positions)})
 
             # Count one feasible assignment per task actually assigned (not per candidate evaluated)
             self.connectivity_feasible_assignments += 1
@@ -783,6 +838,11 @@ class ConnectivityAwarePlanner:
                     self.max_hop_count = best_res.hop_count
 
             # Assign task to surveyor
+            if self.config.elastic_tether_enabled and not best_res.relay_needed:
+                self.relay_manager.register_chain(RelayChain(
+                    chain_id=f"chain_{task.id}", task_id=task.id, surveyor_id=best_uav.id,
+                    relay_ids=list(best_res.relay_uav_ids), station_positions=list(best_res.relay_positions),
+                    created_tick=tick, created_time=sim_time, status=ChainStatus.FORMING))
             commands.append(
                 AssignTaskCommand(
                     source_tick=tick,

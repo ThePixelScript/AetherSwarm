@@ -140,6 +140,7 @@ class SimulationEngine:
         geofence_enforcer: Any = None,
         airspace: Any = None,
         flight_phases: Any = None,
+        motion_guard: Any = None,
     ):
         """Step all active UAVs with targets in one deterministic batch."""
 
@@ -153,6 +154,16 @@ class SimulationEngine:
         if configured_speed > self.max_speed:
             raise ValueError("speed exceeds configured maximum")
 
+        original_snapshot = snapshot
+        if motion_guard is not None:
+            snapshot = motion_guard.prepare_snapshot(snapshot, configured_speed, self.dt)
+
+        def guarded(commands):
+            if motion_guard is None:
+                return commands
+            return motion_guard.filter_commands(original_snapshot, commands, self.dt,
+                                                self.idle_rate, self.movement_rate)
+
         if separation_enforcer is not None:
             from dataclasses import replace
             commands, events = separation_enforcer.enforce_step(
@@ -165,7 +176,7 @@ class SimulationEngine:
                 flight_phases=flight_phases,
                 geofence_enforcer=geofence_enforcer,
             )
-            res = self.state_store.apply(commands)
+            res = self.state_store.apply(guarded(commands))
             if events:
                 return replace(res, emitted_events=res.emitted_events + tuple(events))
             return res
@@ -179,7 +190,7 @@ class SimulationEngine:
                 idle_rate=self.idle_rate,
                 movement_rate=self.movement_rate,
             )
-            res = self.state_store.apply(commands)
+            res = self.state_store.apply(guarded(commands))
             if events:
                 return replace(res, emitted_events=res.emitted_events + tuple(events))
             return res
@@ -241,7 +252,7 @@ class SimulationEngine:
                 )
             )
 
-        return self.state_store.apply(commands)
+        return self.state_store.apply(guarded(commands))
     def progress_arrived_tasks(self):
         """Progress tasks for UAVs that have reached their assigned PoI."""
 

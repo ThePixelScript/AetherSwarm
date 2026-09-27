@@ -232,7 +232,7 @@ class DynamicRelayManager:
                 cmds.append(ret_cmd)
             else:
                 # Other surveyor(s) still depend on this shared trunk relay!
-                next_surv = next(iter(deps))
+                next_surv = min(deps)
                 self.relay_to_surveyor[rid] = next_surv
                 next_chain = self.surveyor_to_chain.get(next_surv)
                 if next_chain:
@@ -547,6 +547,7 @@ class DynamicRelayManager:
         max_sortie_s: float = 1200.0,
         enforce_sortie_limit: bool = True,
         dt: float = 1.0,
+        pending_report_task_ids: Optional[Set[str]] = None,
     ) -> List[Command]:
         """Execute one tick of dynamic relay role management."""
         if not self.config.enabled:
@@ -581,6 +582,9 @@ class DynamicRelayManager:
                 continue
 
             surv = snapshot.uavs.get(chain.surveyor_id)
+            if (surv and surv.active and surv.rth_state == RTHState.NONE
+                    and surv.assigned_task_id is None and chain.task_id in (pending_report_task_ids or set())):
+                continue  # Keep referenced infrastructure until delivery/timeout, unless safety requires RTH.
             if not surv or not surv.active or surv.rth_state != RTHState.NONE or surv.sortie_state in (SortieState.LANDED, SortieState.RECHARGING) or surv.assigned_task_id is None:
                 self.teardown_chain(chain.chain_id, commands=commands, tick=tick)
                 continue
