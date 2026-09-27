@@ -80,8 +80,9 @@ class RTHRouter:
         x_curr = uav.position_xy[0]
 
         if self.gcs_position[0] < -1.0 and x_curr > 0.5:
-            # Phase 1: In arena, target corridor portal entry at x = 0.0 on dedicated Y lane
-            return (0.0, lane_y)
+            # Phase 1: In arena, target communication-valid corridor portal entry (clamped within 96m of GCS)
+            portal_y = max(440.0, min(560.0, lane_y))
+            return (0.0, portal_y)
         else:
             # Phase 2: In corridor or staging area, target staging pad at x = gcs_x on dedicated Y lane
             return (self.gcs_position[0], lane_y)

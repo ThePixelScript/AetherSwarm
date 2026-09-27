@@ -316,13 +316,8 @@ def test_atomic_chain_repeated_planner_ticks_while_forming():
     )
     rm.register_chain(chain)
 
-    # Compute expected holding target for surveyor during forming
-    dx = 100.0 - station_pos[0]
-    dy = 500.0 - station_pos[1]
-    d_outer = math.hypot(dx, dy)
-    safe_dist = max(0.0, d_outer - 45.0)
-    nx, ny = dx / d_outer, dy / d_outer
-    expected_holding = (round(station_pos[0] + nx * safe_dist, 2), round(station_pos[1] + ny * safe_dist, 2))
+    # Expected holding target for surveyor during forming is its current position
+    expected_holding = (-50.0, 500.0)
 
     task = TaskState(id="t1", position_xy=(100.0, 500.0), priority=1, service_duration=10.0, status=TaskStatus.IN_PROGRESS, assigned_uav_id="uav_1")
     uav_1 = make_test_uav("uav_1", position=(-50.0, 500.0), role=Role.SURVEYOR, assigned_task_id="t1", target_position=expected_holding)
