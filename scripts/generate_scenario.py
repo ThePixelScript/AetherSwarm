@@ -167,9 +167,90 @@ def sample_random_pois(
     return tasks
 
 
+def sample_random_hidden_pois(
+    seed: int = 42,
+    num_hidden_pois: int | None = None,
+    arena_size_x: float = 1000.0,
+    arena_size_y: float = 1000.0,
+    emergence_window: tuple[float, float] = (0.0, 300.0),
+    x_range: tuple[float, float] | None = None,
+    y_range: tuple[float, float] | None = None,
+    margin: float = 0.0,
+    id_start_idx: int = 1,
+) -> list[dict[str, Any]]:
+    """Sample hidden/emerging POIs deterministically from seed.
+
+    Rules:
+    - If num_hidden_pois is 0, hidden POIs are disabled and [] is returned.
+    - If num_hidden_pois is None, hidden_count is randomly chosen in inclusive range [5, 7].
+    - High-priority count (priority=3) is randomly chosen in [1, min(4, hidden_count)].
+    - Remaining hidden POIs use priority=1 or 2.
+    - Each POI gets an independent random location and emergence time within emergence_window.
+    - Fully deterministic for a given seed.
+    """
+    if num_hidden_pois == 0:
+        return []
+
+    rng = random.Random(seed + 50000)
+
+    if num_hidden_pois is None:
+        hidden_count = rng.randint(5, 7)
+    else:
+        hidden_count = int(num_hidden_pois)
+
+    if hidden_count <= 0:
+        return []
+
+    high_priority_count = rng.randint(1, min(4, hidden_count))
+    normal_count = hidden_count - high_priority_count
+
+    priorities = [3] * high_priority_count + [rng.choice([1, 2]) for _ in range(normal_count)]
+    rng.shuffle(priorities)
+
+    x_min, x_max = x_range if x_range is not None else (5.0, arena_size_x - 5.0)
+    y_min, y_max = y_range if y_range is not None else (5.0, arena_size_y - 5.0)
+    if margin > 0.0:
+        x_min = max(margin, x_min)
+        x_max = min(arena_size_x - margin, x_max)
+        y_min = max(margin, y_min)
+        y_max = min(arena_size_y - margin, y_max)
+
+    used_emergence_times: set[float] = set()
+    hidden: list[dict[str, Any]] = []
+
+    for i in range(hidden_count):
+        px = round(rng.uniform(x_min, x_max), 2)
+        py = round(rng.uniform(y_min, y_max), 2)
+        hid_id = f"hidden_poi_{id_start_idx + i:02d}"
+
+        # Guarantee distinct emergence times so no two POIs emerge simultaneously
+        attempts = 0
+        while attempts < 10000:
+            emergence_time = round(rng.uniform(emergence_window[0], emergence_window[1]), 1)
+            if emergence_time not in used_emergence_times:
+                used_emergence_times.add(emergence_time)
+                break
+            attempts += 1
+        else:
+            emergence_time = round(emergence_window[0] + i * 0.1, 1)
+            used_emergence_times.add(emergence_time)
+
+        hidden.append({
+            "id": hid_id,
+            "position": [px, py],
+            "priority": priorities[i],
+            "emergence_time": emergence_time,
+            "service_duration": 2.0,
+            "hidden": True,
+        })
+    hidden.sort(key=lambda p: (p["emergence_time"], p["id"]))
+    return hidden
+
+
 def generate_scenario_dict(
     seed: int,
     tasks: list[dict[str, Any]],
+    hidden_pois: list[dict[str, Any]] | None = None,
     num_uavs: int = 5,
     arena_size: float = 1000.0,
     gcs_pos: tuple[float, float] = (-75.0, 500.0),
@@ -198,7 +279,7 @@ def generate_scenario_dict(
             "role": "IDLE",
         })
 
-    return {
+    scen_dict = {
         "name": f"random_seed_{seed}",
         "seed": seed,
         "dt": 1.0,
@@ -273,6 +354,9 @@ def generate_scenario_dict(
         "uavs": uavs_data,
         "tasks": tasks,
     }
+    if hidden_pois:
+        scen_dict["hidden_pois"] = hidden_pois
+    return scen_dict
 
 
 # Backwards compatibility alias
@@ -311,11 +395,14 @@ def compute_poi_metrics(tasks: list[dict[str, Any]]) -> dict[str, Any]:
 def generate_and_export_scenario(
     seed: int = 2026,
     num_pois: int = 10,
+    num_hidden_pois: int | None = 0,
     num_uavs: int = 8,
     min_spacing: float = 0.0,
     margin: float = 0.0,
     spawn_start: float = 0.0,
     spawn_end: float = 300.0,
+    emergence_start: float = 0.0,
+    emergence_end: float = 300.0,
     full_arena: bool = False,
     custom_x_range: tuple[float, float] | None = None,
     custom_y_range: tuple[float, float] | None = None,
@@ -324,8 +411,14 @@ def generate_and_export_scenario(
     max_ticks: int | None = None,
     run_simulation: bool = True,
     config: ScenarioGenConfig | None = None,
+    final_profile: bool = False,
+    save_scenario: bool = True,
 ) -> dict[str, Any]:
     """Execute the full scenario generation, authoritative simulation, and trace export pipeline."""
+    if final_profile:
+        num_pois = 5
+        num_hidden_pois = None
+
     # Determine sampling spatial bounds (default: independent uniform across (5.0, 995.0))
     if custom_x_range is not None:
         x_range = custom_x_range
@@ -353,29 +446,47 @@ def generate_and_export_scenario(
         config=config,
     )
 
+    hidden_pois = sample_random_hidden_pois(
+        seed=seed,
+        num_hidden_pois=num_hidden_pois,
+        emergence_window=(emergence_start, emergence_end),
+        x_range=x_range,
+        y_range=y_range,
+        margin=margin,
+    )
+
     # 2. Build scenario dictionary
     scen_dict = generate_scenario_dict(
         seed=seed,
         tasks=tasks,
+        hidden_pois=hidden_pois,
         num_uavs=num_uavs,
         min_separation=20.0,
     )
 
-    # 3. Write scenario YAML
-    scen_path = Path(output_scenario) if output_scenario else REPO_ROOT / "scenarios" / f"random_seed_{seed}.yaml"
-    scen_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(scen_path, "w", encoding="utf-8") as f:
-        f.write("# ==============================================================================\n")
-        f.write(f"# AETHERSWARM RANDOMIZED WORKING SCENARIO (Seed: {seed})\n")
-        f.write("# Authoritative simulation scenario configuration.\n")
-        f.write("# Canonical reference scenario: scenarios/poc_round1.yaml\n")
-        f.write("# ==============================================================================\n")
-        yaml.dump(scen_dict, f, sort_keys=False, indent=2)
+    # 3. Write scenario YAML (optional)
+    scen_path = None
+    if save_scenario:
+        scen_path = Path(output_scenario) if output_scenario else REPO_ROOT / "scenarios" / f"random_seed_{seed}.yaml"
+        scen_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(scen_path, "w", encoding="utf-8") as f:
+            f.write("# ==============================================================================\n")
+            f.write(f"# AETHERSWARM RANDOMIZED WORKING SCENARIO (Seed: {seed})\n")
+            f.write("# Authoritative simulation scenario configuration.\n")
+            f.write("# Canonical reference scenario: scenarios/poc_round1.yaml\n")
+            f.write("# ==============================================================================\n")
+            yaml.dump(scen_dict, f, sort_keys=False, indent=2)
 
     poi_metrics = compute_poi_metrics(tasks)
 
     trace_path = None
     if run_simulation:
+        if scen_path is None:
+            # Must write scenario to disk if simulation run is requested
+            scen_path = Path(output_scenario) if output_scenario else REPO_ROOT / "scenarios" / f"random_seed_{seed}.yaml"
+            scen_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(scen_path, "w", encoding="utf-8") as f:
+                yaml.dump(scen_dict, f, sort_keys=False, indent=2)
         # 4. Authoritative Simulation & Trace Export
         target_trace = Path(output_trace) if output_trace else REPO_ROOT / "visualization" / "webots" / "data" / "random_scenario_trace.json"
         target_trace.parent.mkdir(parents=True, exist_ok=True)
@@ -403,6 +514,7 @@ def generate_and_export_scenario(
         "scenario_path": scen_path,
         "trace_path": trace_path,
         "tasks": tasks,
+        "hidden_pois": hidden_pois,
         "poi_metrics": poi_metrics,
     }
 
@@ -411,16 +523,39 @@ def generate_and_export_scenario(
 generate_and_export_demo = generate_and_export_scenario
 
 
+def generate_final_mission_scenario(
+    seed: int = 2026,
+    output_scenario: str | Path | None = None,
+    output_trace: str | Path | None = None,
+    run_simulation: bool = True,
+    **kwargs: Any,
+) -> dict[str, Any]:
+    """Generate the final mission profile: exactly 5 known POIs and 5..7 hidden/emerging POIs (10..12 total)."""
+    return generate_and_export_scenario(
+        seed=seed,
+        final_profile=True,
+        output_scenario=output_scenario,
+        output_trace=output_trace,
+        run_simulation=run_simulation,
+        **kwargs,
+    )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Deterministic randomized POI working scenario and Webots trace generator for AetherSwarm."
     )
     parser.add_argument("--seed", type=int, default=2026, help="Deterministic random seed (default: 2026)")
-    parser.add_argument("--num-pois", type=int, default=10, help="Number of POIs to generate (default: 10)")
+    parser.add_argument("--num-pois", "-n", type=int, default=10, help="Number of known POIs to generate (default: 10)")
+    parser.add_argument("--num-hidden-pois", type=int, default=0, help="Number of hidden/emerging POIs to generate (default: 0; set to -1 or use --random-hidden for random count 5..7)")
+    parser.add_argument("--random-hidden", action="store_true", help="Randomly select hidden POI count in 5..7")
+    parser.add_argument("--final-profile", "--final", action="store_true", help="Use final random mission profile (5 known POIs + 5..7 hidden/emerging POIs = 10..12 total)")
     parser.add_argument("--min-spacing", type=float, default=0.0, help="Minimum POI-to-POI 2D Euclidean distance in meters (default: 0.0 for direct independent uniform sampling; >0 enables rejection sampling constraint)")
     parser.add_argument("--margin", type=float, default=0.0, help="Minimum margin from operational arena boundaries in meters (default: 0.0)")
     parser.add_argument("--spawn-start", type=float, default=0.0, help="Spawn window start time in seconds (default: 0.0)")
     parser.add_argument("--spawn-end", type=float, default=300.0, help="Spawn window end time in seconds (default: 300.0)")
+    parser.add_argument("--emergence-start", type=float, default=0.0, help="Hidden POI emergence window start time in seconds (default: 0.0)")
+    parser.add_argument("--emergence-end", type=float, default=300.0, help="Hidden POI emergence window end time in seconds (default: 300.0)")
     parser.add_argument("--full-arena", action="store_true", help="Sample across the full 1000m x 1000m arena")
     parser.add_argument("--x-range", nargs=2, type=float, default=None, metavar=("X_MIN", "X_MAX"), help="Custom X sampling bounds")
     parser.add_argument("--y-range", nargs=2, type=float, default=None, metavar=("Y_MIN", "Y_MAX"), help="Custom Y sampling bounds")
@@ -431,18 +566,28 @@ def main() -> int:
 
     args = parser.parse_args()
 
+    final_profile = args.final_profile
+    num_pois = 5 if final_profile else args.num_pois
+    num_hidden = None if (final_profile or args.random_hidden or args.num_hidden_pois < 0) else args.num_hidden_pois
+
     print("=" * 80)
     print(f"AETHERSWARM RANDOMIZED WORKING SCENARIO GENERATOR (Seed: {args.seed})")
+    if final_profile:
+        print("Final Mission Profile: 5 known POIs + 5..7 hidden/emerging POIs (10..12 total)")
     print("Authoritative working model simulation pipeline.")
     print("=" * 80)
 
     res = generate_and_export_scenario(
         seed=args.seed,
-        num_pois=args.num_pois,
+        num_pois=num_pois,
+        num_hidden_pois=num_hidden,
+        final_profile=final_profile,
         min_spacing=args.min_spacing,
         margin=args.margin,
         spawn_start=args.spawn_start,
         spawn_end=args.spawn_end,
+        emergence_start=args.emergence_start,
+        emergence_end=args.emergence_end,
         full_arena=args.full_arena,
         custom_x_range=tuple(args.x_range) if args.x_range else None,
         custom_y_range=tuple(args.y_range) if args.y_range else None,
@@ -462,6 +607,11 @@ def main() -> int:
     print("\nPOI Positions & Spawn Times:")
     for t in res["tasks"]:
         print(f"  {t['id']}: pos=({t['position'][0]:6.2f}, {t['position'][1]:6.2f})  spawn={t['spawn_time']:5.1f}s  priority={t['priority']}")
+
+    if res.get("hidden_pois"):
+        print(f"\nHidden / Emerging POIs Generated: {len(res['hidden_pois'])}")
+        for h in res["hidden_pois"]:
+            print(f"  {h['id']}: pos=({h['position'][0]:6.2f}, {h['position'][1]:6.2f})  emergence={h['emergence_time']:5.1f}s  priority={h['priority']}")
 
     if res["trace_path"]:
         print(f"\nAuthoritative Trace:        {res['trace_path']}")

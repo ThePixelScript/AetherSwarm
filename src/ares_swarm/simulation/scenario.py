@@ -89,6 +89,7 @@ class ScenarioConfig:
     enable_departure_sequencing: bool = True
     uavs: tuple[dict[str, Any], ...] = ()
     tasks: tuple[dict[str, Any], ...] = ()
+    hidden_pois: tuple[dict[str, Any], ...] = ()
     challenge_profile: ChallengeProfileConfig = field(default_factory=ChallengeProfileConfig)
     config: AetherSwarmConfig = field(default_factory=AetherSwarmConfig)
 
@@ -164,6 +165,7 @@ def load_scenario(source: str | Path | dict[str, Any]) -> ScenarioConfig:
 
     uavs_raw = tuple(raw.get("uavs", []))
     tasks_raw = tuple(raw.get("tasks", []))
+    hidden_pois_raw = tuple(raw.get("hidden_pois", []))
     airspace_raw = challenge_raw.get("airspace", {})
     airspace_config = ChallengeAirspaceConfig(
         enabled=bool(airspace_raw.get("enabled", challenge_enabled)),
@@ -275,6 +277,7 @@ def load_scenario(source: str | Path | dict[str, Any]) -> ScenarioConfig:
         enable_departure_sequencing=bool(raw.get("enable_departure_sequencing", challenge_profile.enable_departure_sequencing)),
         uavs=uavs_raw,
         tasks=tasks_raw,
+        hidden_pois=hidden_pois_raw,
         challenge_profile=challenge_profile,
         config=aetherswarm_config,
     )
@@ -291,10 +294,12 @@ def create_initial_snapshot(scenario: ScenarioConfig) -> StateSnapshot:
         energy = float(item.get("battery_energy", capacity))
         role_val = item.get("role", "IDLE")
         role = Role(role_val) if isinstance(role_val, str) else role_val
+        altitude_m = float(item.get("altitude_m", item.get("altitude", 20.0)))
 
         uavs[u_id] = UAVState(
             id=u_id,
             position_xy=pos_xy,
+            altitude_m=altitude_m,
             battery_capacity=capacity,
             battery_energy=energy,
             role=role,
@@ -305,6 +310,8 @@ def create_initial_snapshot(scenario: ScenarioConfig) -> StateSnapshot:
 
     tasks: dict[str, TaskState] = {}
     for item in scenario.tasks:
+        if bool(item.get("hidden", False)):
+            continue
         t_id = str(item["id"])
         pos_raw = item.get("position", item.get("position_xy", (0.0, 0.0)))
         pos_xy = (float(pos_raw[0]), float(pos_raw[1]))

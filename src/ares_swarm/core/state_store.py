@@ -12,6 +12,7 @@ from .commands import (
     Command,
     CompleteRechargeCommand,
     CompleteRTHCommand,
+    DiscoverTaskCommand,
     FailUAVCommand,
     HandoffRelayCommand,
     MarkTaskUnreachableCommand,
@@ -71,6 +72,11 @@ class StateStore:
         self._simulation_tick = tick
         self._simulation_time = sim_time
 
+    def register_task(self, task: TaskState) -> None:
+        """Register a new or revealed task directly into the state store."""
+        self._tasks[task.id] = task
+        self._state_version += 1
+
     def apply(self, commands: Sequence[Command]) -> StateTransitionResult:
         """Apply commands with partitioned per-command transactional atomicity."""
         sorted_commands = sorted(commands, key=lambda c: (c.uav_id, type(c).__name__))
@@ -115,7 +121,30 @@ class StateStore:
                         payload={"task_id": cmd.task_id, "reason": cmd.reason},
                     )
                 )
-                applied.append(cmd)
+            if isinstance(cmd, DiscoverTaskCommand):
+                task = cmd.task
+                if task.id not in self._tasks:
+                    self._tasks[task.id] = task
+                    self._state_version += 1
+                    events.append(
+                        DomainEvent.create(
+                            simulation_tick=self._simulation_tick,
+                            simulation_time=self._simulation_time,
+                            event_type=EventType.POI_DISCOVERED,
+                            entity_id=task.id,
+                            payload={
+                                "task_id": task.id,
+                                "discovered_by": cmd.uav_id,
+                                "position": list(task.position_xy),
+                                "priority": task.priority,
+                                "emergence_time": getattr(cmd, "emergence_time", task.created_time),
+                                **(getattr(cmd, "metadata", {}) or {}),
+                            },
+                        )
+                    )
+                    applied.append(cmd)
+                else:
+                    applied.append(cmd)  # Idempotent: already discovered
                 continue
 
             uav = self._uavs.get(cmd.uav_id)

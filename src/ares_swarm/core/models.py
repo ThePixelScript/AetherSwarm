@@ -16,6 +16,7 @@ class UAVState:
     position_xy: Tuple[float, float] = (0.0, 0.0)
     velocity_xy: Tuple[float, float] = (0.0, 0.0)
     altitude_layer: int = 1
+    altitude_m: float = 20.0
     role: Role = Role.IDLE
     assigned_task_id: Optional[str] = None
     target_position: Optional[Tuple[float, float]] = None
@@ -92,6 +93,7 @@ class StateSnapshot:
                     "position_xy": uav.position_xy,
                     "velocity_xy": uav.velocity_xy,
                     "altitude_layer": uav.altitude_layer,
+                    "altitude_m": uav.altitude_m,
                     "role": uav.role.value if hasattr(uav.role, "value") else str(uav.role),
                     "assigned_task_id": uav.assigned_task_id,
                     "target_position": uav.target_position,

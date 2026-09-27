@@ -42,6 +42,7 @@ from ..safety.rth_router import RTHRouter
 from ..safety.safety_assessor import SafetyAssessor, SafetyReport
 from ..safety.separation import SeparationEnforcer
 from ..telemetry.manager import DetectionManager
+from .discovery import DiscoveryManager, HiddenPOI
 from .scenario import ScenarioConfig, create_initial_snapshot, load_scenario
 
 
@@ -74,6 +75,7 @@ class MissionResult:
     relay_manager: Any = None
     connectivity_planner: Any = None
     departure_sequencer: Any = None
+    discovery_manager: Any = None
 
     def to_dict(self) -> dict[str, Any]:
         snap = self.final_snapshot
@@ -217,6 +219,8 @@ class MissionResult:
                     else None
                 ),
             }
+        if self.discovery_manager is not None:
+            res_dict["discovery"] = self.discovery_manager.get_summary()
         return res_dict
 
     def save_json(self, output_path: str | Path) -> Path:
@@ -240,6 +244,7 @@ class MissionRunner:
         comm_analyzer: Optional[Any] = None,
         relay_manager: Optional[DynamicRelayManager] = None,
         connectivity_planner: Optional[ConnectivityAwarePlanner] = None,
+        discovery_manager: Optional[DiscoveryManager] = None,
     ):
         if isinstance(scenario, ScenarioConfig):
             self.scenario = scenario
@@ -251,6 +256,7 @@ class MissionRunner:
         self.safety_hook = safety_hook
         self._custom_autonomy_adapter = autonomy_adapter
         self._custom_comm_analyzer = comm_analyzer
+        self._custom_discovery_manager = discovery_manager
 
         self.initial_snapshot: StateSnapshot
         self.state_store: StateStore
@@ -396,6 +402,21 @@ class MissionRunner:
             self.connectivity_planner.reset()
         if self.departure_sequencer is not None:
             self.departure_sequencer.reset()
+        if self._custom_discovery_manager is not None:
+            self.discovery_manager = self._custom_discovery_manager
+            self.discovery_manager.reset()
+        else:
+            hidden_list: list[Any] = []
+            if hasattr(self.scenario, "hidden_pois") and self.scenario.hidden_pois:
+                hidden_list.extend(self.scenario.hidden_pois)
+            if hasattr(self.scenario, "tasks"):
+                for t in self.scenario.tasks:
+                    if isinstance(t, dict) and bool(t.get("hidden", False)):
+                        hidden_list.append(t)
+            if hidden_list:
+                self.discovery_manager = DiscoveryManager(hidden_pois=hidden_list)
+            else:
+                self.discovery_manager = None
         if hasattr(self, "rth_router") and self.rth_router is not None:
             self.rth_router.reset()
             for u_id, u_item in self.initial_snapshot.uavs.items():
@@ -432,6 +453,15 @@ class MissionRunner:
         applied_commands.extend(scheduled_res.applied_commands)
         rejected_commands.extend(scheduled_res.rejected_commands)
         tick_events.extend(scheduled_res.emitted_events)
+
+        # 0.5 Discovery step for hidden/emerging POIs
+        if self.discovery_manager is not None:
+            disc_cmds = self.discovery_manager.step(self.state_store.snapshot())
+            if disc_cmds:
+                disc_res = self.state_store.apply(disc_cmds)
+                applied_commands.extend(disc_res.applied_commands)
+                rejected_commands.extend(disc_res.rejected_commands)
+                tick_events.extend(disc_res.emitted_events)
 
         current_snap = self.state_store.snapshot()  
 
@@ -873,6 +903,8 @@ class MissionRunner:
             geofence_enforcer=self.geofence_enforcer,
             relay_manager=self.relay_manager,
             connectivity_planner=self.connectivity_planner,
+            departure_sequencer=self.departure_sequencer,
+            discovery_manager=self.discovery_manager,
         )
 
 

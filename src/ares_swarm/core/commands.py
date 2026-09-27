@@ -1,8 +1,8 @@
 """Command definitions for AetherSwarm simulation."""
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Optional, Tuple
+from dataclasses import dataclass, field
+from typing import Any, Optional, Tuple
 
 from .enums import FailureState, Role
 
@@ -123,3 +123,11 @@ class MarkTaskUnreachableCommand(Command):
     """
     task_id: str = ""
     reason: str = "PHYSICALLY_UNREACHABLE"
+
+
+@dataclass(frozen=True)
+class DiscoverTaskCommand(Command):
+    """Command indicating a UAV discovered a hidden/emerged POI, creating/revealing its task."""
+    task: Any
+    emergence_time: float = 0.0
+    metadata: dict[str, Any] = field(default_factory=dict)
