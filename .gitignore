@@ -10,6 +10,8 @@ env/
 
 # Testing
 .pytest_cache/
+pytest_atomic*/
+pytest_tether/
 .coverage
 htmlcov/
 
