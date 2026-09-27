@@ -121,66 +121,81 @@ visualization/webots/
 
 ---
 
-## Requirements
-- **Webots**: Cyberbotics Webots R2025a installed on the host system (`C:\Program Files\Webots\msys64\mingw64\bin\webots.exe`).
-- **Python Runtime**: Standard Python 3.10+ (using standard library + Webots `controller` API). Zero dependencies on `ares_swarm`, `numpy`, `networkx`, `scipy`, or virtual environments.
-- **Controller Execution**: Normal in-world Webots controller (`controller "aetherswarm_supervisor"`). No external IPC, named pipes, or sockets are required.
-
----
-
-## Windows-Local Deployment
-Webots on Windows executes natively against local drive paths. If developing within WSL, copy or mirror the project to `C:\AetherSwarmWebots\`:
-```powershell
-Copy-Item -Recurse "\\wsl.localhost\Ubuntu-24.04\home\dell\swarm_ws\AetherSwarm\visualization\webots" "C:\AetherSwarmWebots"
-```
+## Requirements & Runtime Architecture
+- **Webots**: Cyberbotics Webots R2025a installed on the host Windows system (`C:\Program Files\Webots\msys64\mingw64\bin\webotsw.exe` or `webots.exe`).
+- **Python Runtime**: Standard Python 3.10+ (Webots built-in controller engine). The supervisor runs standalone from the exported trace and does not require active virtualenv packages or IPC sockets.
+- **Path Resolution**: The project launcher resolves paths directly against the repository checkout, checking the mapped `Z:` drive or using PowerShell `.ProviderPath` to resolve the clean UNC path without provider prefix corruption.
 
 ---
 
 ## Launch & Execution Commands
 
-### 1. Official E1 Benchmark Scenario (Default)
-Executes all 2,700 ticks of the official E1 benchmark, reproducing the tick-300 failure, communication topology reconfiguration, task completion, and RTH landing.
+### 1. Canonical Project Launcher (PowerShell)
+The primary entry point for randomized and final-profile Webots missions is [`scripts/launch_random_webots.ps1`](../../scripts/launch_random_webots.ps1):
+
 ```powershell
-$env:AETHERSWARM_SCENARIO = "e1"
-Start-Process -FilePath "C:\Program Files\Webots\msys64\mingw64\bin\webots.exe" `
-  -ArgumentList @("C:\AetherSwarmWebots\worlds\uavx_round1.wbt") `
-  -WorkingDirectory "C:\Program Files\Webots"
+# From the repository root in Windows PowerShell:
+.\scripts\launch_random_webots.ps1 -Seed 2026
+
+# Perform generation and trace export without opening GUI:
+.\scripts\launch_random_webots.ps1 -Seed 2026 -NoLaunch
 ```
 
-### 2. In-Flight Recovery Demo Scenario
-Executes the focused 100-tick in-flight recovery demonstration showing `uav_1` failure at tick 8 while on active task `poi_recovery`, dynamic A1 reassignment to `uav_2`, task completion at tick 21, and staged RTH/landing.
-```powershell
-$env:AETHERSWARM_SCENARIO = "recovery"
-Start-Process -FilePath "C:\Program Files\Webots\msys64\mingw64\bin\webots.exe" `
-  -ArgumentList @("C:\AetherSwarmWebots\worlds\uavx_round1.wbt") `
-  -WorkingDirectory "C:\Program Files\Webots"
-```
+The script executes the authoritative simulation pipeline via WSL, exports `visualization/webots/data/random_scenario_trace.json`, verifies trace metadata integrity, and starts the Webots GUI with `visualization/webots/worlds/uavx_round1.wbt`.
 
-### 3. Randomized POI Working Scenario
-Executes the randomized POI working scenario showing 10 non-grid, spatially distributed POIs across the operational arena:
+### 2. Manual Launch via PowerShell
+If launching manually from Windows PowerShell:
+
 ```powershell
 $env:AETHERSWARM_SCENARIO = "random"
-Start-Process -FilePath "C:\Program Files\Webots\msys64\mingw64\bin\webots.exe" `
-  -ArgumentList @("C:\AetherSwarmWebots\worlds\uavx_round1.wbt") `
-  -WorkingDirectory "C:\Program Files\Webots"
+
+$WebotsExe = if (Test-Path "C:\Program Files\Webots\msys64\mingw64\bin\webotsw.exe") {
+    "C:\Program Files\Webots\msys64\mingw64\bin\webotsw.exe"
+} else {
+    "C:\Program Files\Webots\webotsw.exe"
+}
+
+$WorldPath = if (Test-Path "Z:\home\dell\swarm_ws\AetherSwarm\visualization\webots\worlds\uavx_round1.wbt") {
+    "Z:\home\dell\swarm_ws\AetherSwarm\visualization\webots\worlds\uavx_round1.wbt"
+} else {
+    (Resolve-Path ".\visualization\webots\worlds\uavx_round1.wbt").ProviderPath
+}
+
+Start-Process -FilePath $WebotsExe -ArgumentList "`"$WorldPath`"" -WorkingDirectory (Split-Path -Parent $WebotsExe)
 ```
 
-### 4. Standalone Observational Spatial Verification (CLI / CI)
-The supervisor controller can also be executed directly from the terminal (WSL or Windows) to perform observational spatial verification against the authoritative traces without opening Webots:
+### 3. Scenario Selector Variable (`AETHERSWARM_SCENARIO`)
+The supervisor controller determines which trace to load based on the `AETHERSWARM_SCENARIO` environment variable or the CLI argument:
+- `random` (default for randomized runs): loads `visualization/webots/data/random_scenario_trace.json`.
+- `e1`: loads `visualization/webots/data/e1_authoritative_trace.json` (2,700 ticks).
+- `recovery`: loads `visualization/webots/data/recovery_authoritative_trace.json` (100 ticks).
+
+### 4. Standalone Observational Spatial Verification (Headless CLI / CI)
+The supervisor controller can be executed directly from Python (in WSL or Windows) to evaluate authoritative traces without launching the Webots 3D interface:
+
 ```bash
 # In WSL:
-.venv/bin/python visualization/webots/controllers/aetherswarm_supervisor/aetherswarm_supervisor.py e1
-.venv/bin/python visualization/webots/controllers/aetherswarm_supervisor/aetherswarm_supervisor.py recovery
 .venv/bin/python visualization/webots/controllers/aetherswarm_supervisor/aetherswarm_supervisor.py random
+
+# Or pass a specific trace path directly:
+.venv/bin/python visualization/webots/controllers/aetherswarm_supervisor/aetherswarm_supervisor.py visualization/webots/data/random_scenario_trace.json
 ```
 
 ---
 
 ## Independent Spatial Verification
-During simulation playback, the Supervisor independently monitors and records 3D physical coordinates at every tick, verifying:
-1. **Inter-UAV Minimum Separation**: Asserts that all active UAV pairs maintain distance $\ge 20.0\,\text{m}$.
-2. **Geofence Boundary Compliance**: Asserts that all UAVs remain strictly within the $1000\times 1000\,\text{m}$ operational arena (or designated GCS staging corridor).
+
+During simulation replay, [`aetherswarm_supervisor.py`](controllers/aetherswarm_supervisor/aetherswarm_supervisor.py) independently audits spatial physics at every tick:
+1. **Inter-UAV Minimum Separation**: Asserts that all active airborne UAV pairs maintain Euclidean distance $\ge 20.0\,\text{m}$.
+2. **Geofence Boundary Compliance**: Asserts that all UAV coordinates remain strictly within the composite airspace geometry ($1000\,\text{m} \times 1000\,\text{m}$ arena and GCS staging corridor).
 3. **Altitude Ceiling Compliance**: Asserts that all UAVs observe the $100.0\,\text{m}$ maximum operational ceiling.
 
 Results are written automatically upon simulation completion to:
-`data/webots_spatial_verification.txt`
+`visualization/webots/data/webots_spatial_verification.txt`
+
+### Validated Run Results (Seed 2026, 2700 Ticks)
+- **Verified Ticks**: 2,700
+- **Minimum Observed Separation**: $20.00\,\text{m}$ (Constraint: $\ge 20.0\,\text{m}$)
+- **Separation Violations**: 0
+- **Geofence Violations**: 0
+- **Altitude Violations**: 0

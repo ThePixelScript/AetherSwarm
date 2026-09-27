@@ -140,23 +140,45 @@ OVERALL SPATIAL VERIFICATION:         PASSED
 
 ## 6. Execution Commands
 
-### Launching Webots GUI on Windows
+### Canonical Project Launcher (Windows PowerShell)
+The primary entry point is [`scripts/launch_random_webots.ps1`](../scripts/launch_random_webots.ps1):
+
+```powershell
+# In Windows PowerShell:
+.\scripts\launch_random_webots.ps1 -Seed 2026
+
+# Generate and export trace without opening Webots GUI:
+.\scripts\launch_random_webots.ps1 -Seed 2026 -NoLaunch
+```
+
+### Manual Launch via Windows PowerShell
 ```powershell
 $env:AETHERSWARM_SCENARIO = "random"
-Start-Process -FilePath "C:\Program Files\Webots\msys64\mingw64\bin\webots.exe" `
-  -ArgumentList @("C:\AetherSwarmWebots\worlds\uavx_round1.wbt") `
-  -WorkingDirectory "C:\Program Files\Webots"
+
+$WebotsExe = if (Test-Path "C:\Program Files\Webots\msys64\mingw64\bin\webotsw.exe") {
+    "C:\Program Files\Webots\msys64\mingw64\bin\webotsw.exe"
+} else {
+    "C:\Program Files\Webots\webotsw.exe"
+}
+
+$WorldPath = if (Test-Path "Z:\home\dell\swarm_ws\AetherSwarm\visualization\webots\worlds\uavx_round1.wbt") {
+    "Z:\home\dell\swarm_ws\AetherSwarm\visualization\webots\worlds\uavx_round1.wbt"
+} else {
+    (Resolve-Path ".\visualization\webots\worlds\uavx_round1.wbt").ProviderPath
+}
+
+Start-Process -FilePath $WebotsExe -ArgumentList "`"$WorldPath`"" -WorkingDirectory (Split-Path -Parent $WebotsExe)
 ```
 
 ### Standalone Headless Spatial Verification (WSL / Linux CLI)
 The supervisor controller can be executed directly from the terminal without opening the Webots graphical interface:
 ```bash
-# Verify official benchmark trace
-python visualization/webots/controllers/aetherswarm_supervisor/aetherswarm_supervisor.py e1
-
 # Verify randomized working scenario trace
-python visualization/webots/controllers/aetherswarm_supervisor/aetherswarm_supervisor.py random
+.venv/bin/python visualization/webots/controllers/aetherswarm_supervisor/aetherswarm_supervisor.py visualization/webots/data/random_scenario_trace.json
+
+# Verify official benchmark trace
+.venv/bin/python visualization/webots/controllers/aetherswarm_supervisor/aetherswarm_supervisor.py e1
 
 # Verify in-flight failure recovery trace
-python visualization/webots/controllers/aetherswarm_supervisor/aetherswarm_supervisor.py recovery
+.venv/bin/python visualization/webots/controllers/aetherswarm_supervisor/aetherswarm_supervisor.py recovery
 ```

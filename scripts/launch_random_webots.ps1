@@ -149,9 +149,11 @@ if (Test-Path $PreferredWebots) {
 }
 
 # 9. Resolve World File Path (Prefer Z: mapped drive for Webots Windows process)
-$WorldPath = "Z:\home\dell\swarm_ws\AetherSwarm\visualization\webots\worlds\uavx_round1.wbt"
-if (-not (Test-Path $WorldPath)) {
-    $WorldPath = Join-Path $RepoRoot "visualization\webots\worlds\uavx_round1.wbt"
+$ZPath = "Z:\home\dell\swarm_ws\AetherSwarm\visualization\webots\worlds\uavx_round1.wbt"
+if (Test-Path $ZPath) {
+    $WorldPath = $ZPath
+} else {
+    $WorldPath = (Resolve-Path (Join-Path $RepoRoot "visualization\webots\worlds\uavx_round1.wbt")).ProviderPath
 }
 
 if (-not (Test-Path $WorldPath)) {

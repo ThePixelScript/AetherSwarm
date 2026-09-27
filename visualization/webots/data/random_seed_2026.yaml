@@ -84,100 +84,93 @@ uavs:
   position:
   - -75.0
   - 430.0
-  battery_capacity: 4200.0
-  battery_energy: 4200.0
+  battery_capacity: 7560.0
+  battery_energy: 7560.0
   role: IDLE
 - id: uav_2
   position:
   - -75.0
   - 450.0
-  battery_capacity: 4200.0
-  battery_energy: 4200.0
+  battery_capacity: 7560.0
+  battery_energy: 7560.0
   role: IDLE
 - id: uav_3
   position:
   - -75.0
   - 470.0
-  battery_capacity: 4200.0
-  battery_energy: 4200.0
+  battery_capacity: 7560.0
+  battery_energy: 7560.0
   role: IDLE
 - id: uav_4
   position:
   - -75.0
   - 490.0
-  battery_capacity: 4200.0
-  battery_energy: 4200.0
+  battery_capacity: 7560.0
+  battery_energy: 7560.0
   role: IDLE
 - id: uav_5
   position:
   - -75.0
   - 510.0
-  battery_capacity: 4200.0
-  battery_energy: 4200.0
+  battery_capacity: 7560.0
+  battery_energy: 7560.0
   role: IDLE
 - id: uav_6
   position:
   - -75.0
   - 530.0
-  battery_capacity: 4200.0
-  battery_energy: 4200.0
+  battery_capacity: 7560.0
+  battery_energy: 7560.0
   role: IDLE
 - id: uav_7
   position:
   - -75.0
   - 550.0
-  battery_capacity: 4200.0
-  battery_energy: 4200.0
+  battery_capacity: 7560.0
+  battery_energy: 7560.0
   role: IDLE
 - id: uav_8
   position:
   - -75.0
   - 570.0
-  battery_capacity: 4200.0
-  battery_energy: 4200.0
+  battery_capacity: 7560.0
+  battery_energy: 7560.0
   role: IDLE
 tasks:
-- id: poi_04
+- id: poi_08
+  position:
+  - 708.75
+  - 364.91
+  priority: 2
+  spawn_time: 27.2
+  service_duration: 2.0
+- id: poi_03
   position:
   - 491.0
   - 770.34
   priority: 2
   spawn_time: 72.0
   service_duration: 2.0
-- id: poi_10
-  position:
-  - 872.71
-  - 701.94
-  priority: 3
-  spawn_time: 92.7
-  service_duration: 2.0
-- id: poi_06
-  position:
-  - 811.62
-  - 683.33
-  priority: 3
-  spawn_time: 94.3
-  service_duration: 2.0
-- id: poi_05
+- id: poi_04
   position:
   - 613.06
   - 114.63
   priority: 1
   spawn_time: 134.9
   service_duration: 2.0
-- id: poi_09
+- id: poi_06
   position:
-  - 93.77
-  - 537.68
-  priority: 2
-  spawn_time: 137.2
-  service_duration: 2.0
-- id: poi_02
-  position:
-  - 948.42
-  - 880.28
+  - 80.56
+  - 341.99
   priority: 3
-  spawn_time: 186.4
+  spawn_time: 161.4
+  service_duration: 2.0
+- id: poi_10
+  position:
+  - 479.4
+  - 517.81
+  priority: 1
+  spawn_time: 172.7
   service_duration: 2.0
 - id: poi_01
   position:
@@ -186,24 +179,31 @@ tasks:
   priority: 3
   spawn_time: 194.2
   service_duration: 2.0
-- id: poi_08
+- id: poi_07
   position:
-  - 994.66
-  - 513.45
-  priority: 1
-  spawn_time: 216.9
+  - 289.73
+  - 144.48
+  priority: 3
+  spawn_time: 211.2
   service_duration: 2.0
-- id: poi_03
+- id: poi_02
   position:
   - 421.41
   - 571.84
   priority: 3
   spawn_time: 233.0
   service_duration: 2.0
-- id: poi_07
+- id: poi_05
   position:
-  - 398.25
-  - 349.18
+  - 254.0
+  - 975.11
   priority: 2
   spawn_time: 241.5
+  service_duration: 2.0
+- id: poi_09
+  position:
+  - 524.41
+  - 841.03
+  priority: 3
+  spawn_time: 277.9
   service_duration: 2.0

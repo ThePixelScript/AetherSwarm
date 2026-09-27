@@ -8,7 +8,7 @@ AetherSwarm enforces a rigorous verification standard to ensure that autonomous 
 1. **Zero Flakiness via Decoupled Time**: Tests never assert against wall-clock delays (`time.sleep` is strictly prohibited). All temporal dynamics advance via discrete, deterministic simulation ticks ($\Delta t = 1.0\,\text{s}$).
 2. **Absolute Seed-Based Determinism**: Given identical random seeds and scenario inputs, simulation trajectories, routing tables, and domain event logs produce identical bitwise results across different hardware architectures and operating systems.
 3. **Inviolable Regression Baselines**: The initial benchmark scenario (`poc_round1.yaml`) and legacy test suites are never altered or weakened to accommodate new features. Every enhancement must strictly maintain 100% backward pass rates.
-4. **Fast Local Execution**: The entire 333-test regression suite executes in under 20 seconds on a standard developer workstation, enabling immediate feedback on every commit.
+4. **Fast Local Execution**: The entire 463-test regression suite executes in under 16 seconds on a standard developer workstation, enabling immediate feedback on every commit.
 
 ---
 
@@ -18,10 +18,12 @@ The test directory (`tests/`) mirrors the architecture of the production codebas
 
 ```text
 tests/
-├── autonomy/                            # 43 tests: A0 greedy allocation & A1 destination-aware routing
+├── autonomy/                            # 53 tests: Allocation, feasibility gates & physical readiness
 │   ├── test_a0_core_integration.py      # 9 tests
 │   ├── test_a1_allocator.py             # 18 tests
 │   ├── test_a1_destination_aware.py     # 5 tests
+│   ├── test_a1_feasibility_gates.py     # 5 tests
+│   ├── test_physical_relay_readiness.py # 5 tests
 │   └── test_task_allocator.py           # 16 tests
 ├── communication/                       # 86 tests: RF channel propagation, graph topologies & routing
 │   ├── test_channel.py                  # 23 tests
@@ -46,31 +48,38 @@ tests/
 │   └── test_metrics.py                  # 2 tests
 ├── integration/                         # 2 tests: End-to-end M0 simulation loop
 │   └── test_m0_loop.py                  # 2 tests
-├── safety/                              # 40 tests: Separation, geofence, and challenge compliance
+├── safety/                              # 58 tests: Separation, geofence, departure, and RTH
 │   ├── test_challenge_compliance_v1.py  # 13 tests
+│   ├── test_departure_sequencing.py     # 9 tests
 │   ├── test_geofence_enforcement.py     # 12 tests
+│   ├── test_landing_compliance.py       # 3 tests
+│   ├── test_rth_routing.py              # 6 tests
 │   ├── test_safety_assessor.py          # 4 tests
 │   └── test_separation_enforcement.py   # 11 tests
-├── simulation/                          # 11 tests: Mission runner, RTH, and scenario execution
+├── simulation/                          # 24 tests: Runner, RTH, and hidden POI discovery
 │   ├── test_demo_paired_a0_a1.py        # 1 test
+│   ├── test_hidden_poi_discovery.py     # 13 tests
 │   ├── test_mission_runner.py           # 5 tests
 │   ├── test_poc_scenario.py             # 4 tests
 │   └── test_rth_completion.py           # 1 test
 ├── telemetry/                           # 15 tests: FOV perception, packet routing & 10s deadline
 │   └── test_detection_reporting.py      # 15 tests
-├── visualization/                       # 14 tests: Trace playback and Webots supervisor controls
+├── visualization/                       # 15 tests: Trace playback and Webots supervisor controls
 │   ├── test_replay.py                   # 3 tests
-│   └── test_webots_control_layer.py     # 11 tests
-└── Root Subsystem Suites:               # 79 tests: High-level architectural milestones
+│   └── test_webots_control_layer.py     # 12 tests
+└── Root Subsystem Suites:               # 90 tests: High-level architectural milestones
     ├── test_aetherswarm_config.py       # 8 tests
-    ├── test_connectivity_aware_planning.py # 9 tests (Phase 4 single-relay)
-    ├── test_dynamic_relay_management.py # 8 tests (Phase 3 dynamic roles)
-    ├── test_multihop_relay_planning.py  # 9 tests (Phase 5B multi-hop chains)
+    ├── test_battery_recharge_lifecycle.py # 7 tests
+    ├── test_connectivity_aware_planning.py # 9 tests
+    ├── test_dynamic_relay_management.py # 8 tests
+    ├── test_multi_sortie_lifecycle.py   # 2 tests
+    ├── test_multihop_relay_planning.py  # 9 tests
     ├── test_random_scenario_generator.py # 11 tests
-    └── test_sortie_rotation.py          # 7 tests (Phase 2 sortie rotation)
+    ├── test_relay_handoff_continuity.py # 2 tests
+    └── test_sortie_rotation.py          # 7 tests
 ```
 
-**Total Active Test Count**: **333 tests passing** (100% pass rate).
+**Total Active Test Count**: **463 tests passing** (100% pass rate).
 
 ---
 
@@ -88,15 +97,15 @@ To eliminate platform-specific variations:
 ## 4. Test Execution Commands
 
 ### 4.1 Running the Full Test Suite
-Execute all 333 tests using Pytest:
+Execute all 463 tests using Pytest:
 
 ```bash
-pytest
+pytest tests/ -q
 ```
 
 Expected output:
 ```text
-============================= 333 passed in 17.50s =============================
+463 passed in ~13-15s
 ```
 
 ### 4.2 Running Targeted Phase & Subsystem Suites

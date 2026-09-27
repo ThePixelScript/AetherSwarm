@@ -84,11 +84,11 @@ Single-relay planning provides a maximum reach of $D = 190.0\,\text{m}$. In a $1
 
 ## 5. Phase 5B: Multi-Hop Relay Chain Planning
 
-Commit `342775b` extends the `ConnectivityAwarePlanner` to support multi-hop relay chains spanning geometric distances up to the farthest arena corner ($D \approx 1185.6\,\text{m}$). 
+The `ConnectivityAwarePlanner` supports multi-hop relay chains spanning geometric distances up to the farthest arena corner ($D \approx 1185.6\,\text{m}$). 
 
 > [!IMPORTANT]
 > **Geometric Capability vs. Operational Validation**:
-> The geometric algorithm supports chain formulation across the full arena geometry. However, **geometric planner capability $\neq$ experimentally validated full-arena operational capability**. The value $K_{\min}$ represents a geometric lower bound, not the operational fleet size needed for continuous mission execution. Multi-seed randomized operational validation across full-arena distributions is the dedicated objective of Phase 5C.
+> The geometric algorithm supports chain formulation across the full arena geometry. The value $K_{\min}$ represents a geometric lower bound, not the operational fleet size needed for continuous mission execution. Phase 5C completed the operational validation of this architecture, adding physical readiness enforcement (`is_chain_physically_ready(...)`), ground departure sequencing, and full 2700-tick Webots replay.
 
 ### 5.1 Geometric Formulation & Lower Bounds
 For a target POI at distance $D = \|\mathbf{p}_{\text{poi}} - \mathbf{p}_{\text{gcs}}\|_2$:
@@ -116,6 +116,25 @@ To prevent partial fleet lockups and orphaned relays:
    - Zero surveyors are dispatched.
    - The task is deferred to the next tick (`TASK_DEFERRED`).
    - Fleet assets remain free to service nearer, direct-reach or shorter-hop tasks.
+
+### 5.4 Physical Relay Readiness Verification
+To eliminate surveyor transit into disconnected RF dead-zones:
+1. Newly formed relay chains initialize with status `ChainStatus.FORMING`.
+2. **Surveyor Hold Invariant**: While `chain.status == ChainStatus.FORMING`, the assigned surveyor is held at the staging corridor entrance `(0.0, 500.0)` or its current position. It is never allowed to advance toward the POI ahead of its communication backbone.
+3. **Staged Relay Ingress**: Downstream relays advance sequentially outward along their collinear stations, ensuring each relay maintains unbroken uplink to its upstream predecessor.
+4. **Physical Readiness Gate**: `is_chain_physically_ready(...)` evaluates:
+   - All relays in the chain have physically reached within $5.0\,\text{m}$ tolerance of their designated station positions: $\|\mathbf{p}_{\text{uav}} - \mathbf{p}_{\text{station}}\|_2 \le 5.0\,\text{m}$.
+   - Every relay is active, healthy, and confirmed reachable to GCS in the post-step Gamma network analysis (`net_analysis.connected_uav_ids`).
+5. Only when all physical conditions are satisfied does the chain transition to `ChainStatus.ACTIVE`, releasing the surveyor to navigate to the POI.
+
+### 5.5 Task Allocation Reassessment Cadence & Reactive Triggers
+1. **Periodic Cadence**: Allocation runs on an approximate 5.0-second interval (`allocator_reassessment_interval_s = 5.0`), eliminating per-tick replanning thrashing on stable deferred queues.
+2. **Reactive Event Triggers**: The reassessment timer is immediately bypassed when state changes alter fleet or task availability:
+   - Dynamic POI discovery (`EventType.POI_DISCOVERED`).
+   - Task deferral or hardware failure (`EventType.TASK_DEFERRED`, `EventType.UAV_FAILED`).
+   - Task completion freeing a surveyor or chain (`EventType.TASK_COMPLETED`).
+   - Recharge completion or vehicle landing (`EventType.UAV_RECHARGED`, `EventType.UAV_LANDED`).
+3. **Concurrent Multi-Task Execution**: Multiple independent tasks and multi-hop chains proceed concurrently when fleet size and candidate availability permit.
 
 ---
 

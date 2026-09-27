@@ -80,8 +80,8 @@ def generate_random_scenario(
 
     uav_x = gcs_x if uav_start_mode == "operational_center" else 50.0
     uavs_data = []
-    # Continuous flight capacity: 1200s at 3.5 Wh/s => 4200 Wh
-    battery_cap = 4200.0
+    # Continuous flight capacity: 1.8x capacity experiment (baseline 4200.0 Wh => 7560.0 Wh)
+    battery_cap = 7560.0
 
     for i in range(num_uavs):
         uid = f"uav_{i + 1}"
@@ -128,11 +128,16 @@ def generate_random_scenario(
             })
             accepted += 1
     else:
-        # Unconstrained uniform random sampling across the entire 1000m x 1000m operational area
-        for i in range(num_pois):
-            tid = f"poi_{i + 1:02d}"
+        # Unconstrained uniform random sampling across the 1000m x 1000m operational area within 800m of GCS
+        accepted = 0
+        attempts = 0
+        while accepted < num_pois and attempts < 20000:
+            attempts += 1
             px = round(rng.uniform(margin, arena_size - margin), 2)
             py = round(rng.uniform(margin, arena_size - margin), 2)
+            if (px - gcs_x) ** 2 + (py - gcs_y) ** 2 > (800.0 ** 2) + 1e-6:
+                continue
+            tid = f"poi_{accepted + 1:02d}"
             priority = rng.choice([1, 2, 3])
             spawn_time = round(rng.uniform(0.0, 600.0), 1)
 
@@ -144,6 +149,7 @@ def generate_random_scenario(
                 "deadline_offset": 10.0,
                 "service_duration": 2.0,
             })
+            accepted += 1
 
     # Sort tasks deterministically by spawn_time then id
     tasks_data.sort(key=lambda t: (t["spawn_time"], t["id"]))

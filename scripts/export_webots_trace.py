@@ -196,7 +196,14 @@ def export_trace(
 
     # Build Webots trace dataset
     uav_ids = [u["id"] for u in scenario.uavs]
-    task_ids = [t["id"] for t in scenario.tasks]
+    known_task_ids = [t["id"] for t in scenario.tasks]
+    hidden_pois_cfg = getattr(scenario, "hidden_pois", []) or []
+    hidden_ids = [h["id"] for h in hidden_pois_cfg if isinstance(h, dict) and "id" in h]
+    all_trace_task_ids = list(known_task_ids)
+    for hid in hidden_ids:
+        if hid not in all_trace_task_ids:
+            all_trace_task_ids.append(hid)
+    task_ids = all_trace_task_ids
     gcs_x, gcs_y = scenario.gcs_position
 
     metadata = {
@@ -212,7 +219,8 @@ def export_trace(
         "total_ticks": len(step_history),
         "min_separation_m": scenario.min_separation_m,
         "uav_ids": uav_ids,
-        "task_ids": task_ids,
+        "task_ids": all_trace_task_ids,
+        "hidden_pois": hidden_ids,
         "config": scenario.config.to_dict() if hasattr(scenario, "config") else {},
     }
 
@@ -260,18 +268,30 @@ def export_trace(
         tasks_dict = {}
         for tid in task_ids:
             t_state = snap.tasks.get(tid)
-            if not t_state:
-                continue
-            tx, ty = t_state.position_xy
-            tasks_dict[tid] = {
-                "id": tid,
-                "position": [round(tx, 3), round(ty, 3), 0.0],
-                "priority": t_state.priority,
-                "status": t_state.status.value if hasattr(t_state.status, "value") else str(t_state.status),
-                "assigned_uav_id": t_state.assigned_uav_id,
-                "service_progress": round(t_state.service_progress, 2),
-                "service_duration": round(t_state.service_duration, 2),
-            }
+            if t_state:
+                tx, ty = t_state.position_xy
+                tasks_dict[tid] = {
+                    "id": tid,
+                    "position": [round(tx, 3), round(ty, 3), 0.0],
+                    "priority": t_state.priority,
+                    "status": t_state.status.value if hasattr(t_state.status, "value") else str(t_state.status),
+                    "assigned_uav_id": t_state.assigned_uav_id,
+                    "service_progress": round(t_state.service_progress, 2),
+                    "service_duration": round(t_state.service_duration, 2),
+                }
+            else:
+                h_match = next((h for h in hidden_pois_cfg if isinstance(h, dict) and h.get("id") == tid), None)
+                if h_match and "position_xy" in h_match:
+                    hx, hy = h_match["position_xy"]
+                    tasks_dict[tid] = {
+                        "id": tid,
+                        "position": [round(hx, 3), round(hy, 3), 0.0],
+                        "priority": h_match.get("priority", 1),
+                        "status": "HIDDEN",
+                        "assigned_uav_id": None,
+                        "service_progress": 0.0,
+                        "service_duration": h_match.get("service_duration", 30.0),
+                    }
 
         # Network topology derived authoritative links
         active_links = []

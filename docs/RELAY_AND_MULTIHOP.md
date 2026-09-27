@@ -4,11 +4,11 @@
 
 In large-scale disaster arenas ($1000\,\text{m} \times 1000\,\text{m}$), points of interest (POIs) can be situated up to $\approx 1185\,\text{m}$ from the Ground Control Station (GCS) at $(-75.0, 500.0)$. With a physical radio transmission limit of $R_{\text{comm}} = 100.0\,\text{m}$, direct communication between GCS and distant survey aircraft is physically impossible.
 
-Commit `342775b` implements the **Phase 5B Multi-Hop Relay Architecture**, introducing dynamic, collinear relay chains managed by [`ConnectivityAwarePlanner`](file:///home/dell/swarm_ws/AetherSwarm/src/ares_swarm/autonomy/connectivity_planner.py) and encapsulated in [`RelayChain`](file:///home/dell/swarm_ws/AetherSwarm/src/ares_swarm/autonomy/connectivity_planner.py). This architecture provides the geometric algorithms to establish end-to-end multi-hop RF packet routes from distant POIs to the GCS, satisfying the mandatory $10.0\,\text{s}$ detection-to-reporting deadline.
+Commit `342775b` implemented the **Phase 5B Multi-Hop Relay Architecture**, introducing dynamic, collinear relay chains managed by [`ConnectivityAwarePlanner`](file:///home/dell/swarm_ws/AetherSwarm/src/ares_swarm/autonomy/connectivity_planner.py) and encapsulated in [`RelayChain`](file:///home/dell/swarm_ws/AetherSwarm/src/ares_swarm/autonomy/connectivity_planner.py). **Phase 5C** enforces the **Physical Chain Readiness Invariant**, holding surveyor aircraft at staging until intermediate relays have physically reached their designated stations, verified via 1–1700 simulation tick audit and 2700-tick Webots R2025a replay.
 
 > [!NOTE]
-> **Geometric Capability vs. Operational Validation**:
-> Phase 5B implements and deterministically tests the multi-hop chain mechanics. Geometric capability to formulate chains up to $D \approx 1185.6\,\text{m}$ ($K_{\min} \le 12$) does not imply complete operational coverage under all randomized distributions and fleet sizes. Full-arena randomized operational validation is the specific objective of Phase 5C.
+> **Geometric Capability vs. Physical Readiness**:
+> Geometric capability to formulate chains up to $D \approx 1185.6\,\text{m}$ ($K_{\min} \le 12$) ensures topological link feasibility. In Phase 5C, the runtime engine enforces strict physical readiness: surveyor drones are held at staging during chain `FORMING` status until all intermediate relays achieve spatial station tolerance ($\le 5.0\,\text{m}$) and the end-to-end graph is verified.
 
 ---
 
@@ -107,6 +107,15 @@ Candidate vehicles are assigned to stations based on proximity and role economy:
 1. **Airborne Preference**: Already-airborne idle UAVs are prioritized for intermediate stations over grounded UAVs to minimize transit climb-out time.
 2. **Proximity Matching**: For station $k$, candidate UAVs are evaluated by Euclidean distance to $\mathbf{p}_{\text{station}}(k)$.
 3. **Deterministic Tie-Breaking**: When candidate travel distances match within epsilon, vehicles are sorted by battery state-of-charge descending, followed by `uav.id` string ascending.
+
+### 4.3 Physical Chain Readiness & Surveyor Staging Hold (Phase 5C)
+Deploying relays and surveyor simultaneously risks the surveyor arriving at the POI or entering intermediate transit before the relays reach their stations, creating temporary communication outages. To enforce an unbroken link invariant:
+1. **Forming State**: When a multi-hop task is initiated, the chain is initialized with status `FORMING`.
+2. **Surveyor Staging Hold**: While status is `FORMING`, the surveyor drone is held at the staging area ($x = -75.0, y = 500.0$) in `SURVEY_APPROACH` mode with forward velocity set to $v = 0.0\,\text{m/s}$.
+3. **Arrival Criterion**: The chain transitions to `ACTIVE` only when:
+   $$\forall k \in [1 \dots K], \quad \|\mathbf{p}_{\text{relay}, k} - \mathbf{p}_{\text{station}, k}\|_2 \le 5.0\,\text{m}$$
+   and the end-to-end multi-hop graph is verified via the Gamma network module.
+4. **Staged Relay Advance**: For sequential POI servicing, relays advance to new stations in topological order from closest to farthest, ensuring no intermediate link breaks while transitioning.
 
 ---
 

@@ -292,9 +292,25 @@ class WebotsAetherSwarmSupervisor:
         self.poi_beacons: dict[str, Any] = {}
 
         if self.supervisor:
-            for tid in self.metadata.get("task_ids", []):
+            known_ids = [t for t in self.metadata.get("task_ids", []) if "hidden" not in t]
+            hidden_ids = [t for t in self.metadata.get("task_ids", []) if "hidden" in t]
+            for tid in known_ids:
                 parts = tid.split("_")
                 def_name = f"POI_{parts[-1].upper()}" if len(parts) > 1 else f"POI_{tid.upper()}"
+                node = self.supervisor.getFromDef(def_name)
+                if node:
+                    self.poi_nodes[tid] = node
+                    self.poi_trans_fields[tid] = node.getField("translation")
+                    mat_node = self.supervisor.getFromDef(f"{def_name}_MAT")
+                    if mat_node:
+                        self.poi_materials[tid] = mat_node
+                    beacon_node = self.supervisor.getFromDef(f"{def_name}_BEACON")
+                    if beacon_node:
+                        self.poi_beacons[tid] = beacon_node
+
+            for h_idx, tid in enumerate(hidden_ids):
+                def_idx = len(known_ids) + 1 + h_idx
+                def_name = f"POI_{def_idx:02d}"
                 node = self.supervisor.getFromDef(def_name)
                 if node:
                     self.poi_nodes[tid] = node
@@ -502,6 +518,13 @@ class WebotsAetherSwarmSupervisor:
             if beacon:
                 beacon.getField("diffuseColor").setSFColor([0.95, 0.10, 0.10])
                 beacon.getField("emissiveColor").setSFColor([0.85, 0.10, 0.10])
+        elif status == "HIDDEN":
+            # Hidden / Undiscovered target: Subdued violet / dormant beacon
+            diff_field.setSFColor([0.55, 0.25, 0.70])
+            emis_field.setSFColor([0.15, 0.05, 0.20])
+            if beacon:
+                beacon.getField("diffuseColor").setSFColor([0.60, 0.30, 0.75])
+                beacon.getField("emissiveColor").setSFColor([0.20, 0.10, 0.25])
         else:
             # Pending / Assigned: Gold
             diff_field.setSFColor([0.90, 0.75, 0.10])

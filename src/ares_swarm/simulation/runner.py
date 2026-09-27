@@ -364,6 +364,12 @@ class MissionRunner:
         self.history: list[StepResult] = []
         self.all_events: list[DomainEvent] = []
 
+        self.allocator_reassessment_interval_s: float = 5.0
+        self.last_alloc_time: float = -999.0
+        self._newly_freed_uav: bool = False
+        self._new_task_visible: bool = False
+        self.allocator_reassessment_count: int = 0
+
         self.reset(self.seed)
 
     def reset(self, seed: int | None = None) -> StateSnapshot:
@@ -423,6 +429,10 @@ class MissionRunner:
                 self.rth_router.register_uav_lane(u_id, u_item.position_xy[1])
         self.history.clear()
         self.all_events.clear()
+        self.last_alloc_time = -999.0
+        self._newly_freed_uav = False
+        self._new_task_visible = False
+        self.allocator_reassessment_count = 0
         return self.state_store.snapshot()
 
     def step(self) -> StepResult:
@@ -544,7 +554,22 @@ class MissionRunner:
             t for t in visible_tasks.values()
             if t.status in (TaskStatus.PENDING, TaskStatus.DEFERRED)
         ]
-        if unassigned_visible:
+        if any(ev.event_type in (EventType.POI_DISCOVERED, EventType.TASK_DEFERRED, EventType.UAV_FAILED) for ev in tick_events):
+            self._new_task_visible = True
+        if any(abs(t.created_time - snap_for_alloc.simulation_time) < 1e-6 for t in unassigned_visible):
+            self._new_task_visible = True
+
+        should_reassess = (
+            (snap_for_alloc.simulation_time - self.last_alloc_time >= self.allocator_reassessment_interval_s - 1e-6)
+            or self._newly_freed_uav
+            or self._new_task_visible
+        )
+
+        if unassigned_visible and should_reassess:
+            self.allocator_reassessment_count += 1
+            self.last_alloc_time = snap_for_alloc.simulation_time
+            self._newly_freed_uav = False
+            self._new_task_visible = False
             alloc_snap = replace(snap_for_alloc, tasks=MappingProxyType(visible_tasks))
             flight_records = getattr(self.safety_assessor.report, "uav_flight_records", None)
             if self.connectivity_planner is not None:
@@ -603,6 +628,7 @@ class MissionRunner:
                 clear_cmds = []
                 for ev in res_prog.emitted_events:
                     if ev.event_type == EventType.TASK_COMPLETED:
+                        self._newly_freed_uav = True
                         completed_uav_id = ev.payload.get("uav_id")
                         completed_task_id = ev.payload.get("task_id")
                         if completed_uav_id:
@@ -803,6 +829,9 @@ class MissionRunner:
             applied_commands.extend(res_lifecycle.applied_commands)
             rejected_commands.extend(res_lifecycle.rejected_commands)
             tick_events.extend(res_lifecycle.emitted_events)
+            for ev in res_lifecycle.emitted_events:
+                if ev.event_type in (EventType.UAV_RECHARGED, EventType.UAV_LANDED):
+                    self._newly_freed_uav = True
 
         # 8. Post-physics analysis, perception detection, and telemetry routing
         post_physics_snap = self.state_store.snapshot()

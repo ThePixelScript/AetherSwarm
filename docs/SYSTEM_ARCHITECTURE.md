@@ -80,32 +80,40 @@ sequenceDiagram
 
 ### Exact Execution Sequence in `MissionRunner.step()`
 
-0. **Scheduled Events Application**: `sim_engine.process_scheduled_events()` evaluates the current simulation time $t_{\text{sim}}$. Injected hardware failures (`FailureStatus.FAILED`), dynamic POI arrivals, or external events are converted into commands and applied to `StateStore`.
+0. **Scheduled Events Application**: `sim_engine.process_scheduled_events()` evaluates current simulation time $t_{\text{sim}}$. Injected hardware failures (`FailureState.FAILED`), dynamic arrivals, or external triggers dispatch commands to `StateStore`.
+0.5. **Dynamic POI Discovery**: `discovery_manager.step(...)` detects emerged hidden POIs within altitude-scaled sensor FOV ($R_{\text{fov}} = 40\,\text{m} \times (1 + z / 20)$), emitting `POI_DISCOVERED` and creating `PENDING` tasks via `DiscoverTaskCommand`.
 1. **Pre-Physics Communication Analysis (Gamma)**: `comm_analyzer.analyze(current_snap)` performs read-only graph topology analysis on the current snapshot to determine GCS reachability, active connected components, and link states.
 2. **Pre-Physics Safety Assessment & Preemptive RTH**:
    - `safety_assessor.assess_snapshot(current_snap, net_analysis)` evaluates current flight records.
    - `safety_assessor.evaluate_rth_triggers(...)` computes remaining sortie budget ($1200.0\,\text{s} - \tau_{\text{sortie}}$) and battery margins. For vehicles with insufficient margin to return to GCS, `StartRTHCommand` is applied immediately.
 3. **Optional Safety Hook & Role Management**:
    - Executes optional `safety_hook` observer callback if configured.
-   - Evaluates dynamic relay role management (`relay_manager.step(...)`), role transitions, and standby staging.
-   - Connectivity planner monitors active tasks (`connectivity_planner.monitor_active_tasks(...)`), issuing replanning commands for interrupted links.
+   - Dynamic relay management (`relay_manager.step(...)`), role transitions, and standby staging.
+3.7. **Physical Relay Readiness & Active Chain Monitoring**:
+   - `connectivity_planner.monitor_active_tasks(...)` evaluates `is_chain_physically_ready(...)`.
+   - While a relay chain is `FORMING`, surveyors are held at staging or current position (`(0.0, 500.0)`).
+   - Only when upstream relays achieve physical station positions (within $5.0\,\text{m}$ tolerance) and establish verified Gamma connectivity to GCS does the chain transition to `ACTIVE`, releasing the surveyor.
+   - Relays advance in stages to preserve uplink continuity.
 4. **Autonomy Allocation Pass (Beta)**:
+   - Evaluated on a ~5-second reassessment cadence or immediately triggered when `_new_task_visible` or `_newly_freed_uav` flags are set (`POI_DISCOVERED`, `TASK_DEFERRED`, `UAV_FAILED`, `TASK_COMPLETED`, `UAV_RECHARGED`, `UAV_LANDED`).
    - Filters visible unassigned tasks (`TaskStatus.PENDING` or `TaskStatus.DEFERRED` where `created_time <= t_sim`).
-   - Dispatches assignments via `connectivity_planner.plan(...)` (or `autonomy_adapter.plan(...)`), applying `AssignTaskCommand` and `DeployRelayCommand` atomically.
+   - Dispatches assignments via `connectivity_planner.plan(...)`, applying `AssignTaskCommand` and `DeployRelayCommand` atomically while enforcing candidate reservations.
 5. **Task Service Progress**:
    - For UAVs currently at assigned POI coordinates ($d \le 0.05\,\text{m}$), `ProgressTaskCommand` increments serviced duration by $\Delta t$.
-   - Completed tasks clear vehicle target coordinates via `SetTargetPositionCommand`.
+   - Completed tasks release surveyor and relay chains back to `IDLE` / staging.
+5.5. **Ground Departure Sequencing**:
+   - `departure_sequencer.step(...)` enforces deterministic departure queues, taxi separation, and launch clearances from the staging apron.
 6. **Delta Physics Swarm Stepping**:
    - `sim_engine.step_swarm(...)` computes kinematic position updates ($v_{\max} = 5.0\,\text{m/s}$).
    - Integrates `SeparationEnforcer` (continuous analytical trajectory bisection for $\Delta r \ge 20.0\,\text{m}$) and `GeofenceEnforcer` (airspace boundary compliance).
 7. **RTH Arrival Completion & Recharge Lifecycle**:
-   - Returning UAVs entering staging approach ($d \le 25.0\,\text{m}$) transition to `BeginLandingCommand`.
+   - Returning UAVs navigate non-collinear corridor lanes via `RTHRouter`.
    - Returning UAVs reaching touchdown threshold ($d \le 0.05\,\text{m}$) execute `CompleteRTHCommand` to transition to `LANDED`.
-   - Landed UAVs initiate ground recharge (`StartRechargeCommand`) if multi-sortie is enabled, and complete recharge (`CompleteRechargeCommand`) after `recharge_duration_s` (default: 300.0s), restoring 100% battery and transitioning to `READY`.
+   - Landed UAVs initiate ground recharge (`StartRechargeCommand`) if multi-sortie is enabled, and complete recharge (`CompleteRechargeCommand`) after `recharge_duration_s` (default: 300.0s), restoring 100% battery ($7560\,\text{Wh}$) and transitioning to `READY`.
 8. **Post-Physics Communication, Perception & Telemetry**:
    - Generates `post_physics_snap` from store.
    - Re-analyzes RF communication graph on updated positions (`comm_analyzer.analyze(post_physics_snap)`).
-   - `detection_manager.step_perception(...)`: Detects unserviced POIs within $R_{\text{fov}} \le 40.0\,\text{m}$ of active airborne UAVs ($t_{\text{detect}}$).
+   - `detection_manager.step_perception(...)`: Detects unserviced POIs within sensor FOV of active airborne UAVs.
    - `detection_manager.step_telemetry(...)`: Routes or queues telemetry packets across the active multi-hop graph to GCS, retrying buffered packets and assessing $10.0\,\text{s}$ deadline compliance.
 9. **Post-Physics Safety Assessment**:
    - Re-evaluates `safety_assessor.assess_snapshot(...)` against post-movement coordinates and updated network state.

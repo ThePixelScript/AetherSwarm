@@ -58,6 +58,8 @@ def sample_random_pois(
     spawn_window: tuple[float, float] = (0.0, 300.0),
     max_attempts: int = 20000,
     config: ScenarioGenConfig | None = None,
+    gcs_pos: tuple[float, float] = (-75.0, 500.0),
+    max_radius: float | None = 800.0,
 ) -> list[dict[str, Any]]:
     """Sample POIs across the configured arena bounds for the working scenario.
 
@@ -65,17 +67,16 @@ def sample_random_pois(
     does not enforce quadrant or regional distribution.
 
     Placement modes:
-      - When min_spacing <= 0.0 (default): Direct independent uniform sampling
-        from Uniform(x_min, x_max) and Uniform(y_min, y_max) with zero spatial rejection,
-        no quadrant balancing, no sector allocation, and no grid constraints.
-      - When min_spacing > 0.0: Deterministic seeded rejection sampling enforces the
-        requested minimum pairwise spacing (producing constrained random placement,
-        not independent uniform samples).
+      - When min_spacing <= 0.0 and max_radius is None: Direct independent uniform sampling
+        from Uniform(x_min, x_max) and Uniform(y_min, y_max) with zero spatial rejection.
+      - When min_spacing > 0.0 or max_radius is not None: Deterministic seeded rejection sampling
+        enforces the requested spatial constraints (pairwise spacing and/or maximum radial
+        distance from GCS).
 
     Guarantees:
       1. Exactly num_pois (10 by default) generated.
       2. Coordinates lie strictly within [x_min, x_max] and [y_min, y_max] (default: [5.0, 995.0]).
-      3. No quadrant balancing, sector coverage, or grid placement.
+      3. All coordinates lie within max_radius of gcs_pos when max_radius is specified.
       4. Deterministic ordering: sorted by spawn_time then id.
       5. Bit-for-bit reproducible from seed.
     """
@@ -87,6 +88,10 @@ def sample_random_pois(
         x_range = config.x_range
         y_range = config.y_range
         spawn_window = config.spawn_window_s
+        if hasattr(config, "max_radius_m"):
+            max_radius = getattr(config, "max_radius_m")
+        if hasattr(config, "gcs_pos"):
+            gcs_pos = getattr(config, "gcs_pos")
 
     # Default randomized placement bounds: (5.0, 995.0) on both axes
     if x_range is not None:
@@ -108,7 +113,7 @@ def sample_random_pois(
     rng = random.Random(seed)
     tasks: list[dict[str, Any]] = []
 
-    if min_spacing <= 0.0:
+    if min_spacing <= 0.0 and max_radius is None:
         # Direct independent uniform sampling with no spatial rejection
         for i in range(num_pois):
             px = round(rng.uniform(x_min, x_max), 2)
@@ -122,9 +127,6 @@ def sample_random_pois(
                 "position": [px, py],
                 "priority": priority,
                 "spawn_time": spawn_time,
-                # No spawn-to-service deadline: the organiser's 10 s requirement is
-                # detection→GCS telemetry latency only, enforced separately via
-                # reporting_deadline_s in DetectionPipelineConfig.
                 "service_duration": 2.0,
             })
     else:
@@ -135,12 +137,19 @@ def sample_random_pois(
             px = round(rng.uniform(x_min, x_max), 2)
             py = round(rng.uniform(y_min, y_max), 2)
 
-            too_close = any(
-                math.hypot(px - t["position"][0], py - t["position"][1]) < min_spacing
-                for t in tasks
-            )
-            if too_close:
-                continue
+            if max_radius is not None:
+                # Geometric rule: (x - gcs_x)^2 + (y - gcs_y)^2 <= max_radius^2
+                dist_sq = (px - gcs_pos[0]) ** 2 + (py - gcs_pos[1]) ** 2
+                if dist_sq > (max_radius ** 2) + 1e-6:
+                    continue
+
+            if min_spacing > 0.0:
+                too_close = any(
+                    math.hypot(px - t["position"][0], py - t["position"][1]) < min_spacing
+                    for t in tasks
+                )
+                if too_close:
+                    continue
 
             tid = f"poi_{len(tasks) + 1:02d}"
             priority = rng.choice([1, 2, 3])
@@ -151,15 +160,12 @@ def sample_random_pois(
                 "position": [px, py],
                 "priority": priority,
                 "spawn_time": spawn_time,
-                # No spawn-to-service deadline: the organiser's 10 s requirement is
-                # detection→GCS telemetry latency only, enforced separately via
-                # reporting_deadline_s in DetectionPipelineConfig.
                 "service_duration": 2.0,
             })
 
         if len(tasks) < num_pois:
             raise RuntimeError(
-                f"Failed to place {num_pois} POIs with min_spacing={min_spacing}m after {max_attempts} attempts."
+                f"Failed to place {num_pois} POIs with min_spacing={min_spacing}m and max_radius={max_radius}m after {max_attempts} attempts."
             )
 
     # Deterministic tie-breaking: sort strictly by spawn_time then id
@@ -177,6 +183,9 @@ def sample_random_hidden_pois(
     y_range: tuple[float, float] | None = None,
     margin: float = 0.0,
     id_start_idx: int = 1,
+    gcs_pos: tuple[float, float] = (-75.0, 500.0),
+    max_radius: float | None = 800.0,
+    max_attempts: int = 20000,
 ) -> list[dict[str, Any]]:
     """Sample hidden/emerging POIs deterministically from seed.
 
@@ -185,7 +194,7 @@ def sample_random_hidden_pois(
     - If num_hidden_pois is None, hidden_count is randomly chosen in inclusive range [5, 7].
     - High-priority count (priority=3) is randomly chosen in [1, min(4, hidden_count)].
     - Remaining hidden POIs use priority=1 or 2.
-    - Each POI gets an independent random location and emergence time within emergence_window.
+    - Each POI gets an independent random location within max_radius of gcs_pos and emergence time within emergence_window.
     - Fully deterministic for a given seed.
     """
     if num_hidden_pois == 0:
@@ -219,8 +228,24 @@ def sample_random_hidden_pois(
     hidden: list[dict[str, Any]] = []
 
     for i in range(hidden_count):
-        px = round(rng.uniform(x_min, x_max), 2)
-        py = round(rng.uniform(y_min, y_max), 2)
+        attempts = 0
+        px, py = 0.0, 0.0
+        while attempts < max_attempts:
+            attempts += 1
+            px = round(rng.uniform(x_min, x_max), 2)
+            py = round(rng.uniform(y_min, y_max), 2)
+
+            if max_radius is not None:
+                # Geometric rule: (x - gcs_x)^2 + (y - gcs_y)^2 <= max_radius^2
+                dist_sq = (px - gcs_pos[0]) ** 2 + (py - gcs_pos[1]) ** 2
+                if dist_sq > (max_radius ** 2) + 1e-6:
+                    continue
+            break
+        else:
+            raise RuntimeError(
+                f"Failed to place hidden POI within max_radius={max_radius}m after {max_attempts} attempts."
+            )
+
         hid_id = f"hidden_poi_{id_start_idx + i:02d}"
 
         # Guarantee distinct emergence times so no two POIs emerge simultaneously
@@ -266,7 +291,7 @@ def generate_scenario_dict(
     staging_radius = max(15.0, ((num_uavs - 1) / 2.0) * spacing + 5.0)
 
     uavs_data = []
-    battery_cap = 4200.0  # 20 min continuous flight limit
+    battery_cap = 7560.0  # 1.8x capacity experiment (baseline 4200.0 Wh)
 
     for i in range(num_uavs):
         uid = f"uav_{i + 1}"
@@ -363,7 +388,10 @@ def generate_scenario_dict(
 generate_demo_scenario_dict = generate_scenario_dict
 
 
-def compute_poi_metrics(tasks: list[dict[str, Any]]) -> dict[str, Any]:
+def compute_poi_metrics(
+    tasks: list[dict[str, Any]],
+    gcs_pos: tuple[float, float] = (-75.0, 500.0),
+) -> dict[str, Any]:
     """Compute spatial and temporal metrics for the generated POIs."""
     n = len(tasks)
     min_dist = float("inf")
@@ -381,14 +409,16 @@ def compute_poi_metrics(tasks: list[dict[str, Any]]) -> dict[str, Any]:
     xs = [t["position"][0] for t in tasks]
     ys = [t["position"][1] for t in tasks]
     ts = [t["spawn_time"] for t in tasks]
+    gcs_dists = [math.hypot(t["position"][0] - gcs_pos[0], t["position"][1] - gcs_pos[1]) for t in tasks]
 
     return {
         "poi_count": n,
         "min_pairwise_distance": round(min_dist, 2) if all_dists else 0.0,
         "avg_pairwise_distance": round(sum(all_dists) / len(all_dists), 2) if all_dists else 0.0,
-        "x_bounds": [min(xs), max(xs)],
-        "y_bounds": [min(ys), max(ys)],
-        "spawn_time_bounds": [min(ts), max(ts)],
+        "x_bounds": [min(xs), max(xs)] if xs else [0.0, 0.0],
+        "y_bounds": [min(ys), max(ys)] if ys else [0.0, 0.0],
+        "spawn_time_bounds": [min(ts), max(ts)] if ts else [0.0, 0.0],
+        "max_gcs_distance": round(max(gcs_dists), 2) if gcs_dists else 0.0,
     }
 
 
@@ -413,6 +443,8 @@ def generate_and_export_scenario(
     config: ScenarioGenConfig | None = None,
     final_profile: bool = False,
     save_scenario: bool = True,
+    gcs_pos: tuple[float, float] = (-75.0, 500.0),
+    max_radius: float | None = 800.0,
 ) -> dict[str, Any]:
     """Execute the full scenario generation, authoritative simulation, and trace export pipeline."""
     if final_profile:
@@ -434,7 +466,7 @@ def generate_and_export_scenario(
     else:
         y_range = (5.0, 995.0)
 
-    # 1. Sample POIs
+    # 1. Sample POIs within operational arena and max_radius from GCS
     tasks = sample_random_pois(
         seed=seed,
         num_pois=num_pois,
@@ -444,6 +476,8 @@ def generate_and_export_scenario(
         y_range=y_range,
         spawn_window=(spawn_start, spawn_end),
         config=config,
+        gcs_pos=gcs_pos,
+        max_radius=max_radius,
     )
 
     hidden_pois = sample_random_hidden_pois(
@@ -453,6 +487,8 @@ def generate_and_export_scenario(
         x_range=x_range,
         y_range=y_range,
         margin=margin,
+        gcs_pos=gcs_pos,
+        max_radius=max_radius,
     )
 
     # 2. Build scenario dictionary
@@ -477,7 +513,7 @@ def generate_and_export_scenario(
             f.write("# ==============================================================================\n")
             yaml.dump(scen_dict, f, sort_keys=False, indent=2)
 
-    poi_metrics = compute_poi_metrics(tasks)
+    poi_metrics = compute_poi_metrics(tasks, gcs_pos=gcs_pos)
 
     trace_path = None
     if run_simulation:
@@ -528,6 +564,8 @@ def generate_final_mission_scenario(
     output_scenario: str | Path | None = None,
     output_trace: str | Path | None = None,
     run_simulation: bool = True,
+    gcs_pos: tuple[float, float] = (-75.0, 500.0),
+    max_radius: float | None = 800.0,
     **kwargs: Any,
 ) -> dict[str, Any]:
     """Generate the final mission profile: exactly 5 known POIs and 5..7 hidden/emerging POIs (10..12 total)."""
@@ -537,6 +575,8 @@ def generate_final_mission_scenario(
         output_scenario=output_scenario,
         output_trace=output_trace,
         run_simulation=run_simulation,
+        gcs_pos=gcs_pos,
+        max_radius=max_radius,
         **kwargs,
     )
 
@@ -557,6 +597,7 @@ def main() -> int:
     parser.add_argument("--emergence-start", type=float, default=0.0, help="Hidden POI emergence window start time in seconds (default: 0.0)")
     parser.add_argument("--emergence-end", type=float, default=300.0, help="Hidden POI emergence window end time in seconds (default: 300.0)")
     parser.add_argument("--full-arena", action="store_true", help="Sample across the full 1000m x 1000m arena")
+    parser.add_argument("--max-radius", type=float, default=800.0, help="Maximum POI radial distance from GCS in meters (default: 800.0)")
     parser.add_argument("--x-range", nargs=2, type=float, default=None, metavar=("X_MIN", "X_MAX"), help="Custom X sampling bounds")
     parser.add_argument("--y-range", nargs=2, type=float, default=None, metavar=("Y_MIN", "Y_MAX"), help="Custom Y sampling bounds")
     parser.add_argument("--output-scenario", "-o", type=str, default=None, help="Output YAML scenario path")
@@ -595,6 +636,7 @@ def main() -> int:
         output_trace=args.output_trace,
         max_ticks=args.max_ticks,
         run_simulation=not args.no_run,
+        max_radius=args.max_radius,
     )
 
     metrics = res["poi_metrics"]

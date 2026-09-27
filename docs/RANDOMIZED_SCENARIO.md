@@ -30,51 +30,66 @@ flowchart LR
 
 ## 2. POI Sampling & Geometric Placement
 
-POIs are sampled randomly across the configured arena bounds; the generator does not enforce quadrant or regional distribution.
+POIs are sampled randomly within the configured arena bounds and operational envelope.
 
-1. **Count**: Exactly 10 POIs (`poi_01` to `poi_10`) by default for the UAV-X scenario.
-2. **Operational Arena Containment**:
-   - Standard operational arena bounds: $x \in [5.0, 995.0]$, $y \in [5.0, 995.0]$ (configured via `ScenarioGenConfig.x_range` and `y_range`).
-   - Boundary margin: configurable (default $0.0$ m; bounds explicitly constrain coordinates within the valid arena).
+1. **Mission Profiles**:
+   - **Baseline Mode**: Exactly 10 known POIs (`poi_01` to `poi_10`).
+   - **Final Profile Mode (`--final-profile`)**: Exactly 5 known POIs + 5–7 emerging hidden POIs (10–12 total). In seed 2026, generates exactly 5 known and 5 hidden POIs.
+2. **Operational Arena Containment & 800 m Circular Radius Constraint**:
+   - Standard operational arena bounds: $x \in [5.0, 995.0]$, $y \in [5.0, 995.0]$.
+   - Circular radius constraint: all generated known and hidden POIs must satisfy:
+     $$\sqrt{(x + 75.0)^2 + (y - 500.0)^2} \le 800.0\,\text{m}$$
+     centered at the operational drone/GCS center $(-75.0, 500.0)$.
+   - Rejection sampling enforces this condition during candidate generation; candidates violating the 800 m radius are immediately resampled until the exact required count is satisfied.
    - Ingress corridor exclusion: $x \ge 5.0 > 0.0$ guarantees no POI is ever placed in the staging/corridor area ($x \le 0.0$).
-3. **Independent Uniform Random Placement**:
-   - By default (`min_spacing_m = 0.0`), X and Y coordinates are sampled independently from Uniform(5.0, 995.0).
-   - No quadrant balancing, no sector allocation, no grid placement, and no intentional spatial spreading.
-   - When minimum spacing is explicitly requested (`min_spacing_m > 0.0`), deterministic seeded rejection sampling enforces that constraint (producing constrained random placement, not independent uniform samples).
-4. **Deterministic Ordering**:
-   - When multiple POIs have identical spawn times, ties are deterministically resolved by lexicographic task ID sorting (`(t["spawn_time"], t["id"])`).
+3. **Hidden / Emerging POI Dynamics**:
+   - Hidden POIs have defined emergence times ($t_{\text{emerge}} \in [0.0, 300.0]\,\text{s}$).
+   - **Logical Planner State**: Hidden POIs are strictly excluded from the initial planner snapshot at $T_0$.
+   - **Physical Detection**: An active UAV must physically detect the emerged target via altitude-scaled sensor FOV ($R_{\text{fov}} = 40\,\text{m} \times (1 + z / 20)$).
+   - **Discovery Pipeline**: Physical detection emits `POI_DISCOVERED`, dispatching `DiscoverTaskCommand`, which creates a standard `TaskState` with `status = PENDING`. The task is then allocated normally via `A1TaskAllocator` / `ConnectivityAwarePlanner`.
+   - **Webots Visual Model**: To provide continuous physical scene inspection without leaking logical state, Webots maps hidden POIs to ground target nodes (`POI_06`..`POI_10`) at $T_0$ with dormant violet indicators, transitioning to gold on discovery, cyan when in progress, and emerald green upon completion.
 
 ---
 
 ## 3. CLI Usage
 
-The primary scenario generator script is [`scripts/generate_scenario.py`](file:///home/dell/swarm_ws/AetherSwarm/scripts/generate_scenario.py).
-*(A backward-compatibility wrapper is also maintained at [`scripts/generate_random_demo.py`](file:///home/dell/swarm_ws/AetherSwarm/scripts/generate_random_demo.py)).*
+The primary scenario generator script is [`scripts/generate_scenario.py`](../scripts/generate_scenario.py):
 
-### Basic Command (Generates YAML, runs simulation, exports trace):
+### Basic Generation Commands:
 ```bash
-# In WSL:
-.venv/bin/python scripts/generate_scenario.py --seed 2026
+# Generate final-profile mission (5 known + 5..7 hidden POIs, 800m circular constraint)
+python scripts/generate_scenario.py \
+  --seed 2026 \
+  --final-profile \
+  --max-ticks 2700 \
+  --output-scenario scenarios/random_seed_2026.yaml \
+  --output-trace visualization/webots/data/random_scenario_trace.json
 
-# Output:
-# Scenario: scenarios/random_seed_2026.yaml
-# Trace:    visualization/webots/data/random_scenario_trace.json
-# (Backward-compatibility copy also updated: visualization/webots/data/random_demo_trace.json)
+# Generate YAML only without simulation execution
+python scripts/generate_scenario.py \
+  --seed 2026 \
+  --final-profile \
+  --no-run \
+  --output-scenario scenarios/random_seed_2026.yaml
 ```
 
 ### CLI Arguments:
 | Argument | Type | Default | Description |
 |---|---|---|---|
 | `--seed` | `int` | `2026` | PRNG seed for deterministic scenario and trace generation |
-| `--num-pois` | `int` | `10` | Number of POIs to place (10 default) |
+| `--num-pois` | `int` | `10` | Number of known POIs (or 5 when `--final-profile` is set) |
+| `--num-hidden-pois` | `int` | `0` | Number of hidden POIs (or 5–7 when `--final-profile` is set) |
+| `--final-profile` | `flag` | `False` | Generate final profile: 5 known + 5–7 emerging hidden POIs |
+| `--max-radius` | `float` | `800.0` | Maximum radius from $(-75.0, 500.0)$ in meters (default: 800.0) |
 | `--min-spacing` | `float` | `0.0` | Minimum pairwise distance in meters (0.0 = direct independent uniform sampling; >0 enables rejection sampling) |
 | `--margin` | `float` | `0.0` | Optional margin from operational arena boundaries in meters |
 | `--spawn-start` | `float` | `0.0` | Earliest POI appearance time (seconds) |
 | `--spawn-end` | `float` | `300.0` | Latest POI appearance time (seconds) |
-| `--full-arena` | `flag` | `False` | Sample across full arena bounds |
+| `--emergence-start` | `float` | `0.0` | Earliest hidden POI emergence time (seconds) |
+| `--emergence-end` | `float` | `300.0` | Latest hidden POI emergence time (seconds) |
 | `--output-scenario` | `path` | `scenarios/random_seed_{seed}.yaml` | Destination scenario YAML file |
 | `--output-trace` | `path` | `visualization/webots/data/random_scenario_trace.json` | Destination JSON trace file |
-| `--max-ticks` | `int` | `None` | Optional tick limit (default: full duration 2700 ticks) |
+| `--max-ticks` | `int` | `2700` | Simulation tick horizon (default: 2700) |
 | `--no-run` | `flag` | `False` | Generate scenario YAML only without running simulation |
 
 ---

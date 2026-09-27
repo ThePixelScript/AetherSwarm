@@ -21,23 +21,24 @@ AetherSwarm addresses these coupled challenges through deterministic single-writ
 
 ## 2. Current Implementation Status Matrix
 
-The repository has progressed through five major development phases. The table below outlines the implementation and validation status of all core subsystems as of commit `342775b`:
+The repository has progressed through structured development milestones. The table below outlines the implementation and validation status of all core subsystems on the current `main` branch:
 
 | Subsystem / Capability | Status | Phase | Verification / Test Coverage |
 | :--- | :---: | :---: | :--- |
 | **Deterministic Kinematics & Simulation Loop** | `VALIDATED` | Phase 0 | Discrete 1.0s ticks, constant-velocity 2D planar motion (`test_simulator.py`) |
 | **Single-Writer State Store & Event Log** | `VALIDATED` | Phase 0 | Atomic command application, read-only snapshots, deterministic event sourcing (`test_state_store.py`) |
 | **20m Continuous Separation Enforcement** | `VALIDATED` | Phase 1 | Spatial grid filtering, analytical bisection, zero false freezes (`test_separation_enforcement.py`) |
-| **Composite Airspace Geofencing** | `VALIDATED` | Phase 1 | Staging pad, transit corridor, operational arena boundaries (`test_geofence_enforcement.py`) |
+| **Composite Airspace Geofencing & RTH Corridors** | `VALIDATED` | Phase 1 | Staging pad, transit corridor, operational arena, non-collinear lanes (`test_geofence_enforcement.py`, `test_rth_routing.py`) |
 | **20-Minute Sortie Lifecycle & RTH** | `VALIDATED` | Phase 2 | Preemptive return calculation, staged queue arrivals, landing deadlock resolution (`test_sortie_rotation.py`) |
-| **Linear Battery Discharge & Ground Recharge** | `VALIDATED` | Phase 2 | 300s ground replenishment cycle, transition from `LANDED` to `READY` (`test_sortie_rotation.py`) |
-| **Sensor FOV Detection & Telemetry Routing** | `VALIDATED` | Phase 2 | Radial $40.0\,\text{m}$ FOV detection, packet queue, end-to-end $10.0\,\text{s}$ deadline assessment (`test_detection_reporting.py`) |
+| **Linear Battery Discharge & Ground Recharge** | `VALIDATED` | Phase 2 | 300s ground replenishment cycle, 7560 Wh capacity model (`test_battery_recharge_lifecycle.py`) |
+| **Sensor FOV Perception & Telemetry Routing** | `VALIDATED` | Phase 2 | Radial $40.0\,\text{m}$ FOV detection, packet queue, end-to-end $10.0\,\text{s}$ deadline assessment (`test_detection_reporting.py`) |
 | **A0 Baseline Task Allocator** | `VALIDATED` | Phase 1 | Deterministic priority-first greedy matching with battery and distance weighting (`test_a0_core_integration.py`) |
 | **A1 Dynamic Relay Role Switching** | `VALIDATED` | Phase 3 | Surveyor, dedicated relay, and backup relay dynamic roles (`test_dynamic_relay_management.py`) |
 | **Single-Relay Connectivity Planning** | `VALIDATED` | Phase 4 | Effective range $R_{\text{eff}} = 95.0\,\text{m}$, mid-point relay positioning up to $190\,\text{m}$ (`test_connectivity_aware_planning.py`) |
 | **Multi-Hop Relay Chain Planning** | `VALIDATED` | Phase 5B | Geometric lower bound $H_{\min} = \lceil D / 95\rceil$, atomic candidate selection, airborne relay reuse, localized link handoffs (`test_multihop_relay_planning.py`) |
-| **Multi-Hop Randomized Validation** | `EXPERIMENTAL` | Phase 5C | Multi-seed evaluation across randomized POI scenarios (Authorized; next execution milestone) |
-| **45-Minute Continuous Integrated Rotation** | `PLANNED` | Phase 6 | Multi-wave endurance rotation under active multi-hop mesh workloads |
+| **Physical Relay Readiness Verification** | `VALIDATED` | Phase 5C | Surveyor hold during `FORMING`, Gamma topological verification, station tolerance checks (`test_physical_relay_readiness.py`) |
+| **Altitude-Aware Hidden POI Discovery** | `VALIDATED` | Phase 5C | Dynamic emergence, altitude-scaled detection FOV, `DiscoverTaskCommand`, normal task allocation (`test_hidden_poi_discovery.py`) |
+| **Deterministic Ground Departure Sequencing** | `VALIDATED` | Phase 5C | Staging separation, taxi clearances, zero launch collision risks (`test_departure_sequencing.py`) |
 | **Webots 3D Visualization & Spatial Verifier** | `VALIDATED` | Phase 3 | Cyberbotics Webots R2025a supervisor controller, trace replay, independent spatial checks (`test_webots_control_layer.py`) |
 
 ---
@@ -48,7 +49,7 @@ The repository has progressed through five major development phases. The table b
 The authoritative simulation core (`src/ares_swarm/`) models vehicle kinematics in 2D horizontal coordinates ($x, y$) at discrete 1.0-second timesteps. The altitude limit ($100.0\,\text{m}$) is carried as configuration metadata and verified in the downstream 3D visualization layer.
 
 ### Single-Writer State Architecture
-All state mutations are mediated exclusively through typed commands dispatched to the [`StateStore`](file:///home/dell/swarm_ws/AetherSwarm/src/ares_swarm/core/state_store.py). Autonomy planners, safety assessors, and network analyzers receive immutable [`StateSnapshot`](file:///home/dell/swarm_ws/AetherSwarm/src/ares_swarm/core/state_store.py) instances, guaranteeing zero state race conditions and bitwise-reproducible execution traces.
+All state mutations are mediated exclusively through typed commands dispatched to the [`StateStore`](src/ares_swarm/core/state_store.py). Autonomy planners, safety assessors, and network analyzers receive immutable [`StateSnapshot`](src/ares_swarm/core/state_store.py) instances, guaranteeing zero state race conditions and bitwise-reproducible execution traces.
 
 ### Authoritative System Boundary
 - **Headless Core (`src/ares_swarm/`)**: The single authoritative source of truth. All flight decisions, task allocation, RF link evaluation, battery depletion, failure injection, and metric calculations occur strictly within Python under Linux/WSL.
@@ -81,70 +82,67 @@ pip install -e .
 ```
 
 ### Running Test Suites
-Verify repository integrity against the 333 deterministic tests:
+Verify repository integrity against the full deterministic test suite:
 
 ```bash
-pytest
+pytest tests/ -q
 ```
-*Current test suite status: 333 passed in ~8-15 seconds.*
+*Current test suite status: 463 passed in ~13-15 seconds.*
 
 To run targeted subsystem suites:
 ```bash
-# Phase 5B Multi-hop relay planning tests (9 tests)
+# Physical relay readiness tests (5 tests)
+pytest tests/autonomy/test_physical_relay_readiness.py
+
+# Hidden POI emergence and altitude-aware discovery (13 tests)
+pytest tests/simulation/test_hidden_poi_discovery.py
+
+# Ground departure sequencing and staging separation (9 tests)
+pytest tests/safety/test_departure_sequencing.py
+
+# Multi-hop relay planning and deadline tests (9 tests)
 pytest tests/test_multihop_relay_planning.py
 
-# Phase 4 Connectivity-aware planning tests (9 tests)
-pytest tests/test_connectivity_aware_planning.py
-
-# Challenge compliance and safety tests (13 tests)
-pytest tests/safety/test_challenge_compliance_v1.py
-
-# Sortie rotation and landing deadlock tests (7 tests)
-pytest tests/test_sortie_rotation.py
+# Battery lifecycle and recharge rotation tests (7 tests)
+pytest tests/test_battery_recharge_lifecycle.py
 ```
 
-### Generating Randomized Scenarios
-Generate a reproducible challenge scenario using the uniform POI distribution generator:
+### Generating Final-Profile Scenarios
+Generate a reproducible working scenario containing exactly 5 known POIs and 5–7 emerging hidden POIs with the 800 m circular radius constraint:
 
 ```bash
-# Generate a 10-UAV, 10-POI scenario with seed 2026
+# Generate scenario YAML and export 2700-tick Webots trace
 python scripts/generate_scenario.py \
   --seed 2026 \
-  --num-uavs 10 \
-  --num-pois 10 \
-  --output scenarios/random_seed2026.yaml
+  --final-profile \
+  --max-ticks 2700 \
+  --output-scenario scenarios/random_seed_2026.yaml \
+  --output-trace visualization/webots/data/random_scenario_trace.json
 ```
 
-### Running Headless Simulation
-Execute a scenario through the mission runner and export execution traces:
+### Running Full-Mission Physical Readiness Audit
+Execute tick-by-tick post-step Gamma connectivity verification for ticks 1–1700:
 
 ```bash
-# Run official benchmark scenario E1
-python -m ares_swarm.simulation.runner \
-  --config configs/default.yaml \
-  --scenario scenarios/poc_round1.yaml \
-  --trace-output results/e1_trace.json
-
-# Run a generated randomized scenario
-python -m ares_swarm.simulation.runner \
-  --scenario scenarios/random_seed2026.yaml \
-  --trace-output results/random_seed2026_trace.json
+python scripts/audit_physical_readiness.py \
+  --scenario scenarios/random_seed_2026.yaml \
+  --output results/audit_1700.json \
+  --ticks 1700
 ```
+*Validated result on seed 2026: 1700/1700 PASS, 0 disconnected airborne ticks, 0 separation violations, 0 geofence violations.*
 
 ### Webots 3D Visualization Playback
 To view the generated simulation trace in Cyberbotics Webots R2025a:
 
 ```powershell
-# In Windows PowerShell:
-$env:AETHERSWARM_SCENARIO = "random"
-Start-Process -FilePath "C:\Program Files\Webots\msys64\mingw64\bin\webots.exe" `
-  -ArgumentList @("C:\AetherSwarmWebots\worlds\uavx_round1.wbt") `
-  -WorkingDirectory "C:\Program Files\Webots"
+# From Windows PowerShell (using the project launcher):
+.\scripts\launch_random_webots.ps1 -Seed 2026
 ```
+The launcher automatically resolves the world file at `visualization/webots/worlds/uavx_round1.wbt` via mapped drive `Z:` or clean Windows path and initiates replay with independent spatial auditing.
 
-Alternatively, run the standalone spatial verification CLI directly without launching the Webots GUI:
+Alternatively, run headless spatial verification directly from the terminal without opening the Webots GUI:
 ```bash
-python visualization/webots/controllers/aetherswarm_supervisor/aetherswarm_supervisor.py random
+python visualization/webots/controllers/aetherswarm_supervisor/aetherswarm_supervisor.py visualization/webots/data/random_scenario_trace.json
 ```
 
 ---
@@ -172,7 +170,7 @@ AetherSwarm/
 │   ├── safety/                          # Separation enforcer, geofencing, safety assessor
 │   ├── simulation/                      # Mission runner, scenario loader, main entry points
 │   └── telemetry/                       # Sensor detection, FOV perception & packet routing
-├── tests/                               # Comprehensive Pytest test suite (333 tests)
+├── tests/                               # Comprehensive Pytest test suite (463 tests)
 └── visualization/                       # Downstream visualization tools
     └── webots/                          # Cyberbotics Webots R2025a supervisor & proto assets
 ```
@@ -183,7 +181,7 @@ AetherSwarm/
 
 > [!NOTE]
 > **Documentation Precedence Rule**:
-> When consulting project documentation, **CURRENT AUTHORITATIVE** documents reflect the active codebase baseline (commit `342775b`) and take precedence over earlier **HISTORICAL / FEATURE RECORD** specifications. Feature record documents preserve the design rationale of specific milestones, while experiment evidence files document immutable empirical outputs.
+> When consulting project documentation, **CURRENT AUTHORITATIVE** documents reflect the active codebase baseline on branch `main` and take precedence over earlier **HISTORICAL / FEATURE RECORD** specifications. Feature record documents preserve the design rationale of specific milestones, while experiment evidence files document immutable empirical outputs.
 
 ### Current Authoritative Documentation (Active Baseline)
 | Document | Classification | Focus & Scope |
