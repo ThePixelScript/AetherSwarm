@@ -266,7 +266,7 @@ def compute_mission_metrics(
     completion_time = final_snapshot.simulation_time
     if report.tasks_total > 0 and report.tasks_completed == report.tasks_total:
         for step in step_history:
-            if all(step.snapshot.tasks[tid].status == TaskStatus.COMPLETE for tid in tasks):
+            if all(tid in step.snapshot.tasks and step.snapshot.tasks[tid].status == TaskStatus.COMPLETE for tid in tasks):
                 completion_time = step.simulation_time
                 break
     report.completion_time_s = completion_time
