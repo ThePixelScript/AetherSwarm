@@ -44,8 +44,10 @@ Defines the authoritative physical rules and operational boundaries for the UAV-
 | `max_sortie_duration_s` | `float` | `1200.0` | Maximum allowable airborne flight duration per sortie (s) |
 | `rth_safety_margin_s` | `float` | `15.0` | Reserve time buffer prior to sortie limit expiry (s) |
 | `reporting_deadline_s` | `float` | `10.0` | Max allowable delay from POI detection to GCS reception (s) |
-| `detection_fov_radius_m` | `float` | `40.0` | Sensor circular ground FOV radius (m) |
+| `detection_fov_radius_m` | `float` | `40.0` | Default fixed FOV radius (m) when altitude model is disabled |
 | `processing_delay_s` | `float` | `0.0` | Sensor processing delay before transmission (s) |
+| `recharge_duration_s` | `float` | `300.0` | Ground battery recharge duration in multi-sortie lifecycle (s) |
+
 
 ---
 

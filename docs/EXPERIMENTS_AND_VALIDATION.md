@@ -168,7 +168,8 @@ A complete 45-minute (2700-tick) mission execution was exported to JSON trace an
 ### 5.4 Category 3: Webots Hidden-POI Lifecycle Evidence (Seed 2026)
 Under `--final-profile` scenario generation, 5 known POIs (`poi_01`–`poi_05`) and 5 hidden/emerging POIs (`hidden_poi_01`–`hidden_poi_05`) were instantiated within the $R \le 800.0\,\text{m}$ radius circle centered at $(-75.0, 500.0)$.
 - Hidden POIs were logically omitted from the initial planner snapshot at $T_0$.
-- In-flight UAVs performed altitude-dependent conical FOV footprint sensing via `compute_detection_radius(z)` ($80.0\,\text{m}$ at $z \le 20.0\,\text{m}$, $150.0\,\text{m}$ at $z = 50.0\,\text{m}$ cruise).
+- In-flight UAVs performed altitude-dependent sensor footprint sensing via `compute_detection_radius(z)` ($80.0\,\text{m}$ at $\le 20.0\,\text{m}$ to $230.0\,\text{m}$ at $\ge 100.0\,\text{m}$ across 5 piecewise linear breakpoints; e.g. $150.0\,\text{m}$ at $50.0\,\text{m}$ cruise).
+
 - When an emerging POI fell within sensor coverage after its spawn time, a `DiscoverTaskCommand` dynamically registered it with the planner and triggered immediate allocator reassessment:
   - `hidden_poi_02`: Discovered at $t = 1077.0\,\text{s}$ by UAV_2. Allocator reassessed priorities, assigned surveyor and intermediate relay, established communication bridge, and completed loiter inspection at $t = 1188.0\,\text{s}$.
   - `hidden_poi_04`: Discovered at $t = 1204.0\,\text{s}$ by UAV_3. Allocator formed a multi-hop relay chain, verified physical station readiness, and completed loiter inspection at $t = 1327.0\,\text{s}$.

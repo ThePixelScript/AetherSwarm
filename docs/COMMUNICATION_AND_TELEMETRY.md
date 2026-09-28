@@ -91,16 +91,20 @@ Perception modeling is separated from task scheduling. In [`src/ares_swarm/simul
 ```
 
 ### 4.1 Altitude-Dependent Sensor Footprint ($R_{\text{fov}}(z)$)
-Rather than a fixed radius, sensor footprint scales with aircraft altitude via [`compute_detection_radius(altitude_m)`](file:///home/dell/swarm_ws/AetherSwarm/src/ares_swarm/simulation/discovery.py):
+Rather than a fixed radius, sensor footprint scales with aircraft altitude via [`compute_detection_radius(altitude_m)`](file:///home/dell/swarm_ws/AetherSwarm/src/ares_swarm/simulation/discovery.py). The authoritative model is defined by 5 breakpoint coordinates in `ALTITUDE_DETECTION_TABLE`:
 
-| Altitude ($z$) | Footprint Radius ($R_{\text{fov}}$) | Operational Context |
+| Authoritative Breakpoint ($z$) | Footprint Radius ($R_{\text{fov}}$) | Boundary / Operational Context |
 | :---: | :---: | :--- |
-| $\le 20.0\,\text{m}$ | $80.0\,\text{m}$ (clamped) | Stationary loiter inspection altitude |
-| $40.0\,\text{m}$ | $130.0\,\text{m}$ | Low-altitude transit |
-| $50.0\,\text{m}$ | $150.0\,\text{m}$ (interpolated) | Nominal swarm cruise altitude |
-| $60.0\,\text{m}$ | $170.0\,\text{m}$ | Mid-altitude relay stationing |
-| $80.0\,\text{m}$ | $190.0\,\text{m}$ | High-altitude surveillance |
-| $\ge 100.0\,\text{m}$ | $230.0\,\text{m}$ (clamped) | Maximum operational ceiling |
+| $20.0\,\text{m}$ | $80.0\,\text{m}$ | Minimum table breakpoint (altitudes $\le 20.0\,\text{m}$ clamped to $80.0\,\text{m}$) |
+| $40.0\,\text{m}$ | $130.0\,\text{m}$ | Low-altitude transit breakpoint |
+| $60.0\,\text{m}$ | $170.0\,\text{m}$ | Mid-altitude relay breakpoint |
+| $80.0\,\text{m}$ | $190.0\,\text{m}$ | High-altitude surveillance breakpoint |
+| $100.0\,\text{m}$ | $230.0\,\text{m}$ | Maximum table breakpoint (altitudes $\ge 100.0\,\text{m}$ clamped to $230.0\,\text{m}$) |
+
+- **Piecewise Linear Interpolation**: For intermediate altitudes $a_0 \le z \le a_1$:
+  $$R_{\text{fov}}(z) = R_0 + \frac{z - a_0}{a_1 - a_0} \cdot (R_1 - R_0)$$
+  *Example*: At nominal cruise altitude $z = 50.0\,\text{m}$ (midpoint of $40\,\text{m}$ and $60\,\text{m}$), the interpolated radius is $R_{\text{fov}}(50.0) = 130.0 + 0.5 \times (170.0 - 130.0) = 150.0\,\text{m}$.
+
 
 - **Detection Trigger**: At each tick, for every airborne active UAV and every unserviced/hidden POI:
   $$\|\mathbf{p}_{\text{uav}} - \mathbf{p}_{\text{poi}}\|_2 \le R_{\text{fov}}(z_{\text{uav}}) \implies \text{Detection Event Triggered}$$

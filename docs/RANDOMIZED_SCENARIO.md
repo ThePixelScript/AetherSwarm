@@ -45,7 +45,7 @@ POIs are sampled randomly within the configured arena bounds and operational env
 3. **Hidden / Emerging POI Dynamics**:
    - Hidden POIs have defined emergence times ($t_{\text{emerge}} \in [0.0, 300.0]\,\text{s}$).
    - **Logical Planner State**: Hidden POIs are strictly excluded from the initial planner snapshot at $T_0$.
-   - **Physical Detection**: An active UAV must physically detect the emerged target via altitude-scaled sensor FOV via `compute_detection_radius(z)` ($80.0\,\text{m}$ at $z \le 20.0\,\text{m}$, $150.0\,\text{m}$ at $z = 50.0\,\text{m}$, $230.0\,\text{m}$ at $z \ge 100.0\,\text{m}$).
+   - **Physical Detection**: An active UAV must physically detect the emerged target via altitude-scaled sensor FOV via `compute_detection_radius(z)` ($80.0\,\text{m}$ at $\le 20.0\,\text{m}$ up to $230.0\,\text{m}$ at $\ge 100.0\,\text{m}$ across 5 piecewise linear breakpoints; e.g. $150.0\,\text{m}$ at $50.0\,\text{m}$ cruise).
    - **Discovery Pipeline**: Physical detection emits `POI_DISCOVERED`, dispatching `DiscoverTaskCommand`, which creates a standard `TaskState` with `status = PENDING`. The task is then allocated normally via `A1TaskAllocator` / `ConnectivityAwarePlanner`.
    - **Webots Visual Model**: To provide continuous physical scene inspection without leaking logical state, Webots maps hidden POIs to ground target nodes (`POI_06`..`POI_10`) at $T_0$ with dormant violet indicators, transitioning to gold on discovery, cyan when in progress, and emerald green upon completion.
 

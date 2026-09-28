@@ -72,7 +72,7 @@ sequenceDiagram
     PE->>SS: Apply kinematic position & velocity updates
     MR->>SS: 7. RTH arrival completion (landing, touchdown) & ground recharge
     MR->>CA: 8a. Post-physics communication analysis
-    MR->>DP: 8b. Perception detection (R_fov = 40m) & telemetry routing/retry
+    MR->>DP: 8b. Perception detection (altitude-dependent R_fov(z)) & telemetry routing/retry
     MR->>SA: 9. Post-physics safety assessment
     MR->>ES: 10. Authoritative clock advance (tick += 1, t_sim += dt)
     MR->>SS: 11. Final snapshot collection & history recording
@@ -81,7 +81,7 @@ sequenceDiagram
 ### Exact Execution Sequence in `MissionRunner.step()`
 
 0. **Scheduled Events Application**: `sim_engine.process_scheduled_events()` evaluates current simulation time $t_{\text{sim}}$. Injected hardware failures (`FailureState.FAILED`), dynamic arrivals, or external triggers dispatch commands to `StateStore`.
-0.5. **Dynamic POI Discovery**: `discovery_manager.step(...)` detects emerged hidden POIs within altitude-scaled sensor FOV via `compute_detection_radius(z)` ($80\,\text{m}$ at $20\,\text{m}$, $150\,\text{m}$ at $50\,\text{m}$, $230\,\text{m}$ at $100\,\text{m}$), emitting `POI_DISCOVERED` and creating `PENDING` tasks via `DiscoverTaskCommand`.
+0.5. **Dynamic POI Discovery**: `discovery_manager.step(...)` detects emerged hidden POIs within altitude-scaled sensor FOV via `compute_detection_radius(z)` ($80.0\,\text{m}$ at $\le 20.0\,\text{m}$ up to $230.0\,\text{m}$ at $\ge 100.0\,\text{m}$ across 5 piecewise linear breakpoints; e.g. $150.0\,\text{m}$ at $50.0\,\text{m}$ cruise), emitting `POI_DISCOVERED` and creating `PENDING` tasks via `DiscoverTaskCommand`.
 1. **Pre-Physics Communication Analysis (Gamma)**: `comm_analyzer.analyze(current_snap)` performs read-only graph topology analysis on the current snapshot to determine GCS reachability, active connected components, and link states.
 2. **Pre-Physics Safety Assessment & Preemptive RTH**:
    - `safety_assessor.assess_snapshot(current_snap, net_analysis)` evaluates current flight records.

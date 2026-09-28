@@ -67,11 +67,11 @@ safety:
 
 telemetry:
   altitude_detection_table:               # Altitude-dependent perception footprint:
-    - [20.0, 80.0]                        #   z <= 20m: 80.0m radius (loiter inspection)
-    - [40.0, 130.0]                       #   z = 40m:  130.0m radius
-    - [60.0, 170.0]                       #   z = 50m:  150.0m radius (interpolated cruise)
-    - [80.0, 190.0]                       #   z = 80m:  190.0m radius
-    - [100.0, 230.0]                      #   z >= 100m: 230.0m radius
+    - [20.0, 80.0]                        #   z <= 20m: 80.0m radius (breakpoint; clamped below)
+    - [40.0, 130.0]                       #   z = 40m:  130.0m radius (breakpoint)
+    - [60.0, 170.0]                       #   z = 60m:  170.0m radius (breakpoint; 50m interpolates to 150m)
+    - [80.0, 190.0]                       #   z = 80m:  190.0m radius (breakpoint)
+    - [100.0, 230.0]                      #   z >= 100m: 230.0m radius (breakpoint; clamped above)
   reporting_deadline_s: 10.0              # Mandatory detection-to-reporting deadline
 
 airspace:
