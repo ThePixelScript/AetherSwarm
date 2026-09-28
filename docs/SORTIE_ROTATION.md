@@ -157,15 +157,16 @@ The rotation architecture is verified by deterministic unit and integration test
   - `test_multiple_simultaneous_returns_no_deadlock`: Proves 3+ UAVs returning simultaneously land without deadlocking at 20 m.
   - `test_deterministic_repeatability`: Verifies bitwise event-log reproducibility across runs.
 
-**Full Suite Results**: 307 tests passing across the entire repository.
+**Full Suite Results**: 463 tests passing across the entire repository (100% green; up from 307 in Phase 2).
 
 ---
 
-## 9. Current V1 Limitations & Phase 3 Roadmap
+## 9. Historical V1 Scope & Architectural Evolution
 
 1. **Single Staging Pad Geometric Congestion**:
-   - In V1, all UAVs land at the same physical staging pad center `(-75, 500)`. Staggered RTH timing prevents simultaneous convergence, but high-density swarms ($N \ge 16$) benefit from multiple designated landing bays.
+   - In initial V1, all UAVs shared the staging center. Phase 7 introduced deterministic staggered ground departure ($6.0\text{ s}$ spacing) to ensure separation during launch.
 2. **Static Task Allocation During Rotation**:
-   - The current allocator (A0) reassigns deferred tasks purely on distance and priority once a UAV becomes `READY`. Phase 3 will introduce predictive wave dispatch, scheduling departures before the servicing UAV leaves the POI.
+   - Allocator A0 reassigns deferred tasks on distance and priority once a UAV becomes `READY`. Subsequent planner enhancements support dynamic discovery tasks and concurrent allocation.
 3. **Dynamic Relay Handoffs**:
-   - V1 handles task handoff for sensor/search missions. Future phases will extend handoff logic to active relay bridges, allowing seamless link migration before relay UAVs initiate RTH.
+   - Implemented in Phase 3 (`DYNAMIC_RELAY_ROLES.md`), extended to multi-hop chains in Phase 5B (`RELAY_AND_MULTIHOP.md`), and gated by physical relay readiness in Phase 7.
+

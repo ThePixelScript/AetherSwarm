@@ -44,6 +44,11 @@ A discrete endpoint check ($\|\mathbf{p}_A(t+1) - \mathbf{p}_B(t+1)\| \ge 20\,\t
 ### 2.3 Staging Pad & Landed Exemption
 Aircraft that have completed touchdown (`SortieState.LANDED` or `SortieState.RECHARGING`) at the GCS staging pad are powered down on the ground. They are exempted from airborne separation checks, allowing successive returning UAVs to enter the pad boundary without being artificially blocked.
 
+### 2.4 Deterministic Ground Departure Sequencing (Phase 5C)
+Simultaneous dispatch of multiple aircraft from the staging apron $(-75.0, 500.0)$ previously caused immediate launch separation violations. The [`DepartureSequencer`](file:///home/dell/swarm_ws/AetherSwarm/src/ares_swarm/safety/departure.py) enforces a deterministic $6.0\,\text{s}$ minimum separation interval between consecutive departures:
+- Departing aircraft queue in deterministic ID order.
+- Trailing aircraft remain stationary at staging until the leading aircraft clears the apron and establishes $> 20.0\,\text{m}$ spatial clearance.
+
 ---
 
 ## 3. Composite Airspace Geofence Model
@@ -87,6 +92,13 @@ A UAV position $\mathbf{p} = (x, y)$ is evaluated against its current [`FlightPh
 - `MISSION`: Position must reside strictly inside `OperationalArena` ($[0, 1000] \times [0, 1000]$).
 - `EGRESS`: Position must reside in `OperationalArena` or `TransitCorridor` heading toward $\mathbf{p}_{\text{gcs}}$.
 - `LANDED`: Position must be stationary within $R_{\text{pad}} \le 15.0\,\text{m}$ of $\mathbf{p}_{\text{gcs}}$.
+
+### 3.3 Physical Relay Readiness Invariant & Surveyor Hold (Phase 5C)
+When multi-hop relay chains are dispatched, the planner segregates planned state from physical reality:
+- Newly initiated chains enter `ChainStatus.FORMING`.
+- **Surveyor Staging Hold**: While status is `FORMING`, the assigned surveyor is held at staging (`(0.0, 500.0)` or current position) with zero forward velocity ($v = 0.0\,\text{m/s}$).
+- **Physical Station Gate**: The chain transitions to `ACTIVE` if and only if all intermediate relays achieve station coordinates within $\le 5.0\,\text{m}$ tolerance and pass post-physics Gamma network connectivity analysis (`is_chain_physically_ready(...)`).
+- This guarantees the surveyor never advances into RF dead zones without an established communication path back to GCS.
 
 ---
 
@@ -133,9 +145,12 @@ stateDiagram-v2
 
 ### 5.1 Discharge Model
 Energy consumption during flight is modeled as:
-- **Hover Power**: $P_{\text{hover}} \approx 180.0\,\text{W}$.
-- **Transit Power**: $P_{\text{transit}}(v) \approx 180.0\,\text{W} + k_v \cdot v^2$.
-- Battery capacity is parameterized in Watt-hours ($E_{\text{cap}} = 120.0\,\text{Wh}$).
+- **Hover / Idle Rate**: $1.0\,\text{Wh/s}$ baseline idle consumption.
+- **Movement Rate**: $0.5\,\text{Wh/m}$ motion consumption ($2.5\,\text{Wh/s}$ at $v_{\max} = 5.0\,\text{m/s}$, yielding $3.5\,\text{Wh/s}$ total transit burn).
+- **Battery Capacity**:
+  - Baseline capacity: $E_{\text{cap}} = 4200.0\,\text{Wh}$ ($1200\,\text{s}$ at $3.5\,\text{Wh/s}$).
+  - Current configured capacity: $E_{\text{cap}} = 7560.0\,\text{Wh}$ ($4200 \times 1.8$), applied uniformly to all 8 UAVs. Initial full charge is $7560.0\,\text{Wh}$.
+  - RTH thresholds, safety reserve buffers ($15.0\,\text{Wh}$), and ground recharge duration ($300.0\,\text{s}$) remain naturally scaled to this capacity.
 
 ### 5.2 Ground Recharge Lifecycle
 1. Touchdown at the staging pad triggers `CompleteRTHCommand` followed immediately by `StartRechargeCommand`.
@@ -143,7 +158,7 @@ Energy consumption during flight is modeled as:
 3. Battery charge replenishes linearly over the configured duration:
    `recharge_duration_s = 300.0` ($5.0$ minutes).
 4. At $t_{\text{sim}} \ge t_{\text{recharge\_start}} + 300.0\,\text{s}$, `CompleteRechargeCommand` is dispatched:
-   - Battery state-of-charge is restored to $100.0\%$.
+   - Battery state-of-charge is restored to $100.0\%$ ($7560.0\,\text{Wh}$).
    - Vehicle transitions to `SortieState.READY`.
    - Sortie clocks are reset (`is_airborne = False`, `current_sortie_duration_s = 0.0`).
    - The vehicle becomes immediately eligible for redeployment.

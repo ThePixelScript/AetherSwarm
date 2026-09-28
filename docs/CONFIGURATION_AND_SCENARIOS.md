@@ -1,27 +1,30 @@
 # Configuration & Scenario Generation Architecture
 
-## 1. Overview & 4-Tier Configuration Hierarchy
+## 1. Overview & Centralized Configuration Architecture
 
-AetherSwarm employs a strictly hierarchical, centralized configuration model managed by [`AetherSwarmConfig`](file:///home/dell/swarm_ws/AetherSwarm/src/ares_swarm/simulation/scenario.py). Physical constants, operational thresholds, fleet dimensions, and airspace boundaries are never hardcoded inside core algorithms; they are defined in structured YAML configurations and resolved hierarchically at runtime.
+AetherSwarm employs a centralized, strongly-typed, immutable configuration architecture rooted in [`AetherSwarmConfig`](file:///home/dell/swarm_ws/AetherSwarm/src/ares_swarm/config/root.py). Physical constants, operational thresholds, fleet dimensions, and airspace boundaries are never hardcoded inside core algorithms; they are defined in typed Python dataclasses under `src/ares_swarm/config/` and can be overridden by scenario YAML definitions or runtime CLI flags.
 
 ```mermaid
 flowchart TD
-    Tier1["Tier 1: configs/default.yaml\n(Base engine defaults & kinematics)"]
-    Tier2["Tier 2: configs/challenge_profile.yaml\n(Opt-in challenge constraints: sortie, FOV, corridor)"]
-    Tier3["Tier 3: scenarios/<name>.yaml\n(Scenario entities: UAVs, POIs, failures, mission time)"]
-    Tier4["Tier 4: CLI Overrides\n(--trace-output, --seed, etc.)"]
+    Root["AetherSwarmConfig (Root Container)"]
+    L1["1. ChallengeSimulationConfig\n(Physical kinematics, battery, RF, airspace)"]
+    L2["2. FeatureConfig\n(Enforcement, departure, auto-RTH, perception)"]
+    L3["3. ScenarioGenConfig\n(POI sampling, 800m radius, spawn window)"]
+    L4["4. WebotsPresentationConfig\n(Replay substeps, camera presets, HUD)"]
+    YAML["Scenario YAML (scenarios/*.yaml)\n(Entity states, positions, scenario overrides)"]
 
-    Tier1 --> Tier2
-    Tier2 --> Tier3
-    Tier3 --> Tier4
-    Tier4 --> Resolved["Resolved AetherSwarmConfig\n(Immutable Dataclass)"]
+    Root --> L1
+    Root --> L2
+    Root --> L3
+    Root --> L4
+    YAML --> Root
+    Root --> Resolved["Resolved Immutable Configuration"]
 ```
 
 ### Configuration Priority Resolution
-1. **Tier 1 (Base Engine Defaults)**: `configs/default.yaml` defines the fundamental kinematic limits ($v_{\max} = 5.0\,\text{m/s}$), baseline communication parameters ($R_{\text{comm}} = 100.0\,\text{m}$), and allocation utility weights.
-2. **Tier 2 (Challenge Profile Overrides)**: `configs/challenge_profile.yaml` activates opt-in challenge safety constraints (the 1200s sortie limit, $20\,\text{m}$ separation metric, $40\,\text{m}$ sensor FOV, and composite transit corridor). When `challenge_profile.enabled = false`, the engine executes in legacy unconstrained mode.
-3. **Tier 3 (Scenario Definition)**: `scenarios/<scenario>.yaml` defines scenario-specific entities: initial UAV staging coordinates, POI coordinates, priority ratings, loiter service durations, and scheduled hardware failure injection events.
-4. **Tier 4 (CLI Runtime Flags)**: Command-line arguments passed to the runner override configuration fields (e.g. `--trace-output`, `--max-ticks`, or `--seed`).
+1. **Dataclass Defaults (`src/ares_swarm/config/`)**: Fundamental kinematic limits ($v_{\max} = 5.0\,\text{m/s}$), RF link limits ($R_{\text{comm}} = 100.0\,\text{m}$, $R_{\text{eff}} = 95.0\,\text{m}$), and airspace definitions.
+2. **Scenario YAML Files (`scenarios/<name>.yaml`)**: Scenario-specific initial entity states, UAV fleet definitions (battery capacity, initial staging coordinates), known POIs, emerging hidden POIs, and injected hardware failures.
+3. **CLI Runtime Flags**: Command-line arguments passed to runners and generator scripts (e.g. `--final-profile`, `--seed`, `--max-ticks`, `--max-radius`).
 
 ---
 
@@ -30,21 +33,28 @@ flowchart TD
 ### 2.1 Complete Parameter Reference
 
 ```yaml
-# Tier 1 & 2 Consolidated Architecture Example
+# Authoritative Scenario Configuration Example (e.g. scenarios/random_seed_2026.yaml)
 simulation:
-  time_step_s: 1.0                        # Synchronous tick step
-  max_ticks: 2700                         # 45 minutes continuous duration
+  time_step_s: 1.0                        # Synchronous tick step (dt)
+  max_ticks: 2700                         # 45 minutes continuous mission duration
   random_seed: 2026                       # Deterministic pseudo-random seed
 
 fleet:
-  speed_max_m_s: 5.0                      # Max horizontal velocity
+  num_uavs: 8                             # Swarm fleet size
+  speed_max_m_s: 5.0                      # Max horizontal velocity (v_max)
   accel_max_m_s2: 2.0                     # Max acceleration
-  battery_capacity_wh: 120.0              # Nominal battery energy
+  battery_capacity_wh: 7560.0             # Current configured capacity (4200 Wh baseline x 1.8)
+  battery_energy_wh: 7560.0               # Initial full energy state
   recharge_duration_s: 300.0              # Ground battery replenishment time (5 min)
+  departure_spacing_s: 6.0                # Ground departure sequencing interval
+
+autonomy:
+  allocator_reassessment_interval_s: 5.0  # Periodic allocator cadence (~5s)
+  relay_station_tolerance_m: 5.0          # Physical relay arrival tolerance
+  planning_effective_range_m: 95.0        # Conservative planning link range (R_eff)
 
 communication:
   comm_range_m: 100.0                     # Physical RF range cutoff (R_comm)
-  planning_effective_range_m: 95.0        # Conservative planning link range (R_eff)
   channel_model: "friis"                  # RF path loss formulation
 
 safety:
@@ -56,9 +66,13 @@ safety:
   rth_stagger_interval_s: 8.0             # Per-vehicle arrival separation offset
 
 telemetry:
-  sensor_fov_radius_m: 40.0               # Perception discovery footprint (R_fov)
+  altitude_detection_table:               # Altitude-dependent perception footprint:
+    - [20.0, 80.0]                        #   z <= 20m: 80.0m radius (loiter inspection)
+    - [40.0, 130.0]                       #   z = 40m:  130.0m radius
+    - [60.0, 170.0]                       #   z = 50m:  150.0m radius (interpolated cruise)
+    - [80.0, 190.0]                       #   z = 80m:  190.0m radius
+    - [100.0, 230.0]                      #   z >= 100m: 230.0m radius
   reporting_deadline_s: 10.0              # Mandatory detection-to-reporting deadline
-  processing_delay_s: 0.0
 
 airspace:
   staging_pad_center: [-75.0, 500.0]      # Authoritative GCS coordinates
@@ -74,28 +88,33 @@ airspace:
 
 ## 3. Randomized Scenario Generator
 
-To evaluate autonomy and multi-hop relay planning beyond fixed scenarios, [`scripts/generate_scenario.py`](file:///home/dell/swarm_ws/AetherSwarm/scripts/generate_scenario.py) provides a reproducible, seed-based generator.
+[`scripts/generate_scenario.py`](file:///home/dell/swarm_ws/AetherSwarm/scripts/generate_scenario.py) provides reproducible, seed-based scenario and trace generation.
 
-### 3.1 Spatial Distribution Mechanics
-Points of Interest (POIs) are placed across the operational arena using continuous uniform sampling:
+### 3.1 Spatial Distribution & 800 m Radius Constraint
+Points of Interest (POIs) are placed across the operational arena using rejection-sampled uniform placement:
 $$x_{\text{poi}} \sim \mathcal{U}(5.0, 995.0), \quad y_{\text{poi}} \sim \mathcal{U}(5.0, 995.0)$$
-A $5.0\,\text{m}$ buffer inside the arena boundary ($[0, 1000]^2$) prevents edge boundary clipping.
 
-### 3.2 Fleets & Staging Placement
-- Fleet size is **not fixed** at 5 or 8 by the simulation engine; it is configurable via `--num-uavs`.
-- Ground staging positions are automatically spaced inside the GCS staging corridor near $(-75.0, 500.0)$, maintaining the mandatory $20\,\text{m}$ initial separation.
+All generated POIs (both known and hidden) must satisfy the circular distance constraint relative to the GCS staging center at $(-75.0, 500.0)$:
+$$(x + 75.0)^2 + (y - 500.0)^2 \le 800.0^2$$
+
+Candidates exceeding $800.0\,\text{m}$ radius are resampled until the exact required count is achieved.
+
+### 3.2 Final-Profile Generation (`--final-profile`)
+When `--final-profile` is specified:
+- Exactly **5 known POIs** (`poi_01` to `poi_05`) are instantiated and made visible to the planner at $T_0$.
+- Exactly **5–7 hidden emerging POIs** (`hidden_poi_01` to `hidden_poi_05` in seed 2026) are instantiated with emergence times $t_{\text{emerge}} \in [0.0, 300.0]\,\text{s}$.
+- Hidden POIs remain excluded from the initial planner snapshot and are discovered at runtime via in-flight perception.
 
 ### 3.3 CLI Invocation & Options
 
 ```bash
+# Generate final-profile mission (5 known + 5..7 hidden POIs, 800m radius constraint)
 python scripts/generate_scenario.py \
-  --seed <INT> \
-  --num-uavs <INT> \
-  --num-pois <INT> \
-  --output <PATH> \
-  [--emergency-fraction <FLOAT>] \
-  [--min-service-time <FLOAT>] \
-  [--max-service-time <FLOAT>]
+  --seed 2026 \
+  --final-profile \
+  --max-ticks 2700 \
+  --output-scenario scenarios/random_seed_2026.yaml \
+  --output-trace visualization/webots/data/random_scenario_trace.json
 ```
 
 #### Argument Reference
@@ -104,21 +123,19 @@ python scripts/generate_scenario.py \
 | :--- | :---: | :---: | :--- |
 | `--seed` | `int` | `2026` | Random number generator seed for 100% reproducible scenario geometry. |
 | `--num-uavs` | `int` | `8` | Number of UAV airframes deployed at the GCS staging pad. |
-| `--num-pois` | `int` | `10` | Total number of POIs distributed across the arena. |
-| `--output` | `str` | `None` | Path to destination YAML file. If omitted, prints to `stdout`. |
-| `--emergency-fraction`| `float` | `0.2` | Proportion of POIs designated as high-urgency emergency tasks. |
-| `--min-service-time` | `float` | `10.0` | Minimum stationary loiter inspection time required per POI (seconds). |
-| `--max-service-time` | `float` | `30.0` | Maximum stationary loiter inspection time required per POI (seconds). |
-
-### 3.4 Authoritative Validation Seeds
-
-Three standardized seeds are utilized across official evaluation benchmarks:
-
-| Seed | Characterization | Nearest POI to GCS | Farthest POI to GCS | Max Relay Hops Needed |
-| :---: | :--- | :---: | :---: | :---: |
-| **`2026`** | Balanced spatial distribution; mix of near and deep-arena targets. | $161.4\,\text{m}$ | $1042.8\,\text{m}$ | $11$ hops |
-| **`42`** | Clustered perimeter targets; single near-corridor entry POI. | $178.2\,\text{m}$ | $1112.5\,\text{m}$ | $12$ hops |
-| **`5001`** | Deep-arena concentration; zero targets within single-relay range. | $542.4\,\text{m}$ | $1168.1\,\text{m}$ | $13$ hops |
+| `--num-pois` | `int` | `10` | Total number of known POIs (or 5 when `--final-profile` is set). |
+| `--num-hidden-pois` | `int` | `0` | Number of hidden POIs (or 5–7 when `--final-profile` is set). |
+| `--final-profile` | `flag` | `False` | Activate final profile mode: exactly 5 known + 5–7 hidden POIs. |
+| `--max-radius` | `float` | `800.0` | Maximum radial distance from $(-75.0, 500.0)$ in meters. |
+| `--min-spacing` | `float` | `0.0` | Minimum pairwise distance between POIs in meters. |
+| `--spawn-start` | `float` | `0.0` | Earliest known POI spawn time in seconds. |
+| `--spawn-end` | `float` | `300.0` | Latest known POI spawn time in seconds. |
+| `--emergence-start` | `float` | `0.0` | Earliest hidden POI emergence time in seconds. |
+| `--emergence-end` | `float` | `300.0` | Latest hidden POI emergence time in seconds. |
+| `--output-scenario` | `str` | `None` | Path to destination YAML file. |
+| `--output-trace` | `str` | `None` | Path to destination Webots JSON trace file. |
+| `--max-ticks` | `int` | `2700` | Simulation horizon in ticks. |
+| `--no-run` | `flag` | `False` | Skip simulation execution; generate scenario YAML only. |
 
 ---
 
@@ -127,5 +144,6 @@ Three standardized seeds are utilized across official evaluation benchmarks:
 The repository maintains `scenarios/poc_round1.yaml` as the **frozen Benchmark E1 regression standard**:
 - **Duration**: $2700.0\,\text{s}$ (45 minutes, 2,700 ticks).
 - **Fleet**: 5 UAVs (`uav_1` through `uav_5`).
+- **Battery**: Baseline $4200.0\,\text{Wh}$ capacity.
 - **Injected Failure**: Hardware failure injected at tick $300.0$ on `uav_3`.
 - **Purpose**: Verifies that new autonomy or safety extensions never break the historical Stage 1 baseline.

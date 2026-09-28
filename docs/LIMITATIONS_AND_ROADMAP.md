@@ -22,7 +22,7 @@ This document provides a transparent, factual accounting of the known architectu
 - **Planned Mitigation (Phase 6)**: Implement piece-wise dog-leg chain routing. Waypoints within $x \in [-75, 0]$ are constrained along the corridor centerline $y = 500.0$, transitioning to the direct line-of-sight only after crossing the arena threshold at $(0.0, 500.0)$.
 
 ### 2.3 Opportunistic vs. Systematic Hidden POI Search Coverage
-- **Mechanics**: Hidden and emerging POIs generated under `--final-profile` are excluded from the initial task allocation and discovered at runtime via altitude-scaled conical FOV footprint sensing ($R_{\text{fov}} = z \cdot \tan(30^\circ) \approx 11.55\,\text{m}$ at $z = 20.0\,\text{m}$).
+- **Mechanics**: Hidden and emerging POIs generated under `--final-profile` are excluded from the initial task allocation and discovered at runtime via altitude-dependent sensor footprint sensing (`compute_detection_radius(z)`: $80.0\,\text{m}$ at $z \le 20.0\,\text{m}$, $150.0\,\text{m}$ at $z = 50.0\,\text{m}$ cruise, $230.0\,\text{m}$ at $z \ge 100.0\,\text{m}$).
 - **Limitation**: In the current implementation, POI discovery occurs opportunistically along transit corridors traversed while servicing known POIs. In Seed 2026, 2 out of 5 hidden POIs (`hidden_poi_02` and `hidden_poi_04`) were intercepted and fully serviced. The remaining 3 POIs emerged in peripheral arena zones outside active corridors and were not discovered within 2700 ticks.
 - **Planned Mitigation (Phase 6)**: Integrate systematic exploratory search trajectories (e.g. Voronoi sector sweeps or lawnmower search paths) for uncommitted or idle airframes during lulls in known-task servicing.
 

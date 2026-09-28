@@ -45,7 +45,7 @@ POIs are sampled randomly within the configured arena bounds and operational env
 3. **Hidden / Emerging POI Dynamics**:
    - Hidden POIs have defined emergence times ($t_{\text{emerge}} \in [0.0, 300.0]\,\text{s}$).
    - **Logical Planner State**: Hidden POIs are strictly excluded from the initial planner snapshot at $T_0$.
-   - **Physical Detection**: An active UAV must physically detect the emerged target via altitude-scaled sensor FOV ($R_{\text{fov}} = 40\,\text{m} \times (1 + z / 20)$).
+   - **Physical Detection**: An active UAV must physically detect the emerged target via altitude-scaled sensor FOV via `compute_detection_radius(z)` ($80.0\,\text{m}$ at $z \le 20.0\,\text{m}$, $150.0\,\text{m}$ at $z = 50.0\,\text{m}$, $230.0\,\text{m}$ at $z \ge 100.0\,\text{m}$).
    - **Discovery Pipeline**: Physical detection emits `POI_DISCOVERED`, dispatching `DiscoverTaskCommand`, which creates a standard `TaskState` with `status = PENDING`. The task is then allocated normally via `A1TaskAllocator` / `ConnectivityAwarePlanner`.
    - **Webots Visual Model**: To provide continuous physical scene inspection without leaking logical state, Webots maps hidden POIs to ground target nodes (`POI_06`..`POI_10`) at $T_0$ with dormant violet indicators, transitioning to gold on discovery, cyan when in progress, and emerald green upon completion.
 
@@ -141,3 +141,10 @@ In Webots R2025a, open [`visualization/webots/worlds/uavx_round1.wbt`](file:///h
 random
 ```
 The supervisor will automatically load `visualization/webots/data/random_scenario_trace.json`, update the 3D POI beacons to match the randomized scenario, and replay the flight paths with full HUD telemetry.
+
+### Method D: Canonical PowerShell Launcher (Windows Host)
+From Windows PowerShell, execute:
+```powershell
+.\scripts\launch_random_webots.ps1 -Seed 2026
+```
+The launcher handles Windows/WSL path mapping, detecting mapped drive `Z:` or resolving paths via `.ProviderPath` to ensure clean Windows path syntax without PowerShell provider prefixes.

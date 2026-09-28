@@ -74,33 +74,43 @@ At each simulation tick:
 
 ## 4. Sensor FOV Perception Pipeline
 
-Perception modeling is separated from task scheduling. In [`DetectionPipeline`](file:///home/dell/swarm_ws/AetherSwarm/src/ares_swarm/telemetry/detection.py), sensor discovery is modeled as a physical geometric intersection.
+Perception modeling is separated from task scheduling. In [`src/ares_swarm/simulation/discovery.py`](file:///home/dell/swarm_ws/AetherSwarm/src/ares_swarm/simulation/discovery.py) and [`src/ares_swarm/telemetry/manager.py`](file:///home/dell/swarm_ws/AetherSwarm/src/ares_swarm/telemetry/manager.py), sensor discovery is modeled as an altitude-dependent conical ground footprint.
 
 ```
-            [UAV Surveyor]
-                  │
-             .────┼────.
-          .       │       .   Sensor Field of View
-        .         │         . (R_fov = 40.0m)
-       .          ▼          .
-      .         [POI]         .  t_detect triggered!
-       .                     .
-        .                   .
-          .               .
-             .─────────.
+            [UAV Surveyor at altitude z]
+                         │
+                    .────┼────.
+                 .       │       .   Sensor Field of View
+               .         │         . R_fov(z) in [80m, 230m]
+              .          ▼          .
+             .         [POI]         .  t_detect / POI_DISCOVERED!
+              .                     .
+               .                   .
+                 .               .
+                    .─────────.
 ```
 
-### 4.1 Radial Sensor FOV ($R_{\text{fov}}$)
-- Sensor footprint is modeled as an omnidirectional downward-looking disk:
-  $$R_{\text{fov}} = 40.0\,\text{m}$$
-- Detection Trigger: At each tick, for every airborne active UAV and every unserviced POI:
-  $$\|\mathbf{p}_{\text{uav}} - \mathbf{p}_{\text{poi}}\|_2 \le R_{\text{fov}} \implies \text{Detection Event Triggered}$$
+### 4.1 Altitude-Dependent Sensor Footprint ($R_{\text{fov}}(z)$)
+Rather than a fixed radius, sensor footprint scales with aircraft altitude via [`compute_detection_radius(altitude_m)`](file:///home/dell/swarm_ws/AetherSwarm/src/ares_swarm/simulation/discovery.py):
+
+| Altitude ($z$) | Footprint Radius ($R_{\text{fov}}$) | Operational Context |
+| :---: | :---: | :--- |
+| $\le 20.0\,\text{m}$ | $80.0\,\text{m}$ (clamped) | Stationary loiter inspection altitude |
+| $40.0\,\text{m}$ | $130.0\,\text{m}$ | Low-altitude transit |
+| $50.0\,\text{m}$ | $150.0\,\text{m}$ (interpolated) | Nominal swarm cruise altitude |
+| $60.0\,\text{m}$ | $170.0\,\text{m}$ | Mid-altitude relay stationing |
+| $80.0\,\text{m}$ | $190.0\,\text{m}$ | High-altitude surveillance |
+| $\ge 100.0\,\text{m}$ | $230.0\,\text{m}$ (clamped) | Maximum operational ceiling |
+
+- **Detection Trigger**: At each tick, for every airborne active UAV and every unserviced/hidden POI:
+  $$\|\mathbf{p}_{\text{uav}} - \mathbf{p}_{\text{poi}}\|_2 \le R_{\text{fov}}(z_{\text{uav}}) \implies \text{Detection Event Triggered}$$
 - Timestamp of detection is recorded as $t_{\text{detect}} = t_{\text{sim}}$.
+- For emerging hidden POIs, detection dispatches `DiscoverTaskCommand`, creating a new `TaskState` with `status = PENDING` and emitting `EventType.POI_DISCOVERED`.
 
 ### 4.2 Decoupling from Task Servicing
 Target detection is explicitly decoupled from task loiter inspection:
-- **Detection ($t_{\text{detect}}$)**: Occurs the instant the vehicle enters $40.0\,\text{m}$ radius of the POI. Initiates the $10.0\,\text{s}$ telemetry delivery clock.
-- **Service Loiter ($t_{\text{service}}$)**: The physical inspection period (e.g. $10\,\text{s}$ to $30\,\text{s}$ stationary hover) required to complete the task. A task can be detected and reported to GCS long before service is complete.
+- **Detection ($t_{\text{detect}}$)**: Occurs the instant the vehicle enters the altitude-dependent footprint of the POI. Initiates the $10.0\,\text{s}$ telemetry delivery clock.
+- **Service Loiter ($t_{\text{service}}$)**: The physical inspection period (e.g. $10\,\text{s}$ to $30\,\text{s}$ stationary hover at $d \le 0.05\,\text{m}$) required to complete the task. A task can be detected and reported to GCS long before service is complete.
 
 ---
 
@@ -142,7 +152,7 @@ If a discovering UAV is partitioned from GCS (no multi-hop route), the packet is
 
 ## 6. Verification & Telemetry Metrics
 
-Subsystem correctness is validated by 15 tests in [`tests/telemetry/test_detection_reporting.py`](file:///home/dell/swarm_ws/AetherSwarm/tests/telemetry/test_detection_reporting.py).
+Subsystem correctness is validated by 15 tests in [`tests/telemetry/test_detection_reporting.py`](file:///home/dell/swarm_ws/AetherSwarm/tests/telemetry/test_detection_reporting.py) and 13 tests in [`tests/simulation/test_hidden_poi_discovery.py`](file:///home/dell/swarm_ws/AetherSwarm/tests/simulation/test_hidden_poi_discovery.py).
 
 Official telemetry metrics reported in [`MissionMetricsReport`](file:///home/dell/swarm_ws/AetherSwarm/src/ares_swarm/evaluation/metrics.py):
 - `total_detections`: Cumulative count of physical POI discoveries.

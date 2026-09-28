@@ -148,20 +148,31 @@ python scripts/audit_physical_readiness.py \
 | **Active Chain Graph Disconnections** | 0 | 0 allowed | PASS |
 | **Total Physical Invariant Conformance** | **1700 / 1700 (100.0%)** | 100.0% | **PASS** |
 
-### 5.3 Webots R2025a 2700-Tick Spatial Verification
-A complete 45-minute (2700-tick) mission execution was exported to JSON trace and verified inside the Cyberbotics Webots R2025a supervisor ([`visualization/webots/controllers/aetherswarm_supervisor/aetherswarm_supervisor.py`](file:///home/dell/swarm_ws/AetherSwarm/visualization/webots/controllers/aetherswarm_supervisor/aetherswarm_supervisor.py)) with independent physics validation:
-- **Spatial Separation ($d \ge 20.0\,\text{m}$)**: Zero pairwise horizontal or 3D separation violations across all 8 airframes throughout 2700 ticks.
+### 5.2 Category 1: Simulator & Unit Test Evidence
+- **Regression Suite**: 463 / 463 tests passing in ~14 seconds under Python 3.12 (`pytest tests/ -q`).
+- **1–1700 Tick Physical Readiness Audit**: An independent audit script ([`scripts/audit_physical_readiness.py`](file:///home/dell/swarm_ws/AetherSwarm/scripts/audit_physical_readiness.py)) was executed over simulation ticks 1 through 1700 of `scenarios/random_seed_2026.yaml`:
+  - 1700 / 1700 ticks (100.0%) satisfied the active-airborne-to-GCS connectivity invariant.
+  - 0 premature surveyor sorties while intermediate chains were `FORMING`.
+  - 0 relay station positioning deviations exceeding $5.0\,\text{m}$ while chains were `ACTIVE`.
+  - 0 communication loss episodes for active surveyors.
+  - 0 pairwise separation violations ($\Delta r \ge 20.0\,\text{m}$).
+  - 0 geofence infractions.
+  - 0 uncommanded battery exhaustions.
+
+### 5.3 Category 2: Webots Independent 3D Spatial Verification
+A complete 45-minute (2700-tick) mission execution was exported to JSON trace and verified inside the Cyberbotics Webots R2025a supervisor ([`visualization/webots/controllers/aetherswarm_supervisor/aetherswarm_supervisor.py`](file:///home/dell/swarm_ws/AetherSwarm/visualization/webots/controllers/aetherswarm_supervisor/aetherswarm_supervisor.py)) with independent physics auditing:
+- **Spatial Separation**: Zero pairwise horizontal or 3D separation violations across all 8 airframes throughout 2700 ticks (minimum observed separation: $20.00\,\text{m}$).
 - **Geofence Boundaries**: Zero boundary infractions across the $1000 \times 1000\,\text{m}$ arena and the $x \in [-75.0, 0.0], y \in [400.0, 600.0]$ staging corridor.
 - **Altitude Envelopes**: All airborne flight maintained within $z \in [0.0, 100.0\,\text{m}]$ (nominal cruise at $z = 50.0\,\text{m}$, loiter inspection at $z = 20.0\,\text{m}$, ground staging at $z = 0.0\,\text{m}$).
 
-### 5.4 Hidden POI Discovery & Loiter Servicing Dynamics (Seed 2026)
-Under `--final-profile` scenario generation, 5 known POIs (`poi_01`–`poi_05`) and 5 hidden/emerging POIs (`hidden_poi_01`–`hidden_poi_05`) are instantiated within the $R \le 800.0\,\text{m}$ radius circle centered at $(-75.0, 500.0)$.
-- Hidden POIs are omitted from initial planner allocation.
-- In-flight UAVs perform altitude-scaled conical FOV footprint sensing ($R_{\text{fov}} = z \cdot \tan(30^\circ) \approx 11.55\,\text{m}$ at $z = 20.0\,\text{m}$).
-- When an emerging POI falls within sensor coverage after its spawn time, a `DiscoverTaskCommand` dynamically registers it with the planner and triggers immediate allocator reassessment:
+### 5.4 Category 3: Webots Hidden-POI Lifecycle Evidence (Seed 2026)
+Under `--final-profile` scenario generation, 5 known POIs (`poi_01`–`poi_05`) and 5 hidden/emerging POIs (`hidden_poi_01`–`hidden_poi_05`) were instantiated within the $R \le 800.0\,\text{m}$ radius circle centered at $(-75.0, 500.0)$.
+- Hidden POIs were logically omitted from the initial planner snapshot at $T_0$.
+- In-flight UAVs performed altitude-dependent conical FOV footprint sensing via `compute_detection_radius(z)` ($80.0\,\text{m}$ at $z \le 20.0\,\text{m}$, $150.0\,\text{m}$ at $z = 50.0\,\text{m}$ cruise).
+- When an emerging POI fell within sensor coverage after its spawn time, a `DiscoverTaskCommand` dynamically registered it with the planner and triggered immediate allocator reassessment:
   - `hidden_poi_02`: Discovered at $t = 1077.0\,\text{s}$ by UAV_2. Allocator reassessed priorities, assigned surveyor and intermediate relay, established communication bridge, and completed loiter inspection at $t = 1188.0\,\text{s}$.
   - `hidden_poi_04`: Discovered at $t = 1204.0\,\text{s}$ by UAV_3. Allocator formed a multi-hop relay chain, verified physical station readiness, and completed loiter inspection at $t = 1327.0\,\text{s}$.
-  - **Remaining Hidden POIs**: `hidden_poi_01`, `hidden_poi_03`, and `hidden_poi_05` emerged in peripheral sectors outside transit flight corridors and were not discovered or serviced within the 2700-tick window due to the absence of dedicated exploratory search trajectories.
+  - **Unserviced Hidden POIs**: Exactly 2 of 5 hidden POIs were discovered and serviced in this run. The remaining 3 hidden POIs (`hidden_poi_01`, `hidden_poi_03`, `hidden_poi_05`) emerged in peripheral arena zones outside the flight paths traversed for known tasks and were not discovered within 2700 ticks due to the absence of dedicated exploratory search patterns.
 
 ---
 

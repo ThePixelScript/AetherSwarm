@@ -48,6 +48,9 @@ When a surveyor operating at $d_{\text{GCS}} > 90\text{ m}$ loses direct or stab
 
 $$\mathbf{p}_{\text{relay}} = \mathbf{p}_{\text{gcs}} + 0.5 \cdot (\mathbf{p}_{\text{surveyor}} - \mathbf{p}_{\text{gcs}})$$
 
+> [!NOTE]
+> The single-relay midpoint formula above represents the foundational Phase 3 dynamic relay role management mechanism. In Phase 5B/5C and Phase 7 (`RELAY_AND_MULTIHOP.md` and `AUTONOMY_AND_PLANNING.md`), this architecture was extended to support arbitrary collinear multi-hop chains ($K \ge 1$, spacing $\le 85.0\text{ m}$ with physical chain readiness gating before surveyor dispatch).
+
 ### 3.1 Hard Feasibility Gates
 
 A candidate UAV $u$ is strictly disqualified if:
@@ -155,15 +158,16 @@ The dynamic relay role management layer is validated by 8 dedicated deterministi
 7. `test_deterministic_repeatability`: Verifies identical event stream and bitwise reproducible simulation metrics across runs.
 8. `test_integrated_relay_handoff_scenario`: Full multi-UAV mission (UAV A surveys at $(100, 500)$, UAV B relays at $(15, 500)$, B enters RTH, UAV C assumes relay, route reconfigures in 1.0 s, mission achieves 100% completion with 99.9% connectivity availability and zero battery exhaustions).
 
-**Full Test Suite**: 315 tests passing across the entire repository (100% green).
+**Full Test Suite**: 463 tests passing across the entire repository (100% green; up from 315 in Phase 3).
 
 ---
 
-## 7. Current V1 Limitations & Phase 4 Roadmap
+## 7. Historical V1 Scope & Architectural Evolution
 
-1. **Single-Hop Midpoint Placement**:
-   - V1 calculates the relay coordinate as the geometric midpoint between GCS and the surveyor. For deep arena operations ($d > 200\text{ m}$), multi-hop relay chains ($K \ge 2$) will be addressed in future phases.
+1. **Single-Hop Midpoint Placement (Baseline)**:
+   - Initial V1 calculated the relay coordinate as the geometric midpoint between GCS and the surveyor. Multi-hop collinear relay chains ($K \ge 1$, spacing $\le 85.0\text{ m}$) were subsequently implemented in Phase 5B/5C (see `RELAY_AND_MULTIHOP.md`).
 2. **Predictive Replacement Dispatch**:
-   - In V1, the replacement UAV departs from standby at the moment handoff is triggered. In future phases, replacement UAVs will depart earlier to arrive on station prior to the outgoing relay's departure, eliminating transit reconfiguration gap.
+   - In baseline V1, replacement UAVs departed upon handoff trigger. Phase 7 introduced physical readiness verification (`_check_physical_relay_readiness`) ensuring relays are stationed before surveyor mission advance.
 3. **Dynamic Topology Adaptation**:
-   - When multiple surveyors operate concurrently, future iterations will introduce multi-agent Steiner tree or Voronoi clustering to optimize relay sharing across multiple surveyors.
+   - When multiple surveyors operate concurrently, future iterations can introduce multi-agent Steiner tree or Voronoi clustering to optimize relay sharing across multiple surveyors.
+

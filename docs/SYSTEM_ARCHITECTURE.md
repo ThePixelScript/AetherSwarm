@@ -81,7 +81,7 @@ sequenceDiagram
 ### Exact Execution Sequence in `MissionRunner.step()`
 
 0. **Scheduled Events Application**: `sim_engine.process_scheduled_events()` evaluates current simulation time $t_{\text{sim}}$. Injected hardware failures (`FailureState.FAILED`), dynamic arrivals, or external triggers dispatch commands to `StateStore`.
-0.5. **Dynamic POI Discovery**: `discovery_manager.step(...)` detects emerged hidden POIs within altitude-scaled sensor FOV ($R_{\text{fov}} = 40\,\text{m} \times (1 + z / 20)$), emitting `POI_DISCOVERED` and creating `PENDING` tasks via `DiscoverTaskCommand`.
+0.5. **Dynamic POI Discovery**: `discovery_manager.step(...)` detects emerged hidden POIs within altitude-scaled sensor FOV via `compute_detection_radius(z)` ($80\,\text{m}$ at $20\,\text{m}$, $150\,\text{m}$ at $50\,\text{m}$, $230\,\text{m}$ at $100\,\text{m}$), emitting `POI_DISCOVERED` and creating `PENDING` tasks via `DiscoverTaskCommand`.
 1. **Pre-Physics Communication Analysis (Gamma)**: `comm_analyzer.analyze(current_snap)` performs read-only graph topology analysis on the current snapshot to determine GCS reachability, active connected components, and link states.
 2. **Pre-Physics Safety Assessment & Preemptive RTH**:
    - `safety_assessor.assess_snapshot(current_snap, net_analysis)` evaluates current flight records.
@@ -212,3 +212,23 @@ A strict boundary decouples the authoritative computational simulation from visu
 1. **Direction of Data Flow**: Data flows unidirectionally from the core simulation into Webots. Webots never feeds state back into `ares_swarm`.
 2. **Trace Immutability**: Simulation traces contain full per-tick entity states (positions, headings, statuses, battery levels, active mesh edges, and POI states). Webots controllers parse traces strictly as read-only streams.
 3. **Independent Spatial Auditing**: While replaying traces, the Webots supervisor runs an independent 3D Euclidean distance verifier and altitude monitor, outputting `data/webots_spatial_verification.txt`. This provides secondary verification that the core 2D simulation maintained real-world geometric constraints without trusting internal simulation assertions alone.
+
+### 5.1 Explicit State Hierarchy: Planned vs. Physical vs. Observational State
+
+To prevent architectural confusion between autonomy intents, kinematic ground truth, and visualization:
+
+1. **PLANNED STATE (Autonomy Intent)**:
+   - Managed by [`ConnectivityAwarePlanner`](file:///home/dell/swarm_ws/AetherSwarm/src/ares_swarm/autonomy/connectivity_planner.py).
+   - Represents planned target coordinates, task assignments, and candidate collinear relay stations.
+   - Planning a relay station does not constitute communication readiness. A chain begins in `FORMING` status and cannot support telemetry transmission until physical arrival is verified.
+
+2. **ACTUAL PHYSICAL STATE (Kinematic Ground Truth)**:
+   - Managed by [`StateStore`](file:///home/dell/swarm_ws/AetherSwarm/src/ares_swarm/core/state_store.py) and integrated by [`SimulationEngine`](file:///home/dell/swarm_ws/AetherSwarm/src/ares_swarm/core/simulator.py) ($v_{\max} = 5.0\,\text{m/s}$).
+   - Represents actual UAV positions, battery levels, and actual Gamma RF connectivity graph edges ($d \le 100.0\,\text{m}$).
+   - [`is_chain_physically_ready(...)`](file:///home/dell/swarm_ws/AetherSwarm/src/ares_swarm/autonomy/connectivity_planner.py) evaluates actual physical coordinates against station coordinates ($\|\mathbf{p}_{\text{relay}} - \mathbf{p}_{\text{station}}\|_2 \le 5.0\,\text{m}$) and verifies true Gamma mesh connectivity to GCS before transitioning the chain to `ACTIVE`.
+
+3. **WEBOTS REPLAY / OBSERVATIONAL STATE (Downstream Consumer)**:
+   - Managed by the Webots supervisor controller ([`aetherswarm_supervisor.py`](file:///home/dell/swarm_ws/AetherSwarm/visualization/webots/controllers/aetherswarm_supervisor/aetherswarm_supervisor.py)).
+   - Reconstructs 3D quadrotor models, HUD telemetry, and ground beacons from the immutable exported trace.
+   - For hidden POIs, Webots visualizes ground target pylons from $T_0$ with dormant violet indicators, enabling human visual inspection of the arena without leaking logical task availability to the autonomy engine.
+   - Performs independent continuous 3D Euclidean distance auditing without feeding any state back into the simulation.

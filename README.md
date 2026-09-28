@@ -30,8 +30,8 @@ The repository has progressed through structured development milestones. The tab
 | **20m Continuous Separation Enforcement** | `VALIDATED` | Phase 1 | Spatial grid filtering, analytical bisection, zero false freezes (`test_separation_enforcement.py`) |
 | **Composite Airspace Geofencing & RTH Corridors** | `VALIDATED` | Phase 1 | Staging pad, transit corridor, operational arena, non-collinear lanes (`test_geofence_enforcement.py`, `test_rth_routing.py`) |
 | **20-Minute Sortie Lifecycle & RTH** | `VALIDATED` | Phase 2 | Preemptive return calculation, staged queue arrivals, landing deadlock resolution (`test_sortie_rotation.py`) |
-| **Linear Battery Discharge & Ground Recharge** | `VALIDATED` | Phase 2 | 300s ground replenishment cycle, 7560 Wh capacity model (`test_battery_recharge_lifecycle.py`) |
-| **Sensor FOV Perception & Telemetry Routing** | `VALIDATED` | Phase 2 | Radial $40.0\,\text{m}$ FOV detection, packet queue, end-to-end $10.0\,\text{s}$ deadline assessment (`test_detection_reporting.py`) |
+| **Linear Battery Discharge & Ground Recharge** | `VALIDATED` | Phase 2 | 300s ground replenishment cycle, 7560 Wh capacity model (4200 Wh baseline) (`test_battery_recharge_lifecycle.py`) |
+| **Sensor FOV Perception & Telemetry Routing** | `VALIDATED` | Phase 5C | Altitude-dependent FOV (80m at 20m, 150m at 50m, 230m at 100m), packet queue, 10.0s deadline assessment (`test_detection_reporting.py`, `test_hidden_poi_discovery.py`) |
 | **A0 Baseline Task Allocator** | `VALIDATED` | Phase 1 | Deterministic priority-first greedy matching with battery and distance weighting (`test_a0_core_integration.py`) |
 | **A1 Dynamic Relay Role Switching** | `VALIDATED` | Phase 3 | Surveyor, dedicated relay, and backup relay dynamic roles (`test_dynamic_relay_management.py`) |
 | **Single-Relay Connectivity Planning** | `VALIDATED` | Phase 4 | Effective range $R_{\text{eff}} = 95.0\,\text{m}$, mid-point relay positioning up to $190\,\text{m}$ (`test_connectivity_aware_planning.py`) |
@@ -151,19 +151,20 @@ python visualization/webots/controllers/aetherswarm_supervisor/aetherswarm_super
 
 ```text
 AetherSwarm/
-├── configs/                             # Centralized YAML configuration files
-│   ├── default.yaml                     # Authoritative baseline configuration
-│   └── challenge_profile.yaml           # Opt-in challenge compliance overrides
 ├── docs/                                # Authoritative engineering & architecture documentation
 ├── scenarios/                           # Scenario definitions (E1 benchmark & randomized sets)
 │   ├── poc_round1.yaml                  # Frozen Benchmark E1 scenario
+│   ├── random_seed_2026.yaml            # Final-profile randomized mission scenario
 │   └── ...
-├── scripts/                             # Utility scripts & experiment runners
-│   ├── generate_scenario.py             # Reproducible randomized scenario generator
+├── scripts/                             # Utility scripts, launchers & experiment harnesses
+│   ├── generate_scenario.py             # Reproducible randomized scenario & trace generator
+│   ├── audit_physical_readiness.py      # Independent physical chain connectivity auditor
+│   ├── launch_random_webots.ps1         # Canonical PowerShell Webots launcher
 │   └── run_fleet_size_sweep.py          # Fleet size scaling experiment harness
 ├── src/ares_swarm/                      # Authoritative simulation core
 │   ├── autonomy/                        # Task allocators & multi-hop connectivity planners
 │   ├── communication/                   # RF channel models, graph topology & routing
+│   ├── config/                          # Centralized typed configuration dataclasses
 │   ├── core/                            # State store, models, events, kinematics, simulator
 │   ├── energy/                          # Battery models & discharge curves
 │   ├── evaluation/                      # Mission performance metrics & reporter

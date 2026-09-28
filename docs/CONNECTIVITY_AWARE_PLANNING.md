@@ -1,5 +1,9 @@
 # Connectivity-Aware Mission Planning (Phase 4)
 
+> [!NOTE]
+> **Historical Feature Record (Phase 4)**:
+> This document specifies the single-intermediate-relay planning architecture developed in Phase 4 ($D \le 190.0\,\text{m}$). For the active multi-hop relay chain architecture, collinear station formulation ($K \le 12$), atomic fleet reservation, and the Phase 5C physical relay readiness invariant, refer to [`docs/RELAY_AND_MULTIHOP.md`](RELAY_AND_MULTIHOP.md) and [`docs/AUTONOMY_AND_PLANNING.md`](AUTONOMY_AND_PLANNING.md).
+
 ## Overview
 
 Phase 4 introduces a **Connectivity-Aware Mission Planner** (`ConnectivityAwarePlanner`) that gates every task assignment with a communication and endurance feasibility check before issuing an `AssignTaskCommand`. It integrates tightly with the existing `DynamicRelayManager` and telemetry pipeline.
