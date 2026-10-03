@@ -2,6 +2,10 @@
 
 > **ARES-Swarm**: Resilient Autonomous Multi-UAV Coordination Framework for Disaster Response Operations.
 
+> [!IMPORTANT]
+> **Project Status: Archived / Completed (UAV-X Stage 1)**  
+> AetherSwarm is an archived/completed UAV-X Stage 1 project and is no longer under active development. This repository serves as a read-only historical project log of the submitted Stage 1 codebase.
+
 AetherSwarm is a deterministic, CPU-only Stage-1 simulation framework designed for autonomous multi-UAV coordination under strict physical constraints: radio frequency range cutoffs, UAV hardware failures, battery depletion, 20-minute sortie limits, emergency point-of-interest (POI) tasks, and continuous airspace safety boundaries.
 
 ---
